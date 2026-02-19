@@ -97,20 +97,80 @@ uv run black playchitect/ tests/
 uv run mypy playchitect/
 ```
 
-### Git Workflow
+## Feature Branching Policy
+
+**Rule: Never commit directly to `main`. Every change goes through a feature branch + PR + Gemini review.**
+
+### Branch Naming Convention
+
+| Type | Pattern | Example |
+|------|---------|---------|
+| Feature | `feature/<issue-number>-<slug>` | `feature/1-intensity-analyzer` |
+| Bug fix | `fix/<issue-number>-<slug>` | `fix/7-rms-overflow` |
+| Docs | `docs/<slug>` | `docs/update-readme` |
+| Chore | `chore/<slug>` | `chore/bump-librosa` |
+
+### Claude's Git Workflow
+
 ```bash
-# Create feature branch
-git checkout -b feature/intensity-analysis
+# 1. Start from main
+git checkout main && git pull
 
-# Make changes, run tests
-uv run pytest -v
+# 2. Create feature branch (use issue number)
+git checkout -b feature/1-intensity-analyzer
 
-# Commit (pre-commit hooks run automatically)
-git commit -m "feat(analysis): implement librosa intensity analyzer"
+# 3. Implement with TDD — write tests first
+uv run pytest -v  # watch them fail, then pass
 
-# Push
-git push -u origin feature/intensity-analysis
+# 4. Commit (pre-commit hooks run automatically)
+git commit -m "feat(analysis): implement librosa intensity analyzer
+
+- RMS energy with frame-level normalization
+- RMS-weighted spectral centroid (brightness)
+- 3-way bass split: sub-bass / kick / harmonics
+- HPSS percussiveness ratio
+- JSON caching with MD5 hash validation
+
+Closes #1"
+
+# 5. Push and open PR
+git push -u origin feature/1-intensity-analyzer
+gh pr create --title "feat(analysis): implement librosa intensity analyzer" \
+  --body "Closes #1" --assignee james-westwood
 ```
+
+### PR Checklist (Claude must verify before raising PR)
+
+- [ ] All tests pass: `uv run pytest -v`
+- [ ] Coverage >85% on modified modules
+- [ ] Pre-commit hooks pass: `uv run pre-commit run --all-files`
+- [ ] Type hints complete and mypy clean
+- [ ] No magic numbers — use named constants
+- [ ] No direct commits to `main`
+
+### Gemini Review Workflow
+
+After Claude opens a PR, **James must run the Gemini reviewer**:
+
+```bash
+# From repo root, on the feature branch (or just run after gh pr checkout <num>):
+./scripts/review_pr.sh
+
+# Or to compare against a different base:
+./scripts/review_pr.sh develop
+```
+
+Gemini will output either:
+- **APPROVE** → James merges the PR via `gh pr merge --squash`
+- **REQUEST CHANGES** → Claude reads the feedback, fixes blocking issues, pushes to the same branch, and asks James to run the review again
+
+**Gemini's instructions live in `GEMINI.md`** at the repo root. Do not modify GEMINI.md without discussing with James first.
+
+### Merge Strategy
+
+- **Squash merge** to keep `main` history clean
+- PR title becomes the squash commit message (must follow conventional commits)
+- Delete the feature branch after merge
 
 ## Milestone Status
 
