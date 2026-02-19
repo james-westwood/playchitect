@@ -503,6 +503,12 @@ class PlaylistClusterer:
             mask = labels == cid
             cluster_tracks = [tracks[i] for i in np.where(mask)[0]]
 
+            # Skip empty clusters — can occur when K-means K exceeds the number
+            # of distinct data points (e.g. few unique BPM values).
+            if not cluster_tracks:
+                logger.debug("Skipping empty cluster %d", cid)
+                continue
+
             cluster_bpms: list[float] = [
                 b for t in cluster_tracks if (b := metadata_dict[t].bpm) is not None
             ]
