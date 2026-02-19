@@ -227,33 +227,40 @@ Use issue templates:
 
 ## Pull Requests
 
+### Branch Naming
+
+| Type | Pattern | Example |
+|------|---------|---------|
+| Feature | `feature/<issue-number>-<slug>` | `feature/1-intensity-analyzer` |
+| Bug fix | `fix/<issue-number>-<slug>` | `fix/7-rms-overflow` |
+| Docs | `docs/<slug>` | `docs/update-readme` |
+
+**Never commit directly to `main`.**
+
 ### Before Submitting
 
-- [ ] All tests pass (`pytest -v`)
-- [ ] Pre-commit hooks pass (`pre-commit run --all-files`)
-- [ ] Code coverage >85% for new code
-- [ ] Documentation updated
-- [ ] CHANGELOG updated (if applicable)
+- [ ] All tests pass (`uv run pytest -v`)
+- [ ] Pre-commit hooks pass (`uv run pre-commit run --all-files`)
+- [ ] Code coverage >85% for modified modules
+- [ ] Type hints complete, mypy clean
+- [ ] No magic numbers — use named constants
 
-### PR Template
+### Code Review (Gemini)
 
-```markdown
-## Description
-Brief description of changes
+This project uses **Gemini** as the automated code reviewer. After a PR is opened:
 
-## Related Issues
-Closes #123
-
-## Changes Made
-- List of changes
-- ...
-
-## Testing
-How changes were tested
-
-## Screenshots (if applicable)
-For GUI changes
+```bash
+# Run from the repo root while on the feature branch:
+./scripts/review_pr.sh
 ```
+
+Gemini will return either **APPROVE** or **REQUEST CHANGES** with specific line-level feedback. Blocking issues must be resolved before merging. Review instructions are in `GEMINI.md`.
+
+### Merge
+
+- Squash merge only (`gh pr merge --squash`)
+- Delete the feature branch after merge
+- PR title must follow conventional commits format
 
 ## Questions?
 

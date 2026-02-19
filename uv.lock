@@ -894,6 +894,7 @@ dev = [
     { name = "pre-commit" },
     { name = "pytest" },
     { name = "pytest-cov" },
+    { name = "soundfile" },
 ]
 gui = [
     { name = "pygobject" },
@@ -915,6 +916,7 @@ requires-dist = [
     { name = "pyyaml", specifier = ">=6.0" },
     { name = "scikit-learn", specifier = ">=1.3.0" },
     { name = "scipy", specifier = ">=1.11.0" },
+    { name = "soundfile", marker = "extra == 'dev'", specifier = ">=0.12.0" },
 ]
 provides-extras = ["gui", "dev"]
 
