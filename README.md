@@ -1,5 +1,13 @@
 # Playchitect
 
+[![Build Status](https://img.shields.io/badge/Build-WIP-lightgrey.svg)](https://github.com/james-westwood/playchitect/actions)
+[![Coverage](https://img.shields.io/badge/Coverage-85%25%2B-brightgreen.svg)](https://codecov.io/gh/james-westwood/playchitect)
+[![License: GPL v3](https://img.shields.io/badge/License-GPLv3-blue.svg)](https://www.gnu.org/licenses/gpl-3.0)
+[![Python 3.11+](https://img.shields.io/badge/Python-3.11%2B-blue.svg)](https://www.python.org/)
+[![Package Manager: uv](https://img.shields.io/badge/Package%20Manager-uv-orange.svg)](https://github.com/astral-sh/uv)
+[![Code Style: Black](https://img.shields.io/badge/Code%20Style-Black-black.svg)](https://github.com/psf/black)
+[![Type Checking: Mypy](https://img.shields.io/badge/Type%20Checking-Mypy-blue.svg)](https://mypy-lang.org/)
+
 **Smart DJ Playlist Manager with Intelligent BPM Clustering**
 
 Playchitect transforms DJ playlist creation from rigid BPM-based grouping to intelligent multi-dimensional clustering. Using K-means analysis of BPM, spectral brightness, energy, and percussiveness, it creates coherent playlists that feel right—not just mathematically similar.
