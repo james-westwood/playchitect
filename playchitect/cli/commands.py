@@ -5,68 +5,67 @@ CLI commands for Playchitect.
 import sys
 import logging
 from pathlib import Path
-from typing import Optional
+from typing import Optional, Dict
 
 import click
 
 from playchitect.core.audio_scanner import AudioScanner
 from playchitect.core.metadata_extractor import MetadataExtractor
+from playchitect.core.clustering import PlaylistClusterer
+from playchitect.core.export import M3UExporter
 
 # Configure logging
 logging.basicConfig(
-    level=logging.INFO,
-    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s'
+    level=logging.INFO, format="%(asctime)s - %(name)s - %(levelname)s - %(message)s"
 )
 logger = logging.getLogger(__name__)
 
 
 @click.group()
-@click.version_option(version='0.1.0')
-def cli():
+@click.version_option(version="0.1.0")
+def cli() -> None:
     """Playchitect - Smart DJ Playlist Manager with Intelligent BPM Clustering."""
     pass
 
 
 @cli.command()
-@click.argument('music_path', type=click.Path(exists=True, path_type=Path))
+@click.argument("music_path", type=click.Path(exists=True, path_type=Path))
 @click.option(
-    '--output',
-    '-o',
+    "--output",
+    "-o",
     type=click.Path(path_type=Path),
-    help='Output directory for playlists (default: same as music_path)'
+    help="Output directory for playlists (default: same as music_path)",
 )
+@click.option("--target-tracks", "-t", type=int, help="Target number of tracks per playlist")
+@click.option("--target-duration", "-d", type=int, help="Target duration per playlist in minutes")
 @click.option(
-    '--target-length',
-    '-t',
-    type=int,
-    default=25,
-    help='Target number of tracks per playlist (default: 25)'
-)
-@click.option(
-    '--clusters',
-    '-c',
-    type=int,
-    help='Number of clusters (default: auto-determine using elbow method)'
-)
-@click.option(
-    '--playlist-name',
-    '-n',
+    "--playlist-name",
+    "-n",
     type=str,
-    default='Playlist',
-    help='Base name for playlists (default: Playlist)'
+    default="Playlist",
+    help="Base name for playlists (default: Playlist)",
 )
 def scan(
     music_path: Path,
     output: Optional[Path],
-    target_length: int,
-    clusters: Optional[int],
-    playlist_name: str
-):
+    target_tracks: Optional[int],
+    target_duration: Optional[int],
+    playlist_name: str,
+) -> None:
     """
     Scan music directory and create intelligent playlists.
 
     MUSIC_PATH: Directory containing audio files to analyze
+
+    Specify either --target-tracks or --target-duration to control playlist size.
     """
+    # Validate target parameters
+    if target_tracks is None and target_duration is None:
+        target_tracks = 25  # Default to 25 tracks
+    elif target_tracks and target_duration:
+        click.echo("Error: Specify either --target-tracks or --target-duration, not both", err=True)
+        sys.exit(1)
+
     click.echo(f"Scanning directory: {music_path}")
 
     # Set output directory
@@ -91,11 +90,7 @@ def scan(
     click.echo("\nExtracting metadata...")
     extractor = MetadataExtractor()
 
-    with click.progressbar(
-        audio_files,
-        label='Processing files',
-        show_pos=True
-    ) as files:
+    with click.progressbar(audio_files, label="Processing files", show_pos=True) as files:
         metadata_dict = {}
         for file_path in files:
             metadata = extractor.extract(file_path)
@@ -105,23 +100,53 @@ def scan(
     tracks_with_bpm = sum(1 for m in metadata_dict.values() if m.bpm is not None)
     click.echo(f"Extracted BPM from {tracks_with_bpm}/{len(audio_files)} tracks")
 
-    # TODO: Implement clustering and playlist generation in Milestone 2
-    click.echo("\n⚠️  Clustering and playlist generation not yet implemented")
-    click.echo("This will be added in Milestone 2 (Intelligent Analysis Engine)")
+    if tracks_with_bpm == 0:
+        click.echo("Error: No tracks with BPM metadata found", err=True)
+        sys.exit(1)
 
-    click.echo(f"\nOutput directory: {output_dir}")
+    # Perform clustering
+    click.echo("\nClustering tracks by BPM...")
+    clusterer = PlaylistClusterer(
+        target_tracks_per_playlist=target_tracks, target_duration_per_playlist=target_duration
+    )
+
+    clusters = clusterer.cluster_by_bpm(metadata_dict)
+
+    if not clusters:
+        click.echo("Error: Clustering failed", err=True)
+        sys.exit(1)
+
+    click.echo(f"\nCreated {len(clusters)} clusters:")
+    for i, cluster in enumerate(clusters):
+        duration_min = cluster.total_duration / 60 if cluster.total_duration else 0
+        click.echo(
+            f"  Cluster {i + 1}: {cluster.track_count} tracks, "
+            f"BPM: {cluster.bpm_mean:.1f} ± {cluster.bpm_std:.1f}, "
+            f"Duration: {duration_min:.1f} min"
+        )
+
+    # Export playlists
+    click.echo(f"\nExporting playlists to {output_dir}...")
+    exporter = M3UExporter(output_dir, playlist_prefix=playlist_name)
+    playlist_paths = exporter.export_clusters(clusters)
+
+    click.echo(f"\n✓ Successfully created {len(playlist_paths)} playlists:")
+    for path in playlist_paths:
+        click.echo(f"  {path.name}")
+
+    click.echo(f"\nPlaylists saved to: {output_dir}")
 
 
 @cli.command()
-@click.argument('music_path', type=click.Path(exists=True, path_type=Path))
+@click.argument("music_path", type=click.Path(exists=True, path_type=Path))
 @click.option(
-    '--format',
-    '-f',
-    type=click.Choice(['text', 'json']),
-    default='text',
-    help='Output format (default: text)'
+    "--format",
+    "-f",
+    type=click.Choice(["text", "json"]),
+    default="text",
+    help="Output format (default: text)",
 )
-def info(music_path: Path, format: str):
+def info(music_path: Path, format: str) -> None:
     """
     Display information about music directory.
 
@@ -135,12 +160,13 @@ def info(music_path: Path, format: str):
         click.echo(f"Error: {e}", err=True)
         sys.exit(1)
 
-    if format == 'json':
+    if format == "json":
         import json
+
         data = {
-            'path': str(music_path),
-            'total_files': len(audio_files),
-            'files': [str(f) for f in audio_files]
+            "path": str(music_path),
+            "total_files": len(audio_files),
+            "files": [str(f) for f in audio_files],
         }
         click.echo(json.dumps(data, indent=2))
     else:
@@ -148,7 +174,7 @@ def info(music_path: Path, format: str):
         click.echo(f"Total audio files: {len(audio_files)}")
 
         # Group by extension
-        extensions = {}
+        extensions: Dict[str, int] = {}
         for file in audio_files:
             ext = file.suffix.lower()
             extensions[ext] = extensions.get(ext, 0) + 1
@@ -158,10 +184,10 @@ def info(music_path: Path, format: str):
             click.echo(f"  {ext}: {count}")
 
 
-def main():
+def main() -> None:
     """Entry point for CLI."""
     cli()
 
 
-if __name__ == '__main__':
+if __name__ == "__main__":
     main()
