@@ -2,8 +2,9 @@
 # review_pr.sh — Run Gemini code review on the current feature branch.
 #
 # Usage:
-#   ./scripts/review_pr.sh              # Compare current branch → main
-#   ./scripts/review_pr.sh develop      # Compare current branch → develop
+#   ./scripts/review_pr.sh                        # Compare current branch → main
+#   ./scripts/review_pr.sh develop                # Compare current branch → develop
+#   ./scripts/review_pr.sh main gemini-2.0-flash  # Use a specific model
 #
 # Gemini must be installed: npm install -g @google/gemini-cli
 # gh CLI must be installed and authenticated for GitHub commenting.
@@ -12,6 +13,7 @@
 set -euo pipefail
 
 BASE="${1:-main}"
+MODEL="${2:-gemini-2.0-flash}"
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 REPO_ROOT="$(git -C "$SCRIPT_DIR" rev-parse --show-toplevel)"
 GEMINI_INSTRUCTIONS="$REPO_ROOT/GEMINI.md"
@@ -74,6 +76,7 @@ printf  "║  Branch : %-46s ║\n" "$BRANCH → $BASE"
 if [ "$POST_TO_GITHUB" = true ]; then
 printf  "║  PR     : %-46s ║\n" "#$PR_NUMBER"
 fi
+printf  "║  Model  : %-46s ║\n" "$MODEL"
 echo "╚══════════════════════════════════════════════════════════╝"
 echo ""
 echo "Changed files:"
@@ -100,7 +103,7 @@ REVIEW_OUTPUT=$(
         echo ""
         echo "## Git Diff"
         echo "$PR_DIFF"
-    } | gemini --prompt "$(cat "$GEMINI_INSTRUCTIONS")"
+    } | gemini --model "$MODEL" --prompt "$(cat "$GEMINI_INSTRUCTIONS")"
 )
 
 # Print review to terminal
