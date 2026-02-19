@@ -7,21 +7,19 @@ on:
 
 jobs:
   # ── Job 1: Lint + type-check + unit + smoke ─────────────────────────────────
-  # Runs on every push and every PR, against Python 3.11 and 3.12.
+  # Runs on every push and every PR.
+  # GTK4/PyGObject is a system-level dependency on Fedora and is not tested
+  # in CI; GUI functionality is covered by local smoke tests only.
   lint-and-test:
-    name: Lint & Test (Python ${{ matrix.python-version }})
+    name: Lint & Test (Python 3.13)
     runs-on: ubuntu-latest
-    strategy:
-      fail-fast: false
-      matrix:
-        python-version: ["3.11", "3.12"]
 
     steps:
       - uses: actions/checkout@v4
 
       - uses: astral-sh/setup-uv@v5
         with:
-          python-version: ${{ matrix.python-version }}
+          python-version: "3.13"
 
       - name: Install dependencies
         run: uv sync --extra dev
@@ -55,7 +53,7 @@ jobs:
 
       - uses: astral-sh/setup-uv@v5
         with:
-          python-version: "3.11"
+          python-version: "3.13"
 
       - name: Install dependencies
         run: uv sync --extra dev

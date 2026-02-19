@@ -18,49 +18,75 @@ Playchitect transforms DJ playlist creation from rigid BPM-based grouping to int
 
 ## Key Features
 
-- **Intelligent Clustering**: K-means analysis on BPM + 4 audio intensity features (spectral centroid, high-frequency energy, RMS, percussiveness)
+- **Intelligent Clustering**: K-means analysis on BPM + 7 audio intensity features
 - **Smart Track Selection**: Recommends ideal first tracks (long intros, ambient) and closers (high energy or smooth outros)
 - **Audio Intensity Analysis**: Librosa-powered spectral analysis for track "hardness" scoring
 - **Adaptive Playlist Splitting**: Automatically divides clusters to meet target playlist lengths
-- **Native GNOME GUI**: GTK4 + libadwaita interface with GNOME Sushi preview integration
-- **Flexible Export**: M3U and CUE sheet generation
+- **Native GNOME GUI**: GTK4 + libadwaita interface (in development)
+- **Flexible Export**: M3U playlist generation
+
+## Requirements
+
+- **Python**: 3.13+
+- **GTK4 GUI** (optional): requires system-level `python3-gobject` — cannot be pip-installed
 
 ## Installation
 
-### Flatpak (Recommended)
+### Flatpak (Recommended for end users)
 ```bash
 flatpak install flathub com.github.jameswestwood.Playchitect
 ```
 
-### PyPI
+### From source (development)
+
 ```bash
-pip install playchitect
+git clone https://github.com/james-westwood/playchitect
+cd playchitect
 
-# CLI usage
-playchitect scan ~/Music --output ~/Playlists --target-length 25
+# CLI only
+uv venv --python /usr/bin/python3 --system-site-packages
+uv pip install -e ".[dev]"
+uv run playchitect --help
 
-# GUI usage
-playchitect-gui
+# GUI — requires python3-gobject from the OS package manager first:
+#   Fedora:  sudo dnf install python3-gobject gtk4
+#   Ubuntu:  sudo apt install python3-gi python3-gi-cairo gir1.2-gtk-4.0
+# The venv must use --system-site-packages (already set above)
+uv run playchitect-gui
 ```
+
+> **Why system-site-packages?** PyGObject links against system GTK4 libraries and is
+> distributed as an OS package (`python3-gobject`). It cannot be built from PyPI without
+> Cairo development headers. Using `--system-site-packages` lets the venv find it without
+> needing to compile anything. The Flatpak release bundles everything and avoids this entirely.
 
 ## Quick Start
 
 ### CLI
 ```bash
-# Analyze music directory and create intelligent playlists
-playchitect scan ~/Music/Techno --output ~/Playlists/Techno --target-length 25
+# Scan a music directory and create playlists of ~25 tracks each
+playchitect scan ~/Music/Techno --output ~/Playlists --target-tracks 25
 
-# Use custom cluster count
-playchitect scan ~/Music/House --clusters 8 --target-length 20
+# Target playlist duration instead of track count
+playchitect scan ~/Music/House --output ~/Playlists --target-duration 90
+
+# Preview what would be created without writing files
+playchitect scan ~/Music --dry-run --target-tracks 20
+
+# Show information about a music directory
+playchitect info ~/Music
+playchitect info ~/Music --format json
 ```
 
 ### GUI
-Launch the GUI with `playchitect-gui`:
-1. File → Open Folder → Select music directory
-2. Wait for analysis (BPM extraction + intensity analysis)
-3. View clusters in the cluster panel
-4. Select tracks, preview with spacebar (GNOME Sushi)
-5. Export → M3U or CUE sheets
+```bash
+uv run playchitect-gui
+```
+
+1. Open Folder → select music directory
+2. Wait for analysis (BPM extraction)
+3. View generated clusters
+4. Export → M3U playlists
 
 ## How It Works
 
@@ -72,8 +98,9 @@ Problem: A 125 BPM ambient intro sounds nothing like a 125 BPM hard techno track
 
 ### Intelligent Clustering (Playchitect)
 ```
-K-means on 5D feature space:
-[normalized_bpm, spectral_brightness, high_freq_energy, rms_energy, percussiveness]
+K-means on 8D feature space:
+[bpm, spectral_centroid, hf_energy, rms_energy, percussiveness,
+ sub_bass_energy, kick_energy, bass_harmonics]
 
 Result: Tracks grouped by both tempo AND intensity/character
 ```
@@ -169,10 +196,11 @@ See [ROADMAP.md](docs/ROADMAP.md) for detailed milestones.
 
 ## Technology Stack
 
+- **Python**: 3.13+
 - **Audio Analysis**: librosa, mutagen
 - **Clustering**: scikit-learn (K-means)
-- **GUI**: GTK4, libadwaita, PyGObject
-- **Testing**: pytest, pytest-gtk
+- **GUI**: GTK4, libadwaita, PyGObject (system package)
+- **Testing**: pytest, ruff, ty
 - **Packaging**: Flatpak, PyPI
 
 ## Contributing
