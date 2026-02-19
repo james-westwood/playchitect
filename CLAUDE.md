@@ -269,6 +269,7 @@ Playchitect originated from `/home/james/audio-management/scripts/create_random_
 - **Pre-commit**: Always run before commits (installed via `uv run pre-commit install`)
 - **Tests**: Must pass before merging to main
 - **Coverage Target**: >85% for core modules
+- **No AI attribution**: Never mention Claude, AI, or any AI tool in commit messages, PR titles, PR bodies, issue comments, or any other Git/GitHub content. Write all such content as the developer.
 
 ## Related Documentation
 
