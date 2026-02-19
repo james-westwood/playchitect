@@ -6,6 +6,7 @@
 #   ./scripts/review_pr.sh develop      # Compare current branch → develop
 #
 # Gemini must be installed: npm install -g @google/gemini-cli
+# gh CLI must be installed and authenticated for GitHub commenting.
 # Review instructions live in GEMINI.md at the repo root.
 
 set -euo pipefail
@@ -22,6 +23,11 @@ if ! command -v gemini &>/dev/null; then
     exit 1
 fi
 
+if ! command -v gh &>/dev/null; then
+    echo "ERROR: gh CLI not found. Install from https://cli.github.com"
+    exit 1
+fi
+
 if [ ! -f "$GEMINI_INSTRUCTIONS" ]; then
     echo "ERROR: GEMINI.md not found at $GEMINI_INSTRUCTIONS"
     exit 1
@@ -32,6 +38,18 @@ BRANCH=$(git -C "$REPO_ROOT" rev-parse --abbrev-ref HEAD)
 if [ "$BRANCH" = "$BASE" ]; then
     echo "ERROR: You are on '$BASE'. Switch to a feature branch before reviewing."
     exit 1
+fi
+
+# ── Find open PR for this branch ───────────────────────────────────────────────
+
+PR_NUMBER=$(gh pr list --head "$BRANCH" --json number --jq '.[0].number' 2>/dev/null || true)
+
+if [ -z "$PR_NUMBER" ] || [ "$PR_NUMBER" = "null" ]; then
+    echo "WARNING: No open PR found for branch '$BRANCH'. Review will print locally only."
+    POST_TO_GITHUB=false
+else
+    POST_TO_GITHUB=true
+    echo "Found PR #$PR_NUMBER for branch '$BRANCH'."
 fi
 
 # ── Gather PR context ──────────────────────────────────────────────────────────
@@ -53,6 +71,9 @@ echo "╔═══════════════════════�
 echo "║         Gemini PR Review — Playchitect                   ║"
 echo "╠══════════════════════════════════════════════════════════╣"
 printf  "║  Branch : %-46s ║\n" "$BRANCH → $BASE"
+if [ "$POST_TO_GITHUB" = true ]; then
+printf  "║  PR     : %-46s ║\n" "#$PR_NUMBER"
+fi
 echo "╚══════════════════════════════════════════════════════════╝"
 echo ""
 echo "Changed files:"
@@ -65,18 +86,36 @@ echo "Sending diff to Gemini for review..."
 echo "────────────────────────────────────────────────────────────"
 echo ""
 
-# ── Invoke Gemini ──────────────────────────────────────────────────────────────
-# Pipe the diff as stdin; GEMINI.md content becomes the -p prompt.
+# ── Invoke Gemini and capture output ───────────────────────────────────────────
 
-{
-    echo "Branch under review: $BRANCH (target: $BASE)"
-    echo ""
-    echo "## Commits"
-    echo "$COMMIT_LOG"
-    echo ""
-    echo "## Changed Files"
-    echo "$CHANGED_FILES"
-    echo ""
-    echo "## Git Diff"
-    echo "$PR_DIFF"
-} | gemini --prompt "$(cat "$GEMINI_INSTRUCTIONS")"
+REVIEW_OUTPUT=$(
+    {
+        echo "Branch under review: $BRANCH (target: $BASE)"
+        echo ""
+        echo "## Commits"
+        echo "$COMMIT_LOG"
+        echo ""
+        echo "## Changed Files"
+        echo "$CHANGED_FILES"
+        echo ""
+        echo "## Git Diff"
+        echo "$PR_DIFF"
+    } | gemini --prompt "$(cat "$GEMINI_INSTRUCTIONS")"
+)
+
+# Print review to terminal
+echo "$REVIEW_OUTPUT"
+echo ""
+
+# ── Post review as GitHub PR comment ───────────────────────────────────────────
+
+if [ "$POST_TO_GITHUB" = true ]; then
+    echo "────────────────────────────────────────────────────────────"
+    echo "Posting review to PR #$PR_NUMBER on GitHub..."
+
+    COMMENT_BODY="$(printf '### Gemini Code Review\n\n%s' "$REVIEW_OUTPUT")"
+
+    gh pr comment "$PR_NUMBER" --body "$COMMENT_BODY"
+
+    echo "Review posted: $(gh pr view "$PR_NUMBER" --json url --jq '.url')"
+fi
