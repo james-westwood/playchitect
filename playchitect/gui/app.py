@@ -1,24 +1,26 @@
-"""
-GTK4 GUI application for Playchitect.
+import gi  # type: ignore[import-untyped,unresolved-import]
+from gi.repository import Adw  # type: ignore[import-untyped,unresolved-import]
 
-This will be implemented in Milestone 3.
-"""
+gi.require_version("Adw", "1")
+gi.require_version("Gtk", "4.0")
 
-import sys
+from playchitect.gui.windows.main_window import PlaychitectWindow  # noqa: E402
+
+
+class PlaychitectApplication(Adw.Application):
+    def __init__(self, **kwargs):
+        super().__init__(application_id="com.github.jameswestwood.Playchitect", **kwargs)
+        self.connect("activate", self.on_activate)
+
+    def on_activate(self, app):
+        self.window = PlaychitectWindow(application=app)
+        self.window.present()
 
 
 def main():
-    """Entry point for GUI application."""
-    print("Playchitect GUI")
-    print("=" * 50)
-    print("\n⚠️  GUI not yet implemented")
-    print("\nThe GTK4 + libadwaita GUI will be developed in Milestone 3.")
-    print("For now, please use the CLI interface:")
-    print("\n  playchitect scan /path/to/music --output /path/to/playlists")
-    print("\nRun 'playchitect --help' for more information.")
-    print()
-    return 0
+    app = PlaychitectApplication()
+    return app.run([])
 
 
 if __name__ == "__main__":
-    sys.exit(main())
+    main()
