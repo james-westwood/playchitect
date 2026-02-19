@@ -11,6 +11,7 @@ from dataclasses import dataclass
 
 try:
     from mutagen import File as MutagenFile
+
     MUTAGEN_AVAILABLE = True
 except ImportError:
     MUTAGEN_AVAILABLE = False
@@ -34,14 +35,14 @@ class TrackMetadata:
     def to_dict(self) -> Dict[str, Any]:
         """Convert metadata to dictionary."""
         return {
-            'filepath': str(self.filepath),
-            'bpm': self.bpm,
-            'artist': self.artist,
-            'title': self.title,
-            'album': self.album,
-            'duration': self.duration,
-            'year': self.year,
-            'genre': self.genre,
+            "filepath": str(self.filepath),
+            "bpm": self.bpm,
+            "artist": self.artist,
+            "title": self.title,
+            "album": self.album,
+            "duration": self.duration,
+            "year": self.year,
+            "genre": self.genre,
         }
 
 
@@ -50,13 +51,13 @@ class MetadataExtractor:
 
     # Common BPM tag names across different formats
     BPM_TAGS = [
-        'BPM',
-        'bpm',
-        'TBPM',  # ID3 BPM tag
-        'tempo',
-        'TEMPO',
-        'tmpo',  # iTunes BPM tag
-        'fBPM',  # Some MP3 tag formats
+        "BPM",
+        "bpm",
+        "TBPM",  # ID3 BPM tag
+        "tempo",
+        "TEMPO",
+        "tmpo",  # iTunes BPM tag
+        "fBPM",  # Some MP3 tag formats
     ]
 
     def __init__(self, cache_enabled: bool = True):
@@ -98,32 +99,31 @@ class MetadataExtractor:
 
             if audio is None:
                 logger.warning(f"Failed to read audio file: {filepath}")
-                return metadata
+            else:
+                # Extract BPM
+                metadata.bpm = self._extract_bpm(audio)
 
-            # Extract BPM
-            metadata.bpm = self._extract_bpm(audio)
+                # Extract basic metadata
+                metadata.artist = self._extract_text_tag(audio, ["artist", "TPE1", "\xa9ART"])
+                metadata.title = self._extract_text_tag(audio, ["title", "TIT2", "\xa9nam"])
+                metadata.album = self._extract_text_tag(audio, ["album", "TALB", "\xa9alb"])
+                metadata.genre = self._extract_text_tag(audio, ["genre", "TCON", "\xa9gen"])
 
-            # Extract basic metadata
-            metadata.artist = self._extract_text_tag(audio, ['artist', 'TPE1', '\xa9ART'])
-            metadata.title = self._extract_text_tag(audio, ['title', 'TIT2', '\xa9nam'])
-            metadata.album = self._extract_text_tag(audio, ['album', 'TALB', '\xa9alb'])
-            metadata.genre = self._extract_text_tag(audio, ['genre', 'TCON', '\xa9gen'])
+                # Extract year
+                year_str = self._extract_text_tag(audio, ["date", "year", "TDRC", "\xa9day"])
+                if year_str:
+                    metadata.year = self._parse_year(year_str)
 
-            # Extract year
-            year_str = self._extract_text_tag(audio, ['date', 'year', 'TDRC', '\xa9day'])
-            if year_str:
-                metadata.year = self._parse_year(year_str)
-
-            # Extract duration
-            if hasattr(audio, 'info') and hasattr(audio.info, 'length'):
-                metadata.duration = float(audio.info.length)
-
-            # Cache the result
-            if self.cache_enabled:
-                self._cache[filepath] = metadata
+                # Extract duration
+                if hasattr(audio, "info") and hasattr(audio.info, "length"):
+                    metadata.duration = float(audio.info.length)
 
         except Exception as e:
             logger.error(f"Error extracting metadata from {filepath}: {e}")
+
+        # Cache the result (even if extraction failed)
+        if self.cache_enabled:
+            self._cache[filepath] = metadata
 
         return metadata
 
@@ -155,7 +155,7 @@ class MetadataExtractor:
 
         return None
 
-    def _extract_text_tag(self, audio: Any, tag_names: list) -> Optional[str]:
+    def _extract_text_tag(self, audio: Any, tag_names: list[str]) -> Optional[str]:
         """
         Extract text metadata from various tag formats.
 
