@@ -35,6 +35,9 @@ dependencies = [
 ]
 
 [project.optional-dependencies]
+embeddings = [
+    "essentia-tensorflow",
+]
 gui = [
     "PyGObject>=3.42.0",
 ]

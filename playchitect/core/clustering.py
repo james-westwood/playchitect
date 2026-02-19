@@ -11,9 +11,11 @@ import logging
 import random
 from dataclasses import dataclass, field
 from pathlib import Path
+from typing import Any
 
 import numpy as np
 from sklearn.cluster import KMeans
+from sklearn.decomposition import PCA
 from sklearn.preprocessing import StandardScaler
 
 from playchitect.core.intensity_analyzer import IntensityFeatures
@@ -29,6 +31,11 @@ logger = logging.getLogger(__name__)
 
 # Minimum tracks to activate EWKM per-cluster weight refinement.
 _MIN_TRACKS_EWKM = 80
+
+# Block PCA constants for optional MusiCNN embedding integration.
+_EMBEDDING_PCA_COMPONENTS: int = 12
+_INTENSITY_BLOCK_WEIGHT: float = 0.70
+_SEMANTIC_BLOCK_WEIGHT: float = 0.30
 
 # Re-export FEATURE_NAMES so existing callers of
 # `from playchitect.core.clustering import FEATURE_NAMES` continue to work.
@@ -50,6 +57,9 @@ class ClusterResult:
     feature_means: dict[str, float] | None = field(default=None)
     feature_importance: dict[str, float] | None = field(default=None)
     weight_source: str | None = field(default=None)  # "pca", "heuristic", or "uniform"
+
+    # Populated when embedding_dict is supplied; None otherwise.
+    embedding_variance_explained: float | None = field(default=None)
 
 
 class PlaylistClusterer:
@@ -137,33 +147,42 @@ class PlaylistClusterer:
         self,
         metadata_dict: dict[Path, TrackMetadata],
         intensity_dict: dict[Path, IntensityFeatures],
+        embedding_dict: dict[Path, Any] | None = None,
         genre: str | None = None,
         use_ewkm: bool = True,
     ) -> list[ClusterResult]:
         """
         Cluster tracks using BPM + 7 intensity features (8-dimensional).
 
-        Feature weights are selected adaptively:
+        When embedding_dict is supplied the space expands to 20 dimensions via
+        Block PCA: the 8D intensity block (×0.70) is stacked with 12 PCA
+        components extracted from the 128-dim MusiCNN embeddings (×0.30).
+
+        Feature weights for the intensity block are selected adaptively:
           - PCA communality weights when ≥40 tracks (bootstrap-validated)
           - Heuristic genre weights when genre is specified
           - Uniform weights (1/8 each) as fallback
 
-        EWKM per-cluster weight refinement is applied when ≥80 tracks and
-        use_ewkm=True, giving each cluster its own feature emphasis.
+        EWKM per-cluster weight refinement is applied when ≥80 tracks,
+        use_ewkm=True, AND no embedding_dict is supplied (EWKM operates in
+        the 8D intensity space only).
 
         Only tracks present in both dicts with valid BPM are clustered.
-        Tracks missing from intensity_dict are skipped and logged.
+        Tracks missing from intensity_dict or (when embedding_dict is given)
+        from embedding_dict are skipped and logged.
 
         Args:
-            metadata_dict: Mapping of file path → TrackMetadata
+            metadata_dict:  Mapping of file path → TrackMetadata
             intensity_dict: Mapping of file path → IntensityFeatures
-            genre: Optional genre hint for heuristic weights
-                   ('techno', 'house', 'ambient', 'dnb')
-            use_ewkm: Apply EWKM per-cluster weight refinement (requires ≥80 tracks)
+            embedding_dict: Optional mapping of file path → EmbeddingFeatures.
+                            When supplied, Block PCA (70/30) is used.
+            genre:          Optional genre hint ('techno', 'house', 'ambient', 'dnb')
+            use_ewkm:       Apply EWKM per-cluster weight refinement (8D mode only)
 
         Returns:
             List of ClusterResult objects sorted by BPM mean, each with
             feature_means, feature_importance, and weight_source populated.
+            embedding_variance_explained is set when embedding_dict is used.
         """
         # Intersect: only tracks with both metadata and intensity features
         common = set(metadata_dict.keys()) & set(intensity_dict.keys())
@@ -191,29 +210,65 @@ class PlaylistClusterer:
 
         features_normalized = self.scaler.fit_transform(features)
 
-        # Select feature weights
-        profile: WeightProfile = select_weights(
-            features_normalized, genre=genre, random_state=self.random_state
-        )
+        embedding_pca_variance: float | None = None
 
-        # Apply weights as scaled Euclidean distance: X_w = X * sqrt(w)
-        w_sqrt = np.sqrt(profile.weights)
-        features_weighted = features_normalized * w_sqrt[np.newaxis, :]
+        if embedding_dict is not None:
+            # Further filter to tracks that also have embeddings
+            valid_paths = [p for p in valid_paths if p in embedding_dict]
+            if not valid_paths:
+                logger.error("No tracks with embeddings found; cannot use embedding_dict")
+                return []
+
+            # Rebuild feature matrix for the embedding-filtered subset of paths
+            bpm_col_f = np.array([[metadata_dict[p].bpm] for p in valid_paths])
+            intensity_matrix_f = np.array(
+                [intensity_dict[p].to_feature_vector() for p in valid_paths]
+            )
+            features = np.hstack([bpm_col_f, intensity_matrix_f])  # (N', 8)
+            features_normalized = self.scaler.fit_transform(features)
+
+            # PCA-compress 128-dim embeddings → 12 semantic components
+            emb_matrix = np.array([embedding_dict[p].embedding for p in valid_paths])  # (N', 128)
+            pca = PCA(n_components=_EMBEDDING_PCA_COMPONENTS, random_state=self.random_state)
+            emb_pca = pca.fit_transform(emb_matrix)  # (N', 12)
+            emb_scaler = StandardScaler()
+            emb_scaled = emb_scaler.fit_transform(emb_pca)  # (N', 12)
+
+            # Block-weighted concatenation: intensity 70% + semantic 30%
+            X_intensity = features_normalized * _INTENSITY_BLOCK_WEIGHT  # (N', 8)
+            X_semantic = emb_scaled * _SEMANTIC_BLOCK_WEIGHT  # (N', 12)
+            features_for_kmeans = np.hstack([X_intensity, X_semantic])  # (N', 20)
+
+            embedding_pca_variance = float(pca.explained_variance_ratio_.sum())
+            logger.info(
+                "Embedding PCA: %d components, %.1f%% variance explained",
+                _EMBEDDING_PCA_COMPONENTS,
+                embedding_pca_variance * 100,
+            )
+            weight_source = "block_pca"
+        else:
+            # Standard 8D path: per-feature adaptive weighting
+            profile: WeightProfile = select_weights(
+                features_normalized, genre=genre, random_state=self.random_state
+            )
+            w_sqrt = np.sqrt(profile.weights)
+            features_for_kmeans = features_normalized * w_sqrt[np.newaxis, :]
+            weight_source = profile.source
 
         valid_meta = {p: metadata_dict[p] for p in valid_paths}
-        optimal_k = self._determine_optimal_k(features_weighted, valid_meta, len(valid_paths))
-        logger.info(f"Using K={optimal_k} clusters (weight source: {profile.source})")
+        optimal_k = self._determine_optimal_k(features_for_kmeans, valid_meta, len(valid_paths))
+        logger.info(f"Using K={optimal_k} clusters (weight source: {weight_source})")
 
         kmeans = KMeans(n_clusters=optimal_k, random_state=self.random_state, n_init=10)
-        labels = kmeans.fit_predict(features_weighted)
+        labels = kmeans.fit_predict(features_for_kmeans)
 
         # Determine per-cluster feature importance
         per_cluster_importance: list[dict[str, float]] | None = None
 
-        # EWKM per-cluster weight refinement is applied when use_ewkm=True (default)
-        # and when ≥80 tracks are available.
-        if use_ewkm and len(valid_paths) >= _MIN_TRACKS_EWKM:
+        # EWKM applies only in the 8D intensity mode (not when embeddings are active)
+        if embedding_dict is None and use_ewkm and len(valid_paths) >= _MIN_TRACKS_EWKM:
             # EWKM operates in normalized (unweighted) space; de-weight centroids first
+            w_sqrt = np.sqrt(profile.weights)
             centroids_norm = kmeans.cluster_centers_ / w_sqrt[np.newaxis, :]
             labels, ewkm_weights = ewkm_refine(features_normalized, labels, centroids_norm)
             per_cluster_importance = [
@@ -222,8 +277,9 @@ class PlaylistClusterer:
             ]
             logger.info("EWKM per-cluster weights applied")
         else:
-            # Fall back to global centroid-variance importance
-            global_importance = self._compute_feature_importance(kmeans.cluster_centers_)
+            # Fall back to global centroid-variance importance (8D features only)
+            centres_8d = kmeans.cluster_centers_[:, : len(FEATURE_NAMES)]
+            global_importance = self._compute_feature_importance(centres_8d)
             per_cluster_importance = [global_importance] * optimal_k
 
         results = self._build_cluster_results(
@@ -233,9 +289,14 @@ class PlaylistClusterer:
             valid_meta,
             raw_features=features,
             per_cluster_importance=per_cluster_importance,
-            weight_source=profile.source,
+            weight_source=weight_source,
         )
         results.sort(key=lambda r: r.bpm_mean)
+
+        # Propagate PCA variance to all cluster results when embeddings were used
+        if embedding_pca_variance is not None:
+            for r in results:
+                r.embedding_variance_explained = embedding_pca_variance
 
         for r in results:
             if r.feature_importance:
