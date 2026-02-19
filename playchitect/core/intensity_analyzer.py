@@ -17,6 +17,20 @@ import librosa
 
 logger = logging.getLogger(__name__)
 
+# Normalization constants
+_RMS_NORM_FACTOR: float = 0.3  # Typical peak RMS for normalized audio
+_ONSET_NORM_FACTOR: float = 10.0  # Typical peak onset strength envelope mean
+
+# Frequency band limits (Hz) — optimized for techno/electronic music
+_FREQ_SUB_BASS_LOW: int = 20
+_FREQ_SUB_BASS_HIGH: int = 60  # sub-bass upper / kick lower boundary
+_FREQ_KICK_HIGH: int = 120  # kick upper / harmonics lower boundary
+_FREQ_BASS_HARMONICS_HIGH: int = 250
+
+# Energy gating threshold — frames below this RMS percentile are excluded from
+# brightness calculation to avoid silence skewing the spectral centroid.
+_ENERGY_GATE_PERCENTILE: int = 25
+
 
 @dataclass
 class IntensityFeatures:
@@ -47,15 +61,16 @@ class IntensityFeatures:
         result["filepath"] = str(self.filepath)
         return result
 
-    def to_feature_vector(self, include_filepath: bool = False) -> np.ndarray:
+    def to_feature_vector(self, include_filepath: bool = False) -> np.ndarray | Dict[str, Any]:
         """
         Convert to numpy feature vector (7 dimensions, excludes file_hash).
 
         Args:
-            include_filepath: If True, return as dict with filepath key
+            include_filepath: If True, return as dict with filepath and features keys.
 
         Returns:
-            7-dimensional numpy array of features
+            7-dimensional numpy array, or dict with 'filepath' and 'features' keys
+            if include_filepath is True.
         """
         vector = np.array(
             [
@@ -143,12 +158,15 @@ class IntensityAnalyzer:
         except Exception as e:
             raise ValueError(f"Error loading audio file {filepath}: {e}")
 
-        # Calculate features
-        rms = self._calculate_rms_energy(y)
-        brightness = self._calculate_brightness(y, sr, rms)
-        sub_bass, kick, harmonics = self._calculate_bass_energy(y, sr)
-        percussiveness = self._calculate_percussiveness(y)
-        onset = self._calculate_onset_strength(y, sr)
+        # Compute STFT once — all feature methods reuse this to avoid
+        # redundant transform computation across the 5 feature extractors.
+        S = np.abs(librosa.stft(y))
+
+        rms = self._calculate_rms_energy(S)
+        brightness = self._calculate_brightness(S, sr)
+        sub_bass, kick, harmonics = self._calculate_bass_energy(S, sr)
+        percussiveness = self._calculate_percussiveness(S)
+        onset = self._calculate_onset_strength(S, sr)
 
         features = IntensityFeatures(
             filepath=filepath,
@@ -168,95 +186,77 @@ class IntensityAnalyzer:
 
         return features
 
-    def _calculate_rms_energy(self, y: np.ndarray) -> float:
+    def _calculate_rms_energy(self, S: np.ndarray) -> float:
         """
-        Calculate RMS energy (overall loudness).
+        Calculate RMS energy (overall loudness) from magnitude spectrogram.
 
         Args:
-            y: Audio time series
+            S: Magnitude spectrogram
 
         Returns:
             Normalized RMS energy (0-1)
         """
-        rms = librosa.feature.rms(y=y)[0]
+        rms = librosa.feature.rms(S=S)[0]
         rms_mean = float(np.mean(rms))
+        return float(np.clip(rms_mean / _RMS_NORM_FACTOR, 0.0, 1.0))
 
-        # Normalize to 0-1 (typical RMS range is 0-0.3 for normalized audio)
-        rms_normalized = float(np.clip(rms_mean / 0.3, 0.0, 1.0))
-
-        return rms_normalized
-
-    def _calculate_brightness(self, y: np.ndarray, sr: int, rms: float) -> float:
+    def _calculate_brightness(self, S: np.ndarray, sr: int) -> float:
         """
         Calculate brightness (spectral centroid) with RMS weighting.
 
-        Louder frames count more. Energy gating avoids silence issues.
+        Louder frames count more. Energy gating avoids silence skewing the result.
 
         Args:
-            y: Audio time series
+            S: Magnitude spectrogram
             sr: Sample rate
-            rms: Pre-calculated RMS energy
 
         Returns:
             Normalized brightness (0-1)
         """
-        # Calculate spectral centroid
-        centroid = librosa.feature.spectral_centroid(y=y, sr=sr)[0]
+        centroid = librosa.feature.spectral_centroid(S=S, sr=sr)[0]
+        frame_rms = librosa.feature.rms(S=S)[0]
 
-        # Calculate frame RMS for weighting
-        frame_rms = librosa.feature.rms(y=y)[0]
-
-        # Energy gating: only use frames above 25th percentile
-        energy_threshold = np.percentile(frame_rms, 25)
+        # Energy gating: only use frames above the configured percentile
+        energy_threshold = np.percentile(frame_rms, _ENERGY_GATE_PERCENTILE)
         valid_frames = frame_rms > energy_threshold
 
         if np.sum(valid_frames) == 0:
-            # All frames too quiet, use unweighted mean
+            # All frames too quiet, fall back to unweighted mean
             brightness_hz = float(np.mean(centroid))
         else:
-            # RMS-weighted mean of gated frames
             centroid_gated = centroid[valid_frames]
             rms_gated = frame_rms[valid_frames]
-
-            # Normalize weights
             weights = rms_gated / np.sum(rms_gated)
             brightness_hz = float(np.sum(centroid_gated * weights))
 
-        # Normalize to 0-1 (typical range: 0 - sr/2)
         brightness_normalized = brightness_hz / (sr / 2.0)
-        brightness_normalized = np.clip(brightness_normalized, 0.0, 1.0)
+        return float(np.clip(brightness_normalized, 0.0, 1.0))
 
-        return brightness_normalized
-
-    def _calculate_bass_energy(self, y: np.ndarray, sr: int) -> tuple[float, float, float]:
+    def _calculate_bass_energy(self, S: np.ndarray, sr: int) -> tuple[float, float, float]:
         """
         Calculate bass energy in 3 frequency bands.
 
         For techno: sub-bass (20-60Hz), kick (60-120Hz), harmonics (120-250Hz)
 
         Args:
-            y: Audio time series
+            S: Magnitude spectrogram
             sr: Sample rate
 
         Returns:
             Tuple of (sub_bass, kick, harmonics) energies, normalized 0-1
         """
-        # Compute STFT
-        S = np.abs(librosa.stft(y))
         freqs = librosa.fft_frequencies(sr=sr)
 
-        # Define frequency bands
-        sub_bass_mask = (freqs >= 20) & (freqs < 60)
-        kick_mask = (freqs >= 60) & (freqs < 120)
-        harmonics_mask = (freqs >= 120) & (freqs < 250)
+        sub_bass_mask = (freqs >= _FREQ_SUB_BASS_LOW) & (freqs < _FREQ_SUB_BASS_HIGH)
+        kick_mask = (freqs >= _FREQ_SUB_BASS_HIGH) & (freqs < _FREQ_KICK_HIGH)
+        harmonics_mask = (freqs >= _FREQ_KICK_HIGH) & (freqs < _FREQ_BASS_HARMONICS_HIGH)
 
-        # Calculate mean energy in each band
         sub_bass_energy = float(np.mean(S[sub_bass_mask, :]))
         kick_energy = float(np.mean(S[kick_mask, :]))
         harmonics_energy = float(np.mean(S[harmonics_mask, :]))
 
         # Normalize relative to total low-freq energy (20-250Hz)
-        low_freq_mask = (freqs >= 20) & (freqs < 250)
+        low_freq_mask = (freqs >= _FREQ_SUB_BASS_LOW) & (freqs < _FREQ_BASS_HARMONICS_HIGH)
         total_low_energy = float(np.mean(S[low_freq_mask, :]))
 
         if total_low_energy > 0:
@@ -264,62 +264,53 @@ class IntensityAnalyzer:
             kick_norm = kick_energy / total_low_energy
             harmonics_norm = harmonics_energy / total_low_energy
         else:
-            sub_bass_norm = 0.0
-            kick_norm = 0.0
-            harmonics_norm = 0.0
+            return 0.0, 0.0, 0.0
 
-        # Clip to 0-1 (ratios should already be in range, but ensure it)
-        sub_bass_norm = np.clip(sub_bass_norm, 0.0, 1.0)
-        kick_norm = np.clip(kick_norm, 0.0, 1.0)
-        harmonics_norm = np.clip(harmonics_norm, 0.0, 1.0)
+        return (
+            float(np.clip(sub_bass_norm, 0.0, 1.0)),
+            float(np.clip(kick_norm, 0.0, 1.0)),
+            float(np.clip(harmonics_norm, 0.0, 1.0)),
+        )
 
-        return sub_bass_norm, kick_norm, harmonics_norm
-
-    def _calculate_percussiveness(self, y: np.ndarray) -> float:
+    def _calculate_percussiveness(self, S: np.ndarray) -> float:
         """
-        Calculate percussiveness using HPSS.
+        Calculate percussiveness using HPSS on the pre-computed spectrogram.
+
+        Uses librosa.decompose.hpss directly on the magnitude spectrogram,
+        avoiding the iSTFT round-trip that librosa.effects.hpss performs.
 
         Args:
-            y: Audio time series
+            S: Magnitude spectrogram
 
         Returns:
             Percussive ratio (0-1)
         """
-        # Harmonic-percussive source separation
-        y_harmonic, y_percussive = librosa.effects.hpss(y)
+        _, P = librosa.decompose.hpss(S)
 
-        # Calculate RMS of percussive and total components
-        percussive_rms = np.sqrt(np.mean(y_percussive**2))
-        total_rms = np.sqrt(np.mean(y**2))
+        percussive_rms = float(np.sqrt(np.mean(P**2)))
+        total_rms = float(np.sqrt(np.mean(S**2)))
 
         if total_rms > 0:
-            perc_ratio = float(percussive_rms / total_rms)
+            perc_ratio = percussive_rms / total_rms
         else:
             perc_ratio = 0.0
 
-        # Already in 0-1 range as a ratio
-        perc_ratio = np.clip(perc_ratio, 0.0, 1.0)
+        return float(np.clip(perc_ratio, 0.0, 1.0))
 
-        return perc_ratio
-
-    def _calculate_onset_strength(self, y: np.ndarray, sr: int) -> float:
+    def _calculate_onset_strength(self, S: np.ndarray, sr: int) -> float:
         """
-        Calculate onset strength (beat intensity).
+        Calculate onset strength (beat intensity) from pre-computed spectrogram.
 
         Args:
-            y: Audio time series
+            S: Magnitude spectrogram
             sr: Sample rate
 
         Returns:
             Normalized onset strength (0-1)
         """
-        onset_env = librosa.onset.onset_strength(y=y, sr=sr)
+        onset_env = librosa.onset.onset_strength(S=S, sr=sr)
         onset_mean = float(np.mean(onset_env))
-
-        # Normalize (typical range is 0-10 for onset strength)
-        onset_normalized = float(np.clip(onset_mean / 10.0, 0.0, 1.0))
-
-        return onset_normalized
+        return float(np.clip(onset_mean / _ONSET_NORM_FACTOR, 0.0, 1.0))
 
     def _compute_file_hash(self, filepath: Path) -> str:
         """
@@ -336,7 +327,6 @@ class IntensityAnalyzer:
         md5 = hashlib.md5()
 
         with open(filepath, "rb") as f:
-            # Only hash first 1MB for speed
             chunk = f.read(1024 * 1024)
             md5.update(chunk)
 
