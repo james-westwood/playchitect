@@ -1,3 +1,7 @@
+<p align="center">
+  <img src="img/playchitect_logo.jpg" alt="Playchitect logo" width="180">
+</p>
+
 # Playchitect
 
 [![Build Status](https://img.shields.io/badge/Build-WIP-lightgrey.svg)](https://github.com/james-westwood/playchitect/actions)
