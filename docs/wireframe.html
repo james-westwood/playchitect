@@ -1,0 +1,1037 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Playchitect — GUI Wireframe</title>
+<style>
+  /* ── Adwaita / GNOME design tokens ── */
+  :root {
+    --bg:           #242424;
+    --bg2:          #2d2d2d;
+    --bg3:          #383838;
+    --sidebar-bg:   #1e1e1e;
+    --headerbar-bg: #303030;
+    --border:       #404040;
+    --text:         #ffffff;
+    --text-dim:     #a0a0a0;
+    --accent:       #78aeed;
+    --accent2:      #5d9cf0;
+    --red:          #ff7b63;
+    --green:        #8ff0a4;
+    --yellow:       #f8e45c;
+    --radius:       12px;
+    --radius-sm:    6px;
+    --font:         'Cantarell', 'Inter', system-ui, sans-serif;
+    --mono:         'JetBrains Mono', 'Fira Code', monospace;
+
+    /* cluster colours */
+    --c1: #e06c75;
+    --c2: #e5c07b;
+    --c3: #98c379;
+    --c4: #56b6c2;
+    --c5: #c678dd;
+    --c6: #61afef;
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body {
+    font-family: var(--font);
+    background: #1a1a1a;
+    color: var(--text);
+    font-size: 13px;
+    height: 100vh;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: flex-start;
+    padding: 24px;
+    gap: 32px;
+    overflow-y: auto;
+  }
+  h2 {
+    font-size: 18px;
+    font-weight: 600;
+    color: var(--text-dim);
+    align-self: flex-start;
+    letter-spacing: 0.03em;
+  }
+  h3 { font-size: 13px; font-weight: 600; color: var(--text-dim); margin-bottom: 8px; }
+
+  /* ── App window shell ── */
+  .app-window {
+    width: 960px;
+    border-radius: var(--radius);
+    border: 1px solid var(--border);
+    overflow: hidden;
+    box-shadow: 0 8px 32px rgba(0,0,0,0.6);
+    display: flex;
+    flex-direction: column;
+  }
+
+  /* ── Header bar ── */
+  .headerbar {
+    background: var(--headerbar-bg);
+    height: 46px;
+    display: flex;
+    align-items: center;
+    padding: 0 12px;
+    gap: 8px;
+    border-bottom: 1px solid var(--border);
+    flex-shrink: 0;
+  }
+  .headerbar .wm-buttons { display: flex; gap: 6px; }
+  .wm-btn {
+    width: 12px; height: 12px;
+    border-radius: 50%;
+    border: none;
+    cursor: default;
+  }
+  .wm-btn.close  { background: #ff5f57; }
+  .wm-btn.min    { background: #febc2e; }
+  .wm-btn.max    { background: #28c840; }
+  .headerbar-title {
+    flex: 1;
+    text-align: center;
+    font-weight: 600;
+    font-size: 14px;
+  }
+  .headerbar-actions { display: flex; gap: 6px; }
+
+  /* ── Body (sidebar + content) ── */
+  .app-body {
+    display: flex;
+    flex: 1;
+    min-height: 520px;
+    background: var(--bg);
+  }
+
+  /* ── Sidebar ── */
+  .sidebar {
+    width: 200px;
+    background: var(--sidebar-bg);
+    border-right: 1px solid var(--border);
+    display: flex;
+    flex-direction: column;
+    padding: 12px 0;
+    flex-shrink: 0;
+  }
+  .nav-item {
+    padding: 8px 16px;
+    border-radius: var(--radius-sm);
+    margin: 1px 8px;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    font-size: 13px;
+    color: var(--text-dim);
+    transition: background 0.1s;
+  }
+  .nav-item.active {
+    background: rgba(120,174,237,0.18);
+    color: var(--accent);
+    font-weight: 600;
+  }
+  .nav-item:hover:not(.active) { background: rgba(255,255,255,0.06); }
+  .sidebar-section {
+    padding: 12px 16px 4px;
+    font-size: 11px;
+    font-weight: 700;
+    letter-spacing: 0.08em;
+    color: var(--text-dim);
+    text-transform: uppercase;
+  }
+  .sidebar-divider {
+    height: 1px;
+    background: var(--border);
+    margin: 8px 16px;
+  }
+  .sidebar-stat {
+    padding: 2px 16px;
+    font-size: 12px;
+    color: var(--text-dim);
+    display: flex;
+    justify-content: space-between;
+  }
+  .sidebar-stat span { color: var(--text); font-weight: 500; }
+  .folder-list {
+    margin: 4px 8px;
+    background: var(--bg3);
+    border-radius: var(--radius-sm);
+    border: 1px solid var(--border);
+    font-size: 12px;
+    overflow: hidden;
+  }
+  .folder-row {
+    padding: 5px 10px;
+    color: var(--text-dim);
+    border-bottom: 1px solid var(--border);
+    display: flex;
+    align-items: center;
+    gap: 6px;
+  }
+  .folder-row:last-child { border-bottom: none; }
+
+  /* cluster legend */
+  .cluster-legend { padding: 4px 8px; display: flex; flex-direction: column; gap: 3px; }
+  .legend-item {
+    display: flex; align-items: center; gap: 8px;
+    font-size: 12px; color: var(--text-dim); padding: 2px 8px;
+  }
+  .dot {
+    width: 10px; height: 10px; border-radius: 50%; flex-shrink: 0;
+  }
+
+  /* ── Main content ── */
+  .main-content {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+  }
+  .toolbar {
+    background: var(--bg2);
+    border-bottom: 1px solid var(--border);
+    padding: 8px 12px;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    flex-wrap: wrap;
+    flex-shrink: 0;
+  }
+  .spacer { flex: 1; }
+
+  /* ── Buttons ── */
+  .btn {
+    padding: 5px 12px;
+    border-radius: var(--radius-sm);
+    border: 1px solid var(--border);
+    background: var(--bg3);
+    color: var(--text);
+    font-size: 12px;
+    cursor: pointer;
+    white-space: nowrap;
+    display: inline-flex;
+    align-items: center;
+    gap: 5px;
+  }
+  .btn.primary {
+    background: var(--accent);
+    color: #000;
+    border-color: var(--accent2);
+    font-weight: 600;
+  }
+  .btn.destructive { background: rgba(224,108,117,0.2); color: var(--red); border-color: var(--red); }
+
+  /* ── Select / Dropdown ── */
+  select, .select {
+    padding: 5px 8px;
+    border-radius: var(--radius-sm);
+    border: 1px solid var(--border);
+    background: var(--bg3);
+    color: var(--text);
+    font-size: 12px;
+    font-family: var(--font);
+    cursor: pointer;
+    appearance: none;
+    padding-right: 20px;
+    background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='10' height='6'%3E%3Cpath d='M0 0l5 6 5-6z' fill='%23a0a0a0'/%3E%3C/svg%3E");
+    background-repeat: no-repeat;
+    background-position: right 6px center;
+  }
+
+  /* ── Search ── */
+  .search-input {
+    padding: 5px 10px;
+    border-radius: var(--radius-sm);
+    border: 1px solid var(--border);
+    background: var(--bg3);
+    color: var(--text);
+    font-size: 12px;
+    font-family: var(--font);
+    width: 160px;
+  }
+  .search-input::placeholder { color: var(--text-dim); }
+
+  /* ── Data table ── */
+  .data-table {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 12px;
+  }
+  .data-table th {
+    background: var(--bg2);
+    padding: 6px 10px;
+    text-align: left;
+    color: var(--text-dim);
+    font-weight: 600;
+    font-size: 11px;
+    letter-spacing: 0.04em;
+    border-bottom: 1px solid var(--border);
+    position: sticky;
+    top: 0;
+    z-index: 1;
+    white-space: nowrap;
+  }
+  .data-table td {
+    padding: 6px 10px;
+    border-bottom: 1px solid rgba(255,255,255,0.04);
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    max-width: 150px;
+  }
+  .data-table tr.selected td { background: rgba(120,174,237,0.12); }
+  .data-table tr:hover:not(.selected) td { background: rgba(255,255,255,0.04); cursor: pointer; }
+  .table-scroll { flex: 1; overflow-y: auto; }
+
+  /* ── Mini bar charts for features ── */
+  .bar-cell { min-width: 80px; }
+  .mini-bar {
+    height: 8px;
+    border-radius: 4px;
+    background: var(--bg3);
+    overflow: hidden;
+    position: relative;
+  }
+  .mini-bar-fill {
+    height: 100%;
+    border-radius: 4px;
+    background: var(--accent);
+    transition: width 0.3s;
+  }
+  .unanalysed { color: var(--text-dim); font-style: italic; font-size: 11px; }
+
+  /* ── Track detail panel ── */
+  .detail-panel {
+    border-top: 1px solid var(--border);
+    background: var(--bg2);
+    padding: 12px 16px;
+    flex-shrink: 0;
+  }
+  .detail-title { font-weight: 600; margin-bottom: 10px; }
+  .feature-row {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    margin-bottom: 5px;
+  }
+  .feature-label { width: 90px; font-size: 11px; color: var(--text-dim); flex-shrink: 0; }
+  .feature-bar {
+    flex: 1;
+    height: 10px;
+    border-radius: 5px;
+    background: var(--bg3);
+    overflow: hidden;
+  }
+  .feature-bar-fill {
+    height: 100%;
+    border-radius: 5px;
+    background: linear-gradient(90deg, var(--accent), #a78bfa);
+  }
+  .feature-val { width: 36px; text-align: right; font-size: 11px; color: var(--text-dim); font-family: var(--mono); }
+
+  /* ── Mini player ── */
+  .mini-player {
+    border-top: 1px solid var(--border);
+    background: var(--bg2);
+    padding: 10px 16px;
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    flex-shrink: 0;
+  }
+  .player-info { flex: 1; }
+  .player-title { font-weight: 600; font-size: 13px; }
+  .player-meta { font-size: 11px; color: var(--text-dim); }
+  .player-controls { display: flex; align-items: center; gap: 8px; }
+  .progress-bar {
+    flex: 1;
+    height: 4px;
+    background: var(--bg3);
+    border-radius: 2px;
+    overflow: visible;
+    position: relative;
+    max-width: 180px;
+  }
+  .progress-fill {
+    height: 100%;
+    width: 38%;
+    background: var(--accent);
+    border-radius: 2px;
+    position: relative;
+  }
+  .progress-fill::after {
+    content: '';
+    position: absolute;
+    right: -5px;
+    top: -4px;
+    width: 10px;
+    height: 10px;
+    border-radius: 50%;
+    background: var(--accent);
+  }
+
+  /* ── Cluster cards ── */
+  .cluster-cards { display: flex; flex-direction: column; gap: 10px; padding: 12px; overflow-y: auto; flex: 1; }
+  .cluster-card {
+    background: var(--bg2);
+    border-radius: var(--radius-sm);
+    border: 1px solid var(--border);
+    overflow: hidden;
+  }
+  .cluster-header {
+    padding: 8px 12px;
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    border-bottom: 1px solid var(--border);
+    font-weight: 600;
+    font-size: 13px;
+  }
+  .cluster-badge {
+    font-size: 11px;
+    padding: 2px 8px;
+    border-radius: 20px;
+    background: rgba(255,255,255,0.08);
+    color: var(--text-dim);
+  }
+  .cluster-tracks { padding: 4px 0; }
+  .cluster-track-row {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 5px 12px;
+    border-bottom: 1px solid rgba(255,255,255,0.04);
+    font-size: 12px;
+  }
+  .cluster-track-row:last-child { border-bottom: none; }
+  .cluster-track-row input[type=checkbox] { accent-color: var(--accent); }
+  .track-name { flex: 1; font-weight: 500; }
+  .track-artist { width: 90px; color: var(--text-dim); overflow: hidden; text-overflow: ellipsis; }
+  .track-bpm { width: 38px; color: var(--text-dim); font-family: var(--mono); font-size: 11px; }
+  .track-dur { width: 38px; color: var(--text-dim); font-family: var(--mono); font-size: 11px; }
+  .cluster-footer {
+    padding: 6px 12px;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    background: var(--bg);
+    border-top: 1px solid var(--border);
+    font-size: 11px;
+    color: var(--text-dim);
+  }
+
+  /* ── Cluster controls panel ── */
+  .controls-panel {
+    border-bottom: 1px solid var(--border);
+    background: var(--bg2);
+    padding: 12px 16px;
+    display: flex;
+    flex-wrap: wrap;
+    gap: 16px;
+    align-items: flex-end;
+    flex-shrink: 0;
+  }
+  .control-group { display: flex; flex-direction: column; gap: 4px; }
+  .control-label { font-size: 11px; color: var(--text-dim); }
+  .spinner {
+    display: flex;
+    align-items: center;
+    gap: 0;
+    border: 1px solid var(--border);
+    border-radius: var(--radius-sm);
+    overflow: hidden;
+  }
+  .spinner-val {
+    padding: 4px 12px;
+    background: var(--bg3);
+    font-family: var(--mono);
+    font-size: 13px;
+    min-width: 36px;
+    text-align: center;
+  }
+  .spinner-btn {
+    padding: 4px 8px;
+    background: var(--bg3);
+    border: none;
+    border-left: 1px solid var(--border);
+    color: var(--text-dim);
+    cursor: pointer;
+    font-size: 14px;
+    line-height: 1;
+  }
+  .spinner-btn:first-child { border-left: none; border-right: 1px solid var(--border); }
+  .spinner-btn:hover { background: var(--bg2); color: var(--text); }
+
+  /* ── Status bar ── */
+  .statusbar {
+    background: var(--headerbar-bg);
+    border-top: 1px solid var(--border);
+    padding: 5px 16px;
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    font-size: 11px;
+    color: var(--text-dim);
+    flex-shrink: 0;
+  }
+  .status-progress {
+    flex: 1;
+    max-width: 200px;
+    height: 5px;
+    background: var(--bg3);
+    border-radius: 3px;
+    overflow: hidden;
+  }
+  .status-progress-fill {
+    height: 100%;
+    background: var(--accent);
+    border-radius: 3px;
+    transition: width 0.3s;
+  }
+
+  /* ── Preferences window ── */
+  .prefs-window {
+    width: 480px;
+    border-radius: var(--radius);
+    border: 1px solid var(--border);
+    overflow: hidden;
+    box-shadow: 0 8px 32px rgba(0,0,0,0.6);
+  }
+  .prefs-group {
+    margin: 0 16px 12px;
+    border: 1px solid var(--border);
+    border-radius: var(--radius-sm);
+    overflow: hidden;
+  }
+  .prefs-group-title {
+    padding: 8px 12px;
+    font-size: 11px;
+    font-weight: 700;
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+    color: var(--text-dim);
+    background: var(--bg3);
+    border-bottom: 1px solid var(--border);
+  }
+  .prefs-row {
+    display: flex;
+    align-items: center;
+    padding: 10px 12px;
+    border-bottom: 1px solid rgba(255,255,255,0.05);
+    gap: 12px;
+    background: var(--bg2);
+  }
+  .prefs-row:last-child { border-bottom: none; }
+  .prefs-row-label { flex: 1; font-size: 13px; }
+  .prefs-row-sub { font-size: 11px; color: var(--text-dim); }
+
+  /* tab bar */
+  .tab-bar {
+    display: flex;
+    border-bottom: 1px solid var(--border);
+    background: var(--bg2);
+    flex-shrink: 0;
+  }
+  .tab {
+    padding: 9px 20px;
+    font-size: 13px;
+    color: var(--text-dim);
+    cursor: pointer;
+    border-bottom: 2px solid transparent;
+    transition: color 0.15s;
+  }
+  .tab.active {
+    color: var(--accent);
+    border-bottom-color: var(--accent);
+    font-weight: 600;
+  }
+  .tab:hover:not(.active) { color: var(--text); }
+
+  /* view panels */
+  .view { display: none; flex: 1; flex-direction: column; overflow: hidden; }
+  .view.active { display: flex; }
+
+  /* toggle switch */
+  .toggle {
+    width: 36px; height: 20px;
+    background: var(--accent);
+    border-radius: 10px;
+    position: relative;
+    flex-shrink: 0;
+  }
+  .toggle::after {
+    content: '';
+    position: absolute;
+    width: 16px; height: 16px;
+    background: white;
+    border-radius: 50%;
+    top: 2px; right: 2px;
+    transition: right 0.2s;
+  }
+  .toggle.off { background: var(--bg3); }
+  .toggle.off::after { right: 18px; }
+
+  /* feature sliders in sidebar */
+  .weight-slider { display: flex; flex-direction: column; gap: 3px; padding: 0 16px; margin-bottom: 4px; }
+  .weight-label { display: flex; justify-content: space-between; font-size: 11px; color: var(--text-dim); }
+  input[type=range] {
+    width: 100%;
+    accent-color: var(--accent);
+    height: 4px;
+  }
+
+  /* empty state */
+  .empty-state {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 16px;
+    color: var(--text-dim);
+    padding: 40px;
+  }
+  .empty-icon { font-size: 48px; opacity: 0.4; }
+  .empty-title { font-size: 18px; font-weight: 600; color: var(--text); }
+  .empty-sub { font-size: 13px; text-align: center; max-width: 280px; line-height: 1.5; }
+
+  /* section headings */
+  .section-heading { font-size: 20px; font-weight: 700; margin-bottom: 4px; }
+  .section-sub { color: var(--text-dim); font-size: 13px; margin-bottom: 16px; }
+</style>
+</head>
+<body>
+
+<div class="section-heading">Playchitect — GUI Wireframe</div>
+<div class="section-sub">Click the tabs inside the app to switch views · All controls are illustrative</div>
+
+<!-- ═══════════════════════════════════════════════════════════════ -->
+<!-- APP WINDOW                                                      -->
+<!-- ═══════════════════════════════════════════════════════════════ -->
+<div class="app-window">
+
+  <!-- Header bar -->
+  <div class="headerbar">
+    <div class="wm-buttons">
+      <div class="wm-btn close"></div>
+      <div class="wm-btn min"></div>
+      <div class="wm-btn max"></div>
+    </div>
+    <div class="headerbar-title">Playchitect</div>
+    <div class="headerbar-actions">
+      <button class="btn">⚙ Settings</button>
+      <button class="btn">? Help</button>
+    </div>
+  </div>
+
+  <!-- Tab bar (acts as navigation) -->
+  <div class="tab-bar">
+    <div class="tab active" onclick="switchTab('library', this)">📂 Library</div>
+    <div class="tab" onclick="switchTab('analysis', this)">📊 Analysis</div>
+    <div class="tab" onclick="switchTab('playlists', this)">🎵 Playlists</div>
+  </div>
+
+  <!-- App body -->
+  <div class="app-body">
+
+    <!-- ── Sidebar ── -->
+    <div class="sidebar" id="sidebar-library">
+      <div class="nav-item active">📂 Library</div>
+      <div class="sidebar-divider"></div>
+      <div class="sidebar-section">Music Folders</div>
+      <div class="folder-list">
+        <div class="folder-row">📁 ~/music</div>
+        <div class="folder-row">📁 /media/usb/DJ</div>
+      </div>
+      <div style="display:flex;gap:6px;padding:6px 8px;">
+        <button class="btn" style="flex:1;justify-content:center">+ Add</button>
+        <button class="btn" style="flex:1;justify-content:center">– Remove</button>
+      </div>
+      <div class="sidebar-divider"></div>
+      <div class="sidebar-stat">Tracks found: <span>847</span></div>
+      <div class="sidebar-stat">Analysed: <span>312</span></div>
+      <div class="sidebar-stat">Cached: <span>312</span></div>
+    </div>
+
+    <div class="sidebar" id="sidebar-analysis" style="display:none">
+      <div class="nav-item active">📊 Analysis</div>
+      <div class="sidebar-divider"></div>
+      <div class="sidebar-section">Feature Weights</div>
+      <div style="padding: 4px 0 8px;">
+        <div class="weight-slider"><div class="weight-label"><span>BPM</span><span>1.0</span></div><input type="range" min="0" max="10" value="10"></div>
+        <div class="weight-slider"><div class="weight-label"><span>RMS Energy</span><span>0.8</span></div><input type="range" min="0" max="10" value="8"></div>
+        <div class="weight-slider"><div class="weight-label"><span>Brightness</span><span>0.4</span></div><input type="range" min="0" max="10" value="4"></div>
+        <div class="weight-slider"><div class="weight-label"><span>Percussiveness</span><span>0.9</span></div><input type="range" min="0" max="10" value="9"></div>
+        <div class="weight-slider"><div class="weight-label"><span>Sub-bass</span><span>0.7</span></div><input type="range" min="0" max="10" value="7"></div>
+        <div class="weight-slider"><div class="weight-label"><span>Kick energy</span><span>0.8</span></div><input type="range" min="0" max="10" value="8"></div>
+        <div class="weight-slider"><div class="weight-label"><span>Onset str.</span><span>0.5</span></div><input type="range" min="0" max="10" value="5"></div>
+      </div>
+      <div style="padding: 0 8px;">
+        <button class="btn" style="width:100%;justify-content:center">Reset to defaults</button>
+      </div>
+    </div>
+
+    <div class="sidebar" id="sidebar-playlists" style="display:none">
+      <div class="nav-item active">🎵 Playlists</div>
+      <div class="sidebar-divider"></div>
+      <div class="sidebar-section">Cluster Legend</div>
+      <div class="cluster-legend">
+        <div class="legend-item"><div class="dot" style="background:var(--c1)"></div>Cluster 1 — Hard</div>
+        <div class="legend-item"><div class="dot" style="background:var(--c2)"></div>Cluster 2 — Peak</div>
+        <div class="legend-item"><div class="dot" style="background:var(--c3)"></div>Cluster 3 — Dark</div>
+        <div class="legend-item"><div class="dot" style="background:var(--c4)"></div>Cluster 4 — Atmo</div>
+        <div class="legend-item"><div class="dot" style="background:var(--c5)"></div>Cluster 5 — Acid</div>
+        <div class="legend-item"><div class="dot" style="background:var(--c6)"></div>Cluster 6 — Deep</div>
+      </div>
+      <div class="sidebar-divider"></div>
+      <div class="sidebar-section">Export All</div>
+      <div style="padding: 4px 8px 8px; display:flex; flex-direction:column; gap:6px;">
+        <div class="control-group">
+          <div class="control-label">Format</div>
+          <select><option>M3U</option><option>CUE sheet</option><option>Copy to folder</option></select>
+        </div>
+        <div class="control-group">
+          <div class="control-label">Destination</div>
+          <div style="display:flex;gap:4px;">
+            <input class="search-input" style="flex:1;min-width:0" value="~/music/playlists">
+            <button class="btn">📁</button>
+          </div>
+        </div>
+        <button class="btn primary" style="justify-content:center">⬇ Export All</button>
+      </div>
+    </div>
+
+    <!-- ── Main content views ── -->
+    <div class="main-content">
+
+      <!-- VIEW: LIBRARY -->
+      <div class="view active" id="view-library">
+        <div class="toolbar">
+          <button class="btn primary">📂 Open Folder</button>
+          <button class="btn">🔍 Scan</button>
+          <div class="spacer"></div>
+          <input class="search-input" placeholder="🔎 Search tracks…">
+        </div>
+        <div class="table-scroll">
+          <table class="data-table">
+            <thead>
+              <tr>
+                <th style="width:24px"></th>
+                <th>Title</th>
+                <th>Artist</th>
+                <th>BPM</th>
+                <th>Duration</th>
+                <th>Format</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr class="selected">
+                <td>★</td><td>Dark Matter</td><td>Surgeon</td><td style="font-family:var(--mono)">138</td><td style="font-family:var(--mono)">6:42</td><td>MP3</td>
+              </tr>
+              <tr><td></td><td>Phase IV</td><td>Dax J</td><td style="font-family:var(--mono)">132</td><td style="font-family:var(--mono)">7:15</td><td>FLAC</td></tr>
+              <tr><td></td><td>Redline</td><td>DVS1</td><td style="font-family:var(--mono)">140</td><td style="font-family:var(--mono)">8:03</td><td>FLAC</td></tr>
+              <tr><td></td><td style="color:var(--text-dim);font-style:italic">Untitled 03</td><td style="color:var(--text-dim)">—</td><td style="color:var(--text-dim)">—</td><td style="font-family:var(--mono)">5:50</td><td>WAV</td></tr>
+              <tr><td></td><td>Obsidian</td><td>Truncate</td><td style="font-family:var(--mono)">136</td><td style="font-family:var(--mono)">9:12</td><td>MP3</td></tr>
+              <tr><td></td><td>Headbanger</td><td>Perc</td><td style="font-family:var(--mono)">139</td><td style="font-family:var(--mono)">7:28</td><td>FLAC</td></tr>
+              <tr><td></td><td>Subzero</td><td>Shifted</td><td style="font-family:var(--mono)">134</td><td style="font-family:var(--mono)">8:55</td><td>MP3</td></tr>
+              <tr><td></td><td>Vortex</td><td>Ancient Methods</td><td style="font-family:var(--mono)">145</td><td style="font-family:var(--mono)">10:02</td><td>FLAC</td></tr>
+            </tbody>
+          </table>
+        </div>
+        <!-- Mini player -->
+        <div class="mini-player">
+          <div style="font-size:22px">♪</div>
+          <div class="player-info">
+            <div class="player-title">Dark Matter</div>
+            <div class="player-meta">Surgeon · 138 BPM · 6:42</div>
+          </div>
+          <div class="player-controls">
+            <button class="btn">⏮</button>
+            <button class="btn primary">▶ Play</button>
+            <button class="btn">⏭</button>
+          </div>
+          <div class="progress-bar">
+            <div class="progress-fill"></div>
+          </div>
+          <div style="font-size:11px;color:var(--text-dim);font-family:var(--mono)">2:32</div>
+        </div>
+      </div>
+
+      <!-- VIEW: ANALYSIS -->
+      <div class="view" id="view-analysis">
+        <div class="toolbar">
+          <button class="btn primary">▶ Analyse All</button>
+          <button class="btn">▶ Analyse New</button>
+          <div class="spacer"></div>
+          <select><option>All tracks</option><option>Analysed</option><option>Not analysed</option></select>
+          <select><option>Sort: BPM ↓</option><option>Sort: RMS ↓</option><option>Sort: Title</option></select>
+        </div>
+        <div class="table-scroll">
+          <table class="data-table">
+            <thead>
+              <tr>
+                <th>Title</th><th>Artist</th>
+                <th style="font-family:var(--mono)">BPM</th>
+                <th>RMS</th><th>Brightness</th><th>Perc.</th>
+                <th>Sub-bass</th><th>Kick</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr class="selected">
+                <td>Dark Matter</td><td>Surgeon</td><td style="font-family:var(--mono)">138</td>
+                <td class="bar-cell"><div class="mini-bar"><div class="mini-bar-fill" style="width:72%;background:var(--c1)"></div></div></td>
+                <td class="bar-cell"><div class="mini-bar"><div class="mini-bar-fill" style="width:31%;background:var(--c1)"></div></div></td>
+                <td class="bar-cell"><div class="mini-bar"><div class="mini-bar-fill" style="width:91%;background:var(--c1)"></div></div></td>
+                <td class="bar-cell"><div class="mini-bar"><div class="mini-bar-fill" style="width:54%;background:var(--c1)"></div></div></td>
+                <td class="bar-cell"><div class="mini-bar"><div class="mini-bar-fill" style="width:81%;background:var(--c1)"></div></div></td>
+              </tr>
+              <tr>
+                <td>Phase IV</td><td>Dax J</td><td style="font-family:var(--mono)">132</td>
+                <td class="bar-cell"><div class="mini-bar"><div class="mini-bar-fill" style="width:58%;background:var(--c2)"></div></div></td>
+                <td class="bar-cell"><div class="mini-bar"><div class="mini-bar-fill" style="width:45%;background:var(--c2)"></div></div></td>
+                <td class="bar-cell"><div class="mini-bar"><div class="mini-bar-fill" style="width:67%;background:var(--c2)"></div></div></td>
+                <td class="bar-cell"><div class="mini-bar"><div class="mini-bar-fill" style="width:62%;background:var(--c2)"></div></div></td>
+                <td class="bar-cell"><div class="mini-bar"><div class="mini-bar-fill" style="width:74%;background:var(--c2)"></div></div></td>
+              </tr>
+              <tr>
+                <td>Redline</td><td>DVS1</td><td style="font-family:var(--mono)">140</td>
+                <td class="bar-cell"><div class="mini-bar"><div class="mini-bar-fill" style="width:88%;background:var(--c1)"></div></div></td>
+                <td class="bar-cell"><div class="mini-bar"><div class="mini-bar-fill" style="width:22%;background:var(--c1)"></div></div></td>
+                <td class="bar-cell"><div class="mini-bar"><div class="mini-bar-fill" style="width:95%;background:var(--c1)"></div></div></td>
+                <td class="bar-cell"><div class="mini-bar"><div class="mini-bar-fill" style="width:41%;background:var(--c1)"></div></div></td>
+                <td class="bar-cell"><div class="mini-bar"><div class="mini-bar-fill" style="width:85%;background:var(--c1)"></div></div></td>
+              </tr>
+              <tr>
+                <td style="color:var(--text-dim);font-style:italic">Untitled 03</td>
+                <td style="color:var(--text-dim)">—</td>
+                <td style="color:var(--text-dim)">—</td>
+                <td colspan="5" style="color:var(--text-dim);font-size:11px">
+                  Not yet analysed &nbsp;
+                  <button class="btn" style="font-size:11px;padding:2px 8px">Analyse</button>
+                </td>
+              </tr>
+              <tr>
+                <td>Obsidian</td><td>Truncate</td><td style="font-family:var(--mono)">136</td>
+                <td class="bar-cell"><div class="mini-bar"><div class="mini-bar-fill" style="width:64%;background:var(--c3)"></div></div></td>
+                <td class="bar-cell"><div class="mini-bar"><div class="mini-bar-fill" style="width:71%;background:var(--c3)"></div></div></td>
+                <td class="bar-cell"><div class="mini-bar"><div class="mini-bar-fill" style="width:44%;background:var(--c3)"></div></div></td>
+                <td class="bar-cell"><div class="mini-bar"><div class="mini-bar-fill" style="width:38%;background:var(--c3)"></div></div></td>
+                <td class="bar-cell"><div class="mini-bar"><div class="mini-bar-fill" style="width:55%;background:var(--c3)"></div></div></td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+        <!-- Feature detail panel -->
+        <div class="detail-panel">
+          <div class="detail-title">Dark Matter — Surgeon</div>
+          <div style="display:grid;grid-template-columns:1fr 1fr;gap:0 24px;">
+            <div class="feature-row"><div class="feature-label">BPM</div><div class="feature-bar"><div class="feature-bar-fill" style="width:69%"></div></div><div class="feature-val">138</div></div>
+            <div class="feature-row"><div class="feature-label">RMS Energy</div><div class="feature-bar"><div class="feature-bar-fill" style="width:72%"></div></div><div class="feature-val">0.72</div></div>
+            <div class="feature-row"><div class="feature-label">Brightness</div><div class="feature-bar"><div class="feature-bar-fill" style="width:31%"></div></div><div class="feature-val">0.31</div></div>
+            <div class="feature-row"><div class="feature-label">Sub-bass</div><div class="feature-bar"><div class="feature-bar-fill" style="width:54%"></div></div><div class="feature-val">0.54</div></div>
+            <div class="feature-row"><div class="feature-label">Kick energy</div><div class="feature-bar"><div class="feature-bar-fill" style="width:81%"></div></div><div class="feature-val">0.81</div></div>
+            <div class="feature-row"><div class="feature-label">Harmonics</div><div class="feature-bar"><div class="feature-bar-fill" style="width:38%"></div></div><div class="feature-val">0.38</div></div>
+            <div class="feature-row"><div class="feature-label">Percussive</div><div class="feature-bar"><div class="feature-bar-fill" style="width:91%"></div></div><div class="feature-val">0.91</div></div>
+            <div class="feature-row"><div class="feature-label">Onset str.</div><div class="feature-bar"><div class="feature-bar-fill" style="width:68%"></div></div><div class="feature-val">0.68</div></div>
+          </div>
+        </div>
+      </div>
+
+      <!-- VIEW: PLAYLISTS -->
+      <div class="view" id="view-playlists">
+        <!-- Cluster controls -->
+        <div class="controls-panel">
+          <div class="control-group">
+            <div class="control-label">Clusters</div>
+            <div class="spinner">
+              <button class="spinner-btn">−</button>
+              <div class="spinner-val">6</div>
+              <button class="spinner-btn">+</button>
+            </div>
+          </div>
+          <div class="control-group">
+            <div class="control-label">Playlist length</div>
+            <div class="spinner">
+              <button class="spinner-btn">−</button>
+              <div class="spinner-val">12</div>
+              <button class="spinner-btn">+</button>
+            </div>
+          </div>
+          <div class="control-group">
+            <div class="control-label">Method</div>
+            <select><option>K-means</option><option>DBSCAN</option><option>Agglomerative</option></select>
+          </div>
+          <div class="control-group">
+            <div class="control-label">&nbsp;</div>
+            <button class="btn">Auto-detect K</button>
+          </div>
+          <div class="spacer"></div>
+          <button class="btn primary" style="align-self:flex-end">▶▶ Generate Playlists</button>
+        </div>
+
+        <!-- Cluster cards -->
+        <div class="cluster-cards">
+
+          <div class="cluster-card">
+            <div class="cluster-header">
+              <div class="dot" style="background:var(--c1)"></div>
+              Cluster 1 — Hard Techno
+              <div class="cluster-badge">138 BPM avg</div>
+              <div class="cluster-badge">12 tracks</div>
+              <div class="spacer"></div>
+            </div>
+            <div class="cluster-tracks">
+              <div class="cluster-track-row"><input type="checkbox" checked><div class="track-name">Dark Matter</div><div class="track-artist">Surgeon</div><div class="track-bpm">138</div><div class="track-dur">6:42</div></div>
+              <div class="cluster-track-row"><input type="checkbox" checked><div class="track-name">Redline</div><div class="track-artist">DVS1</div><div class="track-bpm">140</div><div class="track-dur">8:03</div></div>
+              <div class="cluster-track-row"><input type="checkbox" checked><div class="track-name">Headbanger</div><div class="track-artist">Perc</div><div class="track-bpm">139</div><div class="track-dur">7:28</div></div>
+              <div class="cluster-track-row"><input type="checkbox"><div class="track-name">Obsidian</div><div class="track-artist">Truncate</div><div class="track-bpm">136</div><div class="track-dur">9:12</div></div>
+            </div>
+            <div class="cluster-footer">
+              <div class="spacer"></div>
+              <select style="font-size:11px"><option>Export as M3U</option><option>Export as CUE</option><option>Copy to folder</option></select>
+              <button class="btn" style="font-size:11px;padding:3px 8px">⬇ Export</button>
+              <button class="btn" style="font-size:11px;padding:3px 8px">▶ Preview</button>
+            </div>
+          </div>
+
+          <div class="cluster-card">
+            <div class="cluster-header">
+              <div class="dot" style="background:var(--c2)"></div>
+              Cluster 2 — Peak Time
+              <div class="cluster-badge">132 BPM avg</div>
+              <div class="cluster-badge">11 tracks</div>
+              <div class="spacer"></div>
+            </div>
+            <div class="cluster-tracks">
+              <div class="cluster-track-row"><input type="checkbox" checked><div class="track-name">Phase IV</div><div class="track-artist">Dax J</div><div class="track-bpm">132</div><div class="track-dur">7:15</div></div>
+              <div class="cluster-track-row"><input type="checkbox" checked><div class="track-name">Subzero</div><div class="track-artist">Shifted</div><div class="track-bpm">134</div><div class="track-dur">8:55</div></div>
+            </div>
+            <div class="cluster-footer">
+              <div class="spacer"></div>
+              <select style="font-size:11px"><option>Export as M3U</option><option>Export as CUE</option><option>Copy to folder</option></select>
+              <button class="btn" style="font-size:11px;padding:3px 8px">⬇ Export</button>
+              <button class="btn" style="font-size:11px;padding:3px 8px">▶ Preview</button>
+            </div>
+          </div>
+
+          <div class="cluster-card" style="border-color: var(--c4);">
+            <div class="cluster-header">
+              <div class="dot" style="background:var(--c4)"></div>
+              Cluster 4 — Atmospheric
+              <div class="cluster-badge">128 BPM avg</div>
+              <div class="cluster-badge">9 tracks</div>
+              <div class="spacer"></div>
+            </div>
+            <div class="cluster-tracks">
+              <div class="cluster-track-row"><input type="checkbox" checked><div class="track-name">Vortex</div><div class="track-artist">Ancient Methods</div><div class="track-bpm">128</div><div class="track-dur">10:02</div></div>
+            </div>
+            <div class="cluster-footer">
+              <div class="spacer"></div>
+              <select style="font-size:11px"><option>Export as M3U</option><option>Export as CUE</option></select>
+              <button class="btn" style="font-size:11px;padding:3px 8px">⬇ Export</button>
+              <button class="btn" style="font-size:11px;padding:3px 8px">▶ Preview</button>
+            </div>
+          </div>
+
+        </div>
+      </div>
+
+    </div><!-- /main-content -->
+  </div><!-- /app-body -->
+
+  <!-- Status bar -->
+  <div class="statusbar">
+    <span>847 tracks</span>
+    <div class="status-progress"><div class="status-progress-fill" style="width:37%"></div></div>
+    <span>Analysing… 312 / 847</span>
+    <div class="spacer"></div>
+    <span>6 playlists ready</span>
+  </div>
+
+</div><!-- /app-window -->
+
+
+<!-- ═══════════════════════════════════════════════════════════════ -->
+<!-- PREFERENCES WINDOW                                              -->
+<!-- ═══════════════════════════════════════════════════════════════ -->
+<h2>Preferences Window</h2>
+<div class="prefs-window">
+  <div class="headerbar">
+    <div class="wm-buttons">
+      <div class="wm-btn close"></div>
+      <div class="wm-btn min"></div>
+      <div class="wm-btn max"></div>
+    </div>
+    <div class="headerbar-title">Preferences</div>
+  </div>
+  <div style="background:var(--bg);padding:16px 0 16px;">
+    <div class="prefs-group">
+      <div class="prefs-group-title">Analysis</div>
+      <div class="prefs-row">
+        <div><div class="prefs-row-label">Sample rate</div><div class="prefs-row-sub">Lower = faster, higher = more accurate</div></div>
+        <select><option>22050 Hz</option><option>44100 Hz</option><option>11025 Hz</option></select>
+      </div>
+      <div class="prefs-row">
+        <div><div class="prefs-row-label">Cache location</div><div class="prefs-row-sub">~/.cache/playchitect/intensity</div></div>
+        <div style="display:flex;gap:6px;align-items:center">
+          <button class="btn">📁 Change</button>
+          <button class="btn destructive">Clear</button>
+        </div>
+      </div>
+    </div>
+    <div class="prefs-group">
+      <div class="prefs-group-title">Clustering</div>
+      <div class="prefs-row">
+        <div><div class="prefs-row-label">Default clusters</div></div>
+        <div class="spinner">
+          <button class="spinner-btn">−</button>
+          <div class="spinner-val">6</div>
+          <button class="spinner-btn">+</button>
+        </div>
+      </div>
+      <div class="prefs-row">
+        <div><div class="prefs-row-label">Default playlist length</div></div>
+        <div class="spinner">
+          <button class="spinner-btn">−</button>
+          <div class="spinner-val">12</div>
+          <button class="spinner-btn">+</button>
+        </div>
+      </div>
+      <div class="prefs-row">
+        <div><div class="prefs-row-label">Auto-detect K</div><div class="prefs-row-sub">Use elbow method to suggest cluster count</div></div>
+        <div class="toggle"></div>
+      </div>
+    </div>
+    <div class="prefs-group">
+      <div class="prefs-group-title">Export</div>
+      <div class="prefs-row">
+        <div><div class="prefs-row-label">Default format</div></div>
+        <select><option>M3U</option><option>CUE sheet</option><option>Copy to folder</option></select>
+      </div>
+      <div class="prefs-row">
+        <div><div class="prefs-row-label">Output folder</div><div class="prefs-row-sub">~/music/playchitect</div></div>
+        <button class="btn">📁 Change</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script>
+function switchTab(view, el) {
+  // Update tab active state
+  document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
+  el.classList.add('active');
+
+  // Show/hide views
+  document.querySelectorAll('.view').forEach(v => v.classList.remove('active'));
+  document.getElementById('view-' + view).classList.add('active');
+
+  // Show/hide sidebars
+  document.querySelectorAll('.sidebar').forEach(s => s.style.display = 'none');
+  document.getElementById('sidebar-' + view).style.display = 'flex';
+}
+</script>
+</body>
+</html>
