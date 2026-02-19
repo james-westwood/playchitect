@@ -343,13 +343,21 @@ def scan(
     applied_last = override_last_path or saved_overrides.get("last")
 
     selector = TrackSelector()
-    click.echo("\nOpener / Closer recommendations:")
+    if intensity_dict:
+        click.echo("\nOpener / Closer recommendations:")
+    else:
+        click.echo(
+            "\nOpener / Closer recommendations: (use --cluster-mode or"
+            " --use-embeddings to enable intensity-based scoring)"
+        )
     for cluster in clusters:
+        if not intensity_dict:
+            break
         try:
             selection = selector.select(
                 cluster,
                 metadata_dict,
-                {},  # intensity_dict not available in BPM-only mode
+                intensity_dict,
                 user_override_first=(applied_first if applied_first in cluster.tracks else None),
                 user_override_last=(applied_last if applied_last in cluster.tracks else None),
             )
