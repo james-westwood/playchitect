@@ -7,7 +7,6 @@ Future: CUE sheet generation, absolute path option.
 
 import logging
 from pathlib import Path
-from typing import List
 
 from playchitect.core.clustering import ClusterResult
 
@@ -68,7 +67,7 @@ class M3UExporter:
 
         return playlist_path
 
-    def export_clusters(self, clusters: List[ClusterResult]) -> List[Path]:
+    def export_clusters(self, clusters: list[ClusterResult]) -> list[Path]:
         """
         Export multiple clusters to M3U playlists.
 

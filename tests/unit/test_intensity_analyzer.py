@@ -2,9 +2,11 @@
 Unit tests for intensity_analyzer module.
 """
 
-import pytest
-import numpy as np
 from pathlib import Path
+
+import numpy as np
+import pytest
+
 from playchitect.core.intensity_analyzer import IntensityAnalyzer, IntensityFeatures
 
 

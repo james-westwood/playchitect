@@ -2,8 +2,10 @@
 Unit tests for metadata_extractor module.
 """
 
-import pytest
 from pathlib import Path
+
+import pytest
+
 from playchitect.core.metadata_extractor import MetadataExtractor, TrackMetadata
 
 
@@ -33,7 +35,7 @@ class TestTrackMetadata:
             album="Test Album",
             duration=180.5,
             year=2023,
-            genre="Techno"
+            genre="Techno",
         )
 
         assert metadata.bpm == 128.0
@@ -47,19 +49,15 @@ class TestTrackMetadata:
     def test_track_metadata_to_dict(self):
         """Test conversion to dictionary."""
         filepath = Path("/path/to/track.mp3")
-        metadata = TrackMetadata(
-            filepath=filepath,
-            bpm=128.0,
-            artist="Test Artist"
-        )
+        metadata = TrackMetadata(filepath=filepath, bpm=128.0, artist="Test Artist")
 
         result = metadata.to_dict()
 
         assert isinstance(result, dict)
-        assert result['filepath'] == str(filepath)
-        assert result['bpm'] == 128.0
-        assert result['artist'] == "Test Artist"
-        assert result['title'] is None
+        assert result["filepath"] == str(filepath)
+        assert result["bpm"] == 128.0
+        assert result["artist"] == "Test Artist"
+        assert result["title"] is None
 
 
 class TestMetadataExtractor:
@@ -75,10 +73,10 @@ class TestMetadataExtractor:
 
     def test_bpm_tags_defined(self):
         """Test that BPM tag list is defined."""
-        assert 'BPM' in MetadataExtractor.BPM_TAGS
-        assert 'bpm' in MetadataExtractor.BPM_TAGS
-        assert 'TBPM' in MetadataExtractor.BPM_TAGS
-        assert 'tempo' in MetadataExtractor.BPM_TAGS
+        assert "BPM" in MetadataExtractor.BPM_TAGS
+        assert "bpm" in MetadataExtractor.BPM_TAGS
+        assert "TBPM" in MetadataExtractor.BPM_TAGS
+        assert "tempo" in MetadataExtractor.BPM_TAGS
 
     def test_extract_nonexistent_file(self):
         """Test extracting metadata from nonexistent file."""
@@ -182,7 +180,8 @@ class TestMetadataExtractor:
         """Test extraction when mutagen is not available."""
         # Mock mutagen as unavailable
         import playchitect.core.metadata_extractor as me_module
-        monkeypatch.setattr(me_module, 'MUTAGEN_AVAILABLE', False)
+
+        monkeypatch.setattr(me_module, "MUTAGEN_AVAILABLE", False)
 
         extractor = MetadataExtractor()
         test_file = tmp_path / "test.mp3"
@@ -201,7 +200,7 @@ class TestMetadataExtractionIntegration:
 
     @pytest.mark.skipif(
         not Path("/home/james/audio-management/scripts").exists(),
-        reason="Test audio files not available"
+        reason="Test audio files not available",
     )
     def test_extract_from_real_audio_file(self):
         """Test extraction from real audio file if available."""

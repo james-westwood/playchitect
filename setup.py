@@ -2,7 +2,7 @@
 Setup script for Playchitect.
 """
 
-from setuptools import setup, find_packages
+from setuptools import find_packages, setup  # ty: ignore[unresolved-import]
 
 setup(
     packages=find_packages(),

@@ -2,8 +2,10 @@
 Unit tests for audio_scanner module.
 """
 
-import pytest
 from pathlib import Path
+
+import pytest
+
 from playchitect.core.audio_scanner import AudioScanner
 
 
@@ -14,13 +16,13 @@ class TestAudioScanner:
         """Test that supported extensions are defined correctly."""
         extensions = AudioScanner.get_supported_extensions()
 
-        assert '.mp3' in extensions
-        assert '.flac' in extensions
-        assert '.wav' in extensions
-        assert '.ogg' in extensions
-        assert '.m4a' in extensions
-        assert '.opus' in extensions
-        assert '.aiff' in extensions
+        assert ".mp3" in extensions
+        assert ".flac" in extensions
+        assert ".wav" in extensions
+        assert ".ogg" in extensions
+        assert ".m4a" in extensions
+        assert ".opus" in extensions
+        assert ".aiff" in extensions
 
     def test_scanner_initialization(self):
         """Test scanner initialization."""
@@ -97,7 +99,7 @@ class TestAudioScanner:
         scanner = AudioScanner()
 
         # Create files with different extensions
-        extensions = ['.mp3', '.flac', '.wav', '.ogg', '.m4a', '.opus', '.aiff']
+        extensions = [".mp3", ".flac", ".wav", ".ogg", ".m4a", ".opus", ".aiff"]
         for i, ext in enumerate(extensions):
             (tmp_path / f"track{i}{ext}").touch()
 
