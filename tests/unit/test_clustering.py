@@ -2,14 +2,14 @@
 Unit tests for clustering module.
 """
 
-import pytest
-import numpy as np
 from pathlib import Path
-from typing import Dict
-from playchitect.core.clustering import PlaylistClusterer, ClusterResult, FEATURE_NAMES
-from playchitect.core.metadata_extractor import TrackMetadata
-from playchitect.core.intensity_analyzer import IntensityFeatures
 
+import numpy as np
+import pytest
+
+from playchitect.core.clustering import FEATURE_NAMES, ClusterResult, PlaylistClusterer
+from playchitect.core.intensity_analyzer import IntensityFeatures
+from playchitect.core.metadata_extractor import TrackMetadata
 
 # ── Helpers ────────────────────────────────────────────────────────────────────
 
@@ -252,10 +252,10 @@ class TestClusterByFeatures:
 
     def _make_hard_techno(
         self, n: int, bpm_base: float = 138.0
-    ) -> tuple[Dict[Path, TrackMetadata], Dict[Path, IntensityFeatures]]:
+    ) -> tuple[dict[Path, TrackMetadata], dict[Path, IntensityFeatures]]:
         """Hard techno: high perc, high kick, low brightness."""
-        meta: Dict[Path, TrackMetadata] = {}
-        intensity: Dict[Path, IntensityFeatures] = {}
+        meta: dict[Path, TrackMetadata] = {}
+        intensity: dict[Path, IntensityFeatures] = {}
         for i in range(n):
             name = f"hard_{i}.mp3"
             p = Path(name)
@@ -265,10 +265,10 @@ class TestClusterByFeatures:
 
     def _make_ambient(
         self, n: int, bpm_base: float = 138.0
-    ) -> tuple[Dict[Path, TrackMetadata], Dict[Path, IntensityFeatures]]:
+    ) -> tuple[dict[Path, TrackMetadata], dict[Path, IntensityFeatures]]:
         """Ambient: same BPM range but low energy, high brightness, low perc."""
-        meta: Dict[Path, TrackMetadata] = {}
-        intensity: Dict[Path, IntensityFeatures] = {}
+        meta: dict[Path, TrackMetadata] = {}
+        intensity: dict[Path, IntensityFeatures] = {}
         for i in range(n):
             name = f"ambient_{i}.mp3"
             p = Path(name)
@@ -396,6 +396,17 @@ class TestClusterByFeatures:
         for a, b in zip(r1, r2):
             assert a.track_count == b.track_count
             assert abs(a.bpm_mean - b.bpm_mean) < 1e-6
+
+    def test_feature_importance_zero_variance(self) -> None:
+        """Identical cluster centroids produce equal feature importances."""
+        clusterer = PlaylistClusterer(target_tracks_per_playlist=5)
+        centroids = np.array([[1.0] * len(FEATURE_NAMES)] * 3)  # 3 clusters, all identical
+        importance = clusterer._compute_feature_importance(centroids)
+
+        expected = 1.0 / len(FEATURE_NAMES)
+        assert set(importance.keys()) == set(FEATURE_NAMES)
+        for val in importance.values():
+            assert abs(val - expected) < 1e-9
 
     def test_bpm_only_still_works_after_import(self) -> None:
         """cluster_by_bpm is unaffected by new code — backwards compatibility."""

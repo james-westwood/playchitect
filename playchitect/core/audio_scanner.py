@@ -4,10 +4,8 @@ Audio file scanner for discovering music files in directories.
 Supports common audio formats: MP3, FLAC, WAV, OGG, M4A, AAC, WMA, AIFF, APE, OPUS
 """
 
-import sys
-from pathlib import Path
-from typing import List, Set
 import logging
+from pathlib import Path
 
 logger = logging.getLogger(__name__)
 
@@ -16,18 +14,18 @@ class AudioScanner:
     """Scans directories for audio files with supported formats."""
 
     # Supported audio file extensions
-    SUPPORTED_EXTENSIONS: Set[str] = {
-        '.mp3',
-        '.flac',
-        '.wav',
-        '.ogg',
-        '.m4a',
-        '.aac',
-        '.wma',
-        '.aiff',
-        '.aif',
-        '.ape',
-        '.opus',
+    SUPPORTED_EXTENSIONS: set[str] = {
+        ".mp3",
+        ".flac",
+        ".wav",
+        ".ogg",
+        ".m4a",
+        ".aac",
+        ".wma",
+        ".aiff",
+        ".aif",
+        ".ape",
+        ".opus",
     }
 
     def __init__(self, follow_symlinks: bool = False):
@@ -39,7 +37,7 @@ class AudioScanner:
         """
         self.follow_symlinks = follow_symlinks
 
-    def scan(self, directory: Path) -> List[Path]:
+    def scan(self, directory: Path) -> list[Path]:
         """
         Scan directory recursively for audio files.
 
@@ -60,10 +58,10 @@ class AudioScanner:
             raise NotADirectoryError(f"Path is not a directory: {directory}")
 
         logger.info(f"Scanning directory: {directory}")
-        audio_files: List[Path] = []
+        audio_files: list[Path] = []
 
         try:
-            for file_path in directory.rglob('*'):
+            for file_path in directory.rglob("*"):
                 # Skip if it's a symlink and we're not following them
                 if file_path.is_symlink() and not self.follow_symlinks:
                     logger.debug(f"Skipping symlink: {file_path}")
@@ -93,7 +91,7 @@ class AudioScanner:
         """
         return file_path.suffix.lower() in self.SUPPORTED_EXTENSIONS
 
-    def scan_multiple(self, directories: List[Path]) -> List[Path]:
+    def scan_multiple(self, directories: list[Path]) -> list[Path]:
         """
         Scan multiple directories for audio files.
 
@@ -106,7 +104,7 @@ class AudioScanner:
         Raises:
             FileNotFoundError: If any directory does not exist
         """
-        all_files: List[Path] = []
+        all_files: list[Path] = []
 
         for directory in directories:
             files = self.scan(directory)
@@ -115,7 +113,7 @@ class AudioScanner:
         return all_files
 
     @classmethod
-    def get_supported_extensions(cls) -> Set[str]:
+    def get_supported_extensions(cls) -> set[str]:
         """
         Get set of supported audio file extensions.
 

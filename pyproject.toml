@@ -41,9 +41,8 @@ gui = [
 dev = [
     "pytest>=7.4.0",
     "pytest-cov>=4.1.0",
-    "black>=23.0.0",
-    "flake8>=6.0.0",
-    "mypy>=1.5.0",
+    "ruff>=0.15.0",
+    "ty>=0.0.17",
     "pre-commit>=3.3.0",
     "soundfile>=0.12.0",  # For unit tests with synthetic audio
 ]
@@ -56,24 +55,22 @@ playchitect-gui = "playchitect.gui.app:main"
 Homepage = "https://github.com/james-westwood/playchitect"
 Issues = "https://github.com/james-westwood/playchitect/issues"
 
-[tool.black]
+[tool.ruff]
 line-length = 100
-target-version = ['py311']
+target-version = "py311"
 
-[tool.flake8]
-max-line-length = 100
-extend-ignore = ["E203", "W503"]
+[tool.ruff.lint]
+select = ["E", "F", "W", "I", "UP"]
+ignore = ["E203"]
 
-[tool.mypy]
-python_version = "3.11"
-strict = true
-warn_return_any = true
-warn_unused_configs = true
+[tool.ruff.format]
+quote-style = "double"
+indent-style = "space"
 
-# Allow untyped decorators (click decorators)
-[[tool.mypy.overrides]]
-module = "playchitect.cli.*"
-disallow_untyped_decorators = false
+# ty is in beta (0.0.x) — configuration may change between versions.
+# Use `uv run ty check` or the pre-commit hook to run type checks.
+[tool.ty.environment]
+python-version = "3.11"
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]

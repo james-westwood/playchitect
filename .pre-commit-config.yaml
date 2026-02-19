@@ -1,26 +1,22 @@
 repos:
-  # Black code formatter
-  - repo: https://github.com/psf/black
-    rev: 23.12.1
+  # Ruff: linting (replaces flake8 + isort) and formatting (replaces black)
+  - repo: https://github.com/astral-sh/ruff-pre-commit
+    rev: v0.15.1
     hooks:
-      - id: black
-        language_version: python3.11
-        args: [--line-length=100]
+      - id: ruff
+        args: [--fix]
+      - id: ruff-format
 
-  # Flake8 linter
-  - repo: https://github.com/pycqa/flake8
-    rev: 7.0.0
+  # ty: type checking (replaces mypy) — beta (0.0.x), fast Rust-based checker
+  - repo: local
     hooks:
-      - id: flake8
-        args: [--max-line-length=100, --extend-ignore=E203]
-
-  # MyPy type checker
-  - repo: https://github.com/pre-commit/mirrors-mypy
-    rev: v1.8.0
-    hooks:
-      - id: mypy
-        additional_dependencies: []
-        args: [--ignore-missing-imports]
+      - id: ty
+        name: ty
+        entry: uv run ty check
+        language: system
+        types: [python]
+        pass_filenames: false
+        always_run: true
 
   # Run unit tests
   - repo: local
@@ -32,17 +28,17 @@ repos:
         pass_filenames: false
         always_run: true
 
-  # GUI smoke tests (custom hook)
+  # GUI smoke tests
   - repo: local
     hooks:
       - id: gui-smoke-test
         name: GUI Smoke Tests
-        entry: bash -c 'if [ -f tests/gui/test_gui_layout.py ]; then pytest tests/gui/test_gui_layout.py -v --tb=short; else echo "GUI smoke tests not yet implemented"; fi'
+        entry: bash -c 'if [ -f tests/gui/test_gui_layout.py ]; then uv run pytest tests/gui/test_gui_layout.py -v --tb=short; else echo "GUI smoke tests not yet implemented"; fi'
         language: system
         pass_filenames: false
         always_run: false
 
-  # Trailing whitespace
+  # Standard file hygiene
   - repo: https://github.com/pre-commit/pre-commit-hooks
     rev: v4.5.0
     hooks:

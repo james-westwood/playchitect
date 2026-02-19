@@ -5,9 +5,9 @@ Extracts BPM, artist, title, album, duration, and other metadata.
 """
 
 import logging
-from pathlib import Path
-from typing import Optional, Dict, Any
 from dataclasses import dataclass
+from pathlib import Path
+from typing import Any
 
 try:
     from mutagen import File as MutagenFile
@@ -24,15 +24,15 @@ class TrackMetadata:
     """Container for track metadata."""
 
     filepath: Path
-    bpm: Optional[float] = None
-    artist: Optional[str] = None
-    title: Optional[str] = None
-    album: Optional[str] = None
-    duration: Optional[float] = None  # Duration in seconds
-    year: Optional[int] = None
-    genre: Optional[str] = None
+    bpm: float | None = None
+    artist: str | None = None
+    title: str | None = None
+    album: str | None = None
+    duration: float | None = None  # Duration in seconds
+    year: int | None = None
+    genre: str | None = None
 
-    def to_dict(self) -> Dict[str, Any]:
+    def to_dict(self) -> dict[str, Any]:
         """Convert metadata to dictionary."""
         return {
             "filepath": str(self.filepath),
@@ -71,7 +71,7 @@ class MetadataExtractor:
             logger.warning("Mutagen library not available. Metadata extraction will be limited.")
 
         self.cache_enabled = cache_enabled
-        self._cache: Dict[Path, TrackMetadata] = {}
+        self._cache: dict[Path, TrackMetadata] = {}
 
     def extract(self, filepath: Path) -> TrackMetadata:
         """
@@ -127,7 +127,7 @@ class MetadataExtractor:
 
         return metadata
 
-    def _extract_bpm(self, audio: Any) -> Optional[float]:
+    def _extract_bpm(self, audio: Any) -> float | None:
         """
         Extract BPM from audio file tags.
 
@@ -155,7 +155,7 @@ class MetadataExtractor:
 
         return None
 
-    def _extract_text_tag(self, audio: Any, tag_names: list[str]) -> Optional[str]:
+    def _extract_text_tag(self, audio: Any, tag_names: list[str]) -> str | None:
         """
         Extract text metadata from various tag formats.
 
@@ -184,7 +184,7 @@ class MetadataExtractor:
 
         return None
 
-    def _parse_year(self, year_str: str) -> Optional[int]:
+    def _parse_year(self, year_str: str) -> int | None:
         """
         Parse year from various date string formats.
 
@@ -205,7 +205,7 @@ class MetadataExtractor:
 
         return None
 
-    def extract_batch(self, filepaths: list[Path]) -> Dict[Path, TrackMetadata]:
+    def extract_batch(self, filepaths: list[Path]) -> dict[Path, TrackMetadata]:
         """
         Extract metadata from multiple files.
 
@@ -215,7 +215,7 @@ class MetadataExtractor:
         Returns:
             Dictionary mapping file paths to metadata
         """
-        results: Dict[Path, TrackMetadata] = {}
+        results: dict[Path, TrackMetadata] = {}
 
         for i, filepath in enumerate(filepaths, 1):
             if i % 50 == 0:

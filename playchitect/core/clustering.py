@@ -7,16 +7,16 @@ features for character-aware playlist grouping.
 """
 
 import logging
-from pathlib import Path
-from typing import List, Dict, Optional, Union
+import random
 from dataclasses import dataclass, field
+from pathlib import Path
 
 import numpy as np
 from sklearn.cluster import KMeans
 from sklearn.preprocessing import StandardScaler
 
-from playchitect.core.metadata_extractor import TrackMetadata
 from playchitect.core.intensity_analyzer import IntensityFeatures
+from playchitect.core.metadata_extractor import TrackMetadata
 
 logger = logging.getLogger(__name__)
 
@@ -37,16 +37,16 @@ FEATURE_NAMES: tuple[str, ...] = (
 class ClusterResult:
     """Result of a clustering operation."""
 
-    cluster_id: Union[int, str]  # int normally, str for split subclusters
-    tracks: List[Path]
+    cluster_id: int | str  # int normally, str for split subclusters
+    tracks: list[Path]
     bpm_mean: float
     bpm_std: float
     track_count: int
     total_duration: float  # seconds
 
     # Populated by cluster_by_features(); None when using cluster_by_bpm().
-    feature_means: Optional[Dict[str, float]] = field(default=None)
-    feature_importance: Optional[Dict[str, float]] = field(default=None)
+    feature_means: dict[str, float] | None = field(default=None)
+    feature_importance: dict[str, float] | None = field(default=None)
 
 
 class PlaylistClusterer:
@@ -54,8 +54,8 @@ class PlaylistClusterer:
 
     def __init__(
         self,
-        target_tracks_per_playlist: Optional[int] = None,
-        target_duration_per_playlist: Optional[float] = None,
+        target_tracks_per_playlist: int | None = None,
+        target_duration_per_playlist: float | None = None,
         min_clusters: int = 2,
         max_clusters: int = 10,
         random_state: int = 42,
@@ -86,7 +86,7 @@ class PlaylistClusterer:
 
     # ── Public API ─────────────────────────────────────────────────────────────
 
-    def cluster_by_bpm(self, metadata_dict: Dict[Path, TrackMetadata]) -> List[ClusterResult]:
+    def cluster_by_bpm(self, metadata_dict: dict[Path, TrackMetadata]) -> list[ClusterResult]:
         """
         Cluster tracks by BPM only (lightweight / MVP mode).
 
@@ -132,9 +132,9 @@ class PlaylistClusterer:
 
     def cluster_by_features(
         self,
-        metadata_dict: Dict[Path, TrackMetadata],
-        intensity_dict: Dict[Path, IntensityFeatures],
-    ) -> List[ClusterResult]:
+        metadata_dict: dict[Path, TrackMetadata],
+        intensity_dict: dict[Path, IntensityFeatures],
+    ) -> list[ClusterResult]:
         """
         Cluster tracks using BPM + 7 intensity features (8-dimensional).
 
@@ -208,13 +208,13 @@ class PlaylistClusterer:
 
     def _build_cluster_results(
         self,
-        tracks: List[Path],
+        tracks: list[Path],
         labels: np.ndarray,
         n_clusters: int,
-        metadata_dict: Dict[Path, TrackMetadata],
-        raw_features: Optional[np.ndarray] = None,
-        feature_importance: Optional[Dict[str, float]] = None,
-    ) -> List[ClusterResult]:
+        metadata_dict: dict[Path, TrackMetadata],
+        raw_features: np.ndarray | None = None,
+        feature_importance: dict[str, float] | None = None,
+    ) -> list[ClusterResult]:
         """Build ClusterResult list from K-means labels."""
         results = []
 
@@ -222,11 +222,13 @@ class PlaylistClusterer:
             mask = labels == cid
             cluster_tracks = [tracks[i] for i in np.where(mask)[0]]
 
-            cluster_bpms = [metadata_dict[t].bpm for t in cluster_tracks]
+            cluster_bpms: list[float] = [
+                b for t in cluster_tracks if (b := metadata_dict[t].bpm) is not None
+            ]
             cluster_durations = [metadata_dict[t].duration or 0 for t in cluster_tracks]
 
             # Per-feature means (only available in multi-dimensional mode)
-            f_means: Optional[Dict[str, float]] = None
+            f_means: dict[str, float] | None = None
             if raw_features is not None:
                 cluster_raw = raw_features[mask]
                 f_means = {
@@ -248,7 +250,7 @@ class PlaylistClusterer:
 
         return results
 
-    def _compute_feature_importance(self, centroids: np.ndarray) -> Dict[str, float]:
+    def _compute_feature_importance(self, centroids: np.ndarray) -> dict[str, float]:
         """
         Compute feature importance as variance of cluster centroids.
 
@@ -266,16 +268,16 @@ class PlaylistClusterer:
         total = float(variances.sum())
 
         if total > 0:
-            normalized = variances / total
+            scores: list[float] = [float(v / total) for v in variances]
         else:
-            normalized = np.ones(len(FEATURE_NAMES)) / len(FEATURE_NAMES)
+            scores = [1.0 / len(FEATURE_NAMES)] * len(FEATURE_NAMES)
 
-        return {name: float(normalized[i]) for i, name in enumerate(FEATURE_NAMES)}
+        return {name: scores[i] for i, name in enumerate(FEATURE_NAMES)}
 
     def _determine_optimal_k(
         self,
         features: np.ndarray,
-        metadata_dict: Dict[Path, TrackMetadata],
+        metadata_dict: dict[Path, TrackMetadata],
         total_tracks: int,
     ) -> int:
         """
@@ -289,8 +291,8 @@ class PlaylistClusterer:
         Returns:
             Optimal K value
         """
-        k_from_tracks: Optional[int] = None
-        k_from_duration: Optional[int] = None
+        k_from_tracks: int | None = None
+        k_from_duration: int | None = None
 
         if self.target_tracks:
             k_from_tracks = max(
@@ -306,7 +308,7 @@ class PlaylistClusterer:
             )
 
         if k_from_tracks and k_from_duration:
-            constraint_k: Optional[int] = int((k_from_tracks + k_from_duration) / 2)
+            constraint_k: int | None = int((k_from_tracks + k_from_duration) / 2)
         elif k_from_tracks:
             constraint_k = k_from_tracks
         elif k_from_duration:
@@ -335,11 +337,11 @@ class PlaylistClusterer:
         return elbow_k
 
     def _create_single_cluster(
-        self, metadata_dict: Dict[Path, TrackMetadata]
-    ) -> List[ClusterResult]:
+        self, metadata_dict: dict[Path, TrackMetadata]
+    ) -> list[ClusterResult]:
         """Create a single cluster when there are insufficient tracks."""
         tracks = list(metadata_dict.keys())
-        bpms = [metadata_dict[t].bpm for t in tracks]
+        bpms: list[float] = [b for t in tracks if (b := metadata_dict[t].bpm) is not None]
         durations = [metadata_dict[t].duration or 0 for t in tracks]
 
         return [
@@ -353,7 +355,7 @@ class PlaylistClusterer:
             )
         ]
 
-    def split_cluster(self, cluster: ClusterResult, target_size: int) -> List[ClusterResult]:
+    def split_cluster(self, cluster: ClusterResult, target_size: int) -> list[ClusterResult]:
         """
         Split a cluster that exceeds target size.
 
@@ -369,9 +371,9 @@ class PlaylistClusterer:
 
         num_splits = (cluster.track_count + target_size - 1) // target_size
 
-        np.random.seed(self.random_state)
+        rng = random.Random(self.random_state)
         shuffled = cluster.tracks.copy()
-        np.random.shuffle(shuffled)
+        rng.shuffle(shuffled)
 
         subclusters = []
         for i in range(num_splits):

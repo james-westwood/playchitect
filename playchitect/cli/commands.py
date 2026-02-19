@@ -2,17 +2,16 @@
 CLI commands for Playchitect.
 """
 
-import sys
 import logging
+import sys
 from pathlib import Path
-from typing import Optional, Dict
 
 import click
 
 from playchitect.core.audio_scanner import AudioScanner
-from playchitect.core.metadata_extractor import MetadataExtractor
 from playchitect.core.clustering import PlaylistClusterer
 from playchitect.core.export import M3UExporter
+from playchitect.core.metadata_extractor import MetadataExtractor
 from playchitect.utils.config import get_config
 
 # Configure logging
@@ -61,10 +60,10 @@ def cli() -> None:
     help="Use test music path from config (for testing)",
 )
 def scan(
-    music_path: Optional[Path],
-    output: Optional[Path],
-    target_tracks: Optional[int],
-    target_duration: Optional[int],
+    music_path: Path | None,
+    output: Path | None,
+    target_tracks: int | None,
+    target_duration: int | None,
     playlist_name: str,
     dry_run: bool,
     use_test_path: bool,
@@ -221,7 +220,7 @@ def info(music_path: Path, format: str) -> None:
         click.echo(f"Total audio files: {len(audio_files)}")
 
         # Group by extension
-        extensions: Dict[str, int] = {}
+        extensions: dict[str, int] = {}
         for file in audio_files:
             ext = file.suffix.lower()
             extensions[ext] = extensions.get(ext, 0) + 1

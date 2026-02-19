@@ -5,15 +5,15 @@ Analyzes tracks to extract intensity features including RMS energy,
 spectral brightness, bass energy (3-way split), percussiveness, and onset strength.
 """
 
-import json
 import hashlib
+import json
 import logging
+from dataclasses import asdict, dataclass
 from pathlib import Path
-from typing import Optional, Dict, Any
-from dataclasses import dataclass, asdict
+from typing import Any, Literal, overload
 
-import numpy as np
 import librosa
+import numpy as np
 
 logger = logging.getLogger(__name__)
 
@@ -55,13 +55,19 @@ class IntensityFeatures:
     percussiveness: float  # HPSS ratio (0-1)
     onset_strength: float  # Beat intensity (0-1)
 
-    def to_dict(self) -> Dict[str, Any]:
+    def to_dict(self) -> dict[str, Any]:
         """Convert to dictionary."""
         result = asdict(self)
         result["filepath"] = str(self.filepath)
         return result
 
-    def to_feature_vector(self, include_filepath: bool = False) -> np.ndarray | Dict[str, Any]:
+    @overload
+    def to_feature_vector(self, include_filepath: Literal[False] = ...) -> np.ndarray: ...
+
+    @overload
+    def to_feature_vector(self, include_filepath: Literal[True]) -> dict[str, Any]: ...
+
+    def to_feature_vector(self, include_filepath: bool = False) -> np.ndarray | dict[str, Any]:
         """
         Convert to numpy feature vector (7 dimensions, excludes file_hash).
 
@@ -89,7 +95,7 @@ class IntensityFeatures:
         return vector
 
     @classmethod
-    def from_dict(cls, data: Dict[str, Any]) -> "IntensityFeatures":
+    def from_dict(cls, data: dict[str, Any]) -> "IntensityFeatures":
         """Create from dictionary."""
         data["filepath"] = Path(data["filepath"])
         return cls(**data)
@@ -101,7 +107,7 @@ class IntensityAnalyzer:
     def __init__(
         self,
         sample_rate: int = 22050,
-        cache_dir: Optional[Path] = None,
+        cache_dir: Path | None = None,
         cache_enabled: bool = True,
     ):
         """
@@ -154,7 +160,7 @@ class IntensityAnalyzer:
 
         # Load audio
         try:
-            y, sr = librosa.load(filepath, sr=self.sample_rate, mono=True)
+            y, _ = librosa.load(filepath, sr=self.sample_rate, mono=True)
         except Exception as e:
             raise ValueError(f"Error loading audio file {filepath}: {e}")
 
@@ -163,10 +169,10 @@ class IntensityAnalyzer:
         S = np.abs(librosa.stft(y))
 
         rms = self._calculate_rms_energy(S)
-        brightness = self._calculate_brightness(S, sr)
-        sub_bass, kick, harmonics = self._calculate_bass_energy(S, sr)
+        brightness = self._calculate_brightness(S, self.sample_rate)
+        sub_bass, kick, harmonics = self._calculate_bass_energy(S, self.sample_rate)
         percussiveness = self._calculate_percussiveness(S)
-        onset = self._calculate_onset_strength(S, sr)
+        onset = self._calculate_onset_strength(S, self.sample_rate)
 
         features = IntensityFeatures(
             filepath=filepath,
@@ -348,7 +354,7 @@ class IntensityAnalyzer:
         except Exception as e:
             logger.warning(f"Failed to cache analysis: {e}")
 
-    def _load_from_cache(self, file_hash: str) -> Optional[IntensityFeatures]:
+    def _load_from_cache(self, file_hash: str) -> IntensityFeatures | None:
         """Load features from cache."""
         cache_path = self._get_cache_path(file_hash)
 
@@ -356,7 +362,7 @@ class IntensityAnalyzer:
             return None
 
         try:
-            with open(cache_path, "r") as f:
+            with open(cache_path) as f:
                 data = json.load(f)
             return IntensityFeatures.from_dict(data)
         except Exception as e:

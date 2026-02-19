@@ -2,10 +2,11 @@
 User configuration management.
 """
 
-import yaml  # type: ignore[import-untyped]
-from pathlib import Path
-from typing import Optional, Dict, Any
 import logging
+from pathlib import Path
+from typing import Any
+
+import yaml
 
 logger = logging.getLogger(__name__)
 
@@ -24,7 +25,7 @@ class Config:
         "log_level": "INFO",
     }
 
-    def __init__(self, config_path: Optional[Path] = None):
+    def __init__(self, config_path: Path | None = None):
         """
         Initialize configuration.
 
@@ -32,14 +33,14 @@ class Config:
             config_path: Path to config file (default: ~/.config/playchitect/config.yaml)
         """
         self.config_path = config_path or self.DEFAULT_CONFIG_PATH
-        self.config: Dict[str, Any] = {}
+        self.config: dict[str, Any] = {}
         self.load()
 
     def load(self) -> None:
         """Load configuration from file, or create default."""
         if self.config_path.exists():
             try:
-                with open(self.config_path, "r") as f:
+                with open(self.config_path) as f:
                     self.config = yaml.safe_load(f) or {}
                 logger.info(f"Loaded config from {self.config_path}")
             except Exception as e:
@@ -83,7 +84,7 @@ class Config:
         """
         self.config[key] = value
 
-    def get_test_music_path(self) -> Optional[Path]:
+    def get_test_music_path(self) -> Path | None:
         """
         Get test music path from config.
 
@@ -109,7 +110,7 @@ class Config:
 
 
 # Global config instance
-_config: Optional[Config] = None
+_config: Config | None = None
 
 
 def get_config() -> Config:
