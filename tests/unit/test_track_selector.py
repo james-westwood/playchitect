@@ -277,8 +277,12 @@ class TestTrackSelector:
         with caplog.at_level(logging.WARNING):
             sel = TrackSelector().select(cluster, metadata, intensity)
 
-        assert len(sel.first_tracks) == 1
+        # Both tracks appear in results; missing track gets score=-1.0 and sorts last
+        assert len(sel.first_tracks) == 2
         assert sel.first_tracks[0].path == p1
+        assert sel.first_tracks[1].path == p2
+        assert sel.first_tracks[1].score == -1.0
+        assert "missing intensity data" in sel.first_tracks[1].reason
         assert any("missing from intensity_dict" in rec.message for rec in caplog.records)
 
     def test_top_n_3_returns_three_candidates(self, tmp_path: Path) -> None:

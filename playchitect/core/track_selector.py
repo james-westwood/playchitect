@@ -134,6 +134,12 @@ class TrackSelector:
         for track in cluster.tracks:
             if track not in intensity_dict:
                 logger.warning("Track missing from intensity_dict, skipping: %s", track.name)
+                opener_scores.append(
+                    TrackScore(path=track, score=-1.0, reason="missing intensity data")
+                )
+                closer_scores.append(
+                    TrackScore(path=track, score=-1.0, reason="missing intensity data")
+                )
                 continue
 
             features = intensity_dict[track]

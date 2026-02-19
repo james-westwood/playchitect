@@ -751,3 +751,88 @@ class TestEnsureModel:
 
         assert len(downloaded) == 1
         assert downloaded[0] == model_file
+
+    def test_ensure_model_propagates_init_exception(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        """If the model constructor raises, the exception propagates from _ensure_model."""
+        monkeypatch.setattr(emb_mod, "_ESSENTIA_AVAILABLE", True)
+
+        class BrokenModel:
+            def __init__(self, graphFilename: str, output: str = "", **kwargs: object):
+                raise RuntimeError("model load failed")
+
+        monkeypatch.setattr(emb_mod, "_EssentiaModel", BrokenModel)
+
+        model_file = tmp_path / "fake.pb"
+        model_file.write_bytes(b"x")
+
+        extractor = EmbeddingExtractor(model_path=model_file, cache_enabled=False)
+        with pytest.raises(RuntimeError, match="model load failed"):
+            extractor._ensure_model()
+
+
+# ── TestDownloadFailure ───────────────────────────────────────────────────────
+
+
+class TestDownloadFailure:
+    """Test that download failures propagate correctly."""
+
+    def test_download_network_error_raises(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        """A network error from urlretrieve propagates out of _download_model."""
+        monkeypatch.setattr(emb_mod, "_ESSENTIA_AVAILABLE", True)
+
+        def failing_urlretrieve(url: str, dest: object) -> None:
+            raise OSError("network error")
+
+        monkeypatch.setattr(
+            "playchitect.core.embedding_extractor.urllib.request.urlretrieve",
+            failing_urlretrieve,
+        )
+
+        target = tmp_path / "msd-musicnn-1.pb"
+        extractor = EmbeddingExtractor(model_path=target, cache_enabled=False)
+        with pytest.raises(OSError, match="network error"):
+            extractor._download_model(target)
+
+
+# ── TestCorruptCache ──────────────────────────────────────────────────────────
+
+
+class TestCorruptCache:
+    """Test that corrupted cache files are handled gracefully."""
+
+    @pytest.fixture()
+    def extractor(self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> EmbeddingExtractor:
+        monkeypatch.setattr(emb_mod, "_ESSENTIA_AVAILABLE", True)
+        return EmbeddingExtractor(
+            cache_dir=tmp_path / "cache",
+            cache_enabled=True,
+            model_path=tmp_path / "fake.pb",
+        )
+
+    def test_corrupt_npy_returns_none(self, extractor: EmbeddingExtractor) -> None:
+        """A broken .npy file causes _load_from_cache to return None."""
+        file_hash = "deadbeefcafe1234"
+        extractor.cache_dir.mkdir(parents=True, exist_ok=True)
+        # Write garbage bytes that np.load cannot parse
+        (extractor.cache_dir / f"{file_hash}.npy").write_bytes(b"NOT VALID NPY DATA")
+        (extractor.cache_dir / f"{file_hash}_tags.json").write_text('[["techno", 0.9]]')
+
+        result = extractor._load_from_cache(file_hash)
+        assert result is None
+
+    def test_corrupt_tags_json_returns_none(self, extractor: EmbeddingExtractor) -> None:
+        """A broken _tags.json file causes _load_from_cache to return None."""
+        file_hash = "cafe1234deadbeef"
+        extractor.cache_dir.mkdir(parents=True, exist_ok=True)
+        # Write a valid .npy
+        valid_emb = np.zeros(128, dtype=np.float32)
+        np.save(str(extractor._get_cache_path(file_hash)), valid_emb)
+        # Write corrupt tags JSON
+        (extractor.cache_dir / f"{file_hash}_tags.json").write_text("NOT JSON {{{{")
+
+        result = extractor._load_from_cache(file_hash)
+        assert result is None
