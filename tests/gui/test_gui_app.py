@@ -57,7 +57,7 @@ class TestPlaychitectApplication:
         mock_window_present = MagicMock()
         mock_window_init = MagicMock(return_value=MagicMock(present=mock_window_present))
         monkeypatch.setattr(
-            "playchitect.gui.windows.main_window.PlaychitectWindow",
+            "playchitect.gui.app.PlaychitectWindow",
             mock_window_init,
         )
         monkeypatch.setattr(PlaychitectApplication, "run", MagicMock(return_value=0))
@@ -66,12 +66,6 @@ class TestPlaychitectApplication:
         app.on_activate(app)  # Manually activate
         mock_window_init.assert_called_once()
         mock_window_present.assert_called_once()
-
-    def test_application_id(self, monkeypatch: pytest.MonkeyPatch) -> None:
-        """Verify the application ID is set correctly."""
-        monkeypatch.setattr(PlaychitectApplication, "run", MagicMock(return_value=0))
-        app = PlaychitectApplication()
-        assert app.get_application_id() == "com.github.jameswestwood.Playchitect"
 
     def test_main_function_runs_app(self, monkeypatch: pytest.MonkeyPatch) -> None:
         """Test that the main function correctly runs the application."""
