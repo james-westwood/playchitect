@@ -78,6 +78,18 @@ def cli() -> None:
     default=False,
     help="Persist --first-override / --last-override to config for future runs.",
 )
+@click.option(
+    "--use-embeddings",
+    is_flag=True,
+    default=False,
+    help="Use MusiCNN semantic embeddings for richer clustering (requires essentia-tensorflow).",
+)
+@click.option(
+    "--model-path",
+    type=click.Path(),
+    default=None,
+    help="Path to msd-musicnn-1.pb (auto-downloaded if absent).",
+)
 def scan(
     music_path: Path | None,
     output: Path | None,
@@ -89,6 +101,8 @@ def scan(
     first_override: str | None,
     last_override: str | None,
     save_overrides: bool,
+    use_embeddings: bool,
+    model_path: str | None,
 ) -> None:
     """
     Scan music directory and create intelligent playlists.
@@ -163,13 +177,78 @@ def scan(
         click.echo("Error: No tracks with BPM metadata found", err=True)
         sys.exit(1)
 
+    # Optional: intensity analysis + MusiCNN embeddings for Block PCA clustering
+    embedding_dict = None
+    intensity_dict: dict = {}
+    auto_genre: str | None = None
+
+    if use_embeddings:
+        # Intensity analysis is required by cluster_by_features
+        from playchitect.core.intensity_analyzer import IntensityAnalyzer  # noqa: PLC0415
+
+        click.echo("\nExtracting audio intensity features...")
+        int_analyzer = IntensityAnalyzer(cache_dir=config.get_cache_dir() / "intensity")
+        with click.progressbar(audio_files, label="Intensity analysis", show_pos=True) as files:
+            for file_path in files:
+                try:
+                    intensity_dict[file_path] = int_analyzer.analyze(file_path)
+                except Exception as exc:
+                    logger.warning("Intensity analysis failed for %s: %s", file_path.name, exc)
+
+        # Embedding extraction (lazy import keeps ImportError contained)
+        try:
+            from playchitect.core.embedding_extractor import EmbeddingExtractor  # noqa: PLC0415
+
+            resolved_model = (
+                Path(model_path)
+                if model_path
+                else (
+                    Path(config.get("embedding_model_path"))
+                    if config.get("embedding_model_path")
+                    else None
+                )
+            )
+            emb_extractor = EmbeddingExtractor(model_path=resolved_model)
+            click.echo(
+                "\nExtracting MusiCNN embeddings (may download ~50 MB model on first run)..."
+            )
+            with click.progressbar(audio_files, label="Embedding files", show_pos=True) as files:
+                embedding_dict = {}
+                for file_path in files:
+                    try:
+                        embedding_dict[file_path] = emb_extractor.analyze(file_path)
+                    except Exception as exc:
+                        logger.warning("Embedding failed for %s: %s", file_path.name, exc)
+
+            # Auto-detect genre by majority vote across all tracks
+            genres: list[str] = []
+            for feat in embedding_dict.values():
+                g = emb_extractor.infer_genre(feat)
+                if g:
+                    genres.append(g)
+            if genres:
+                auto_genre = max(set(genres), key=genres.count)
+                click.echo(f"Auto-detected genre: {auto_genre}")
+        except RuntimeError as exc:
+            click.echo(f"Warning: {exc}", err=True)
+            click.echo("Falling back to intensity-only clustering.", err=True)
+            embedding_dict = None
+
     # Perform clustering
-    click.echo("\nClustering tracks by BPM...")
+    click.echo("\nClustering tracks...")
     clusterer = PlaylistClusterer(
         target_tracks_per_playlist=target_tracks, target_duration_per_playlist=target_duration
     )
 
-    clusters = clusterer.cluster_by_bpm(metadata_dict)
+    if use_embeddings and intensity_dict and embedding_dict:
+        clusters = clusterer.cluster_by_features(
+            metadata_dict,
+            intensity_dict,
+            embedding_dict=embedding_dict,
+            genre=auto_genre,
+        )
+    else:
+        clusters = clusterer.cluster_by_bpm(metadata_dict)
 
     if not clusters:
         click.echo("Error: Clustering failed", err=True)
@@ -183,6 +262,11 @@ def scan(
             f"BPM: {cluster.bpm_mean:.1f} ± {cluster.bpm_std:.1f}, "
             f"Duration: {duration_min:.1f} min"
         )
+
+    # Report embedding PCA variance when applicable
+    if clusters and clusters[0].embedding_variance_explained is not None:
+        var = clusters[0].embedding_variance_explained
+        click.echo(f"\nEmbedding PCA ({12} components): {var:.1%} variance explained")
 
     # Track selection — opener/closer recommendations per cluster
     override_first_path = Path(first_override) if first_override else None

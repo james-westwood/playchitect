@@ -24,6 +24,10 @@ class Config:
         "cache_dir": "~/.cache/playchitect",
         "log_level": "INFO",
         "track_overrides": {},  # {music_dir_str: {"first": str|None, "last": str|None}}
+        "embedding_model_path": None,  # str path or None (auto-download)
+        "embedding_pca_components": 12,
+        "embedding_intensity_weight": 0.70,
+        "embedding_semantic_weight": 0.30,
     }
 
     def __init__(self, config_path: Path | None = None):

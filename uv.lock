@@ -380,6 +380,27 @@ wheels = [
 ]
 
 [[package]]
+name = "essentia-tensorflow"
+version = "2.1b6.dev1389"
+source = { registry = "https://pypi.org/simple" }
+dependencies = [
+    { name = "numpy" },
+    { name = "pyyaml" },
+    { name = "six" },
+]
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/73/85/f82a6100d8d5a0789436b5d12f0d267f473cb7c43674695fb4bdb7aae336/essentia_tensorflow-2.1b6.dev1389-cp311-cp311-macosx_14_0_x86_64.whl", hash = "sha256:4d701d7eb8de4b385087d10b04b63348516c82943cf027de3aea8d173a6e615f", size = 141387095, upload-time = "2025-07-24T21:11:48.006Z" },
+    { url = "https://files.pythonhosted.org/packages/94/66/88795fd8affe129d7d1634cb1564823214c8650f43387619c472446d8e26/essentia_tensorflow-2.1b6.dev1389-cp311-cp311-macosx_15_0_arm64.whl", hash = "sha256:b429d40fadb78ee4340cf1649a67c3fb1da45e46731e15299b7f15d58979c608", size = 115255005, upload-time = "2025-07-24T21:11:57.322Z" },
+    { url = "https://files.pythonhosted.org/packages/f0/5f/7283634ee1d5d195d75986adc98a2309fab2df121a4618f3826eb2073d29/essentia_tensorflow-2.1b6.dev1389-cp311-cp311-manylinux_2_17_x86_64.manylinux2014_x86_64.whl", hash = "sha256:72d2d8d748e916df931fa561f284d9a47ad0f557351acfbdc952d4b4118c01b8", size = 291543635, upload-time = "2025-07-24T21:12:13.88Z" },
+    { url = "https://files.pythonhosted.org/packages/f7/53/365e1ffab712cfca9b54f82cedd8d3427a31e43b4f1096f8a69fd01441d5/essentia_tensorflow-2.1b6.dev1389-cp312-cp312-macosx_14_0_x86_64.whl", hash = "sha256:4d5e111d01e69a06f2cc797871c7979ac09f14ef3ae04bccf87dc9a6618fa957", size = 141387213, upload-time = "2025-07-24T21:12:25.41Z" },
+    { url = "https://files.pythonhosted.org/packages/e3/fe/ebc4759d12b49ee7bfba79086bc06b55bff5fc172b21017d81c0c5a5957c/essentia_tensorflow-2.1b6.dev1389-cp312-cp312-macosx_15_0_arm64.whl", hash = "sha256:1a9740b3edea4259e362c0718f102113b36e9034b2db5caa874c4b4a0395f785", size = 115255073, upload-time = "2025-07-24T21:12:34.694Z" },
+    { url = "https://files.pythonhosted.org/packages/0d/8e/d32e6256e1897b36c4db635102ee0a340732d49611d657af72983c79f2ed/essentia_tensorflow-2.1b6.dev1389-cp312-cp312-manylinux_2_17_x86_64.manylinux2014_x86_64.whl", hash = "sha256:6812425191f47ac7a5c566484f86a67890d581977e4969d1af83dc2dbc1f56ee", size = 291541743, upload-time = "2025-07-24T21:12:49.987Z" },
+    { url = "https://files.pythonhosted.org/packages/78/6e/f47752cb9eb5ffd5ea7db4b28cc0ea3e78140c8a755253aacee5b1cb9c38/essentia_tensorflow-2.1b6.dev1389-cp313-cp313-macosx_14_0_x86_64.whl", hash = "sha256:860676d7b05a9725fbd7a7bdd8fe7dc98051a6b057c6cbe11ed6cf521e4ead16", size = 141387204, upload-time = "2025-07-24T21:13:01.242Z" },
+    { url = "https://files.pythonhosted.org/packages/c7/c0/7159a23a84b183ddfac6e53008617283c772a715a7007ebff58a121edafb/essentia_tensorflow-2.1b6.dev1389-cp313-cp313-macosx_15_0_arm64.whl", hash = "sha256:2a172f9eaf49a034e508ffc76d64c18f34e3a88944d721e8b00f7c1f56d89bd5", size = 115255077, upload-time = "2025-07-24T21:13:09.9Z" },
+    { url = "https://files.pythonhosted.org/packages/5f/53/3f98a2f55e9377982fe6b1358719dc3f87b5f01dde4dae1ef9c49c876206/essentia_tensorflow-2.1b6.dev1389-cp313-cp313-manylinux_2_17_x86_64.manylinux2014_x86_64.whl", hash = "sha256:6533aeeb16daf1c845f5becc2f7b1271f867c02899baafabb3f56a1aa4ce4a64", size = 291541021, upload-time = "2025-07-24T21:13:25.071Z" },
+]
+
+[[package]]
 name = "filelock"
 version = "3.24.3"
 source = { registry = "https://pypi.org/simple" }
@@ -705,6 +726,9 @@ dev = [
     { name = "soundfile" },
     { name = "ty" },
 ]
+embeddings = [
+    { name = "essentia-tensorflow" },
+]
 gui = [
     { name = "pygobject" },
 ]
@@ -712,6 +736,7 @@ gui = [
 [package.metadata]
 requires-dist = [
     { name = "click", specifier = ">=8.1.0" },
+    { name = "essentia-tensorflow", marker = "extra == 'embeddings'" },
     { name = "librosa", specifier = ">=0.10.0" },
     { name = "mutagen", specifier = ">=1.47.0" },
     { name = "numpy", specifier = ">=1.24.0" },
@@ -726,7 +751,7 @@ requires-dist = [
     { name = "soundfile", marker = "extra == 'dev'", specifier = ">=0.12.0" },
     { name = "ty", marker = "extra == 'dev'", specifier = ">=0.0.17" },
 ]
-provides-extras = ["gui", "dev"]
+provides-extras = ["embeddings", "gui", "dev"]
 
 [[package]]
 name = "pluggy"
@@ -1060,6 +1085,15 @@ wheels = [
     { url = "https://files.pythonhosted.org/packages/ef/5e/e565bd73991d42023eb82bb99e51c5b3d9e2c588ca9d4b3e2cc1d3ca62a6/scipy-1.17.0-cp314-cp314t-musllinux_1_2_x86_64.whl", hash = "sha256:f9eb55bb97d00f8b7ab95cb64f873eb0bf54d9446264d9f3609130381233483f", size = 37457743, upload-time = "2026-01-10T21:30:34.819Z" },
     { url = "https://files.pythonhosted.org/packages/58/a8/a66a75c3d8f1fb2b83f66007d6455a06a6f6cf5618c3dc35bc9b69dd096e/scipy-1.17.0-cp314-cp314t-win_amd64.whl", hash = "sha256:1ff269abf702f6c7e67a4b7aad981d42871a11b9dd83c58d2d2ea624efbd1088", size = 37098574, upload-time = "2026-01-10T21:30:40.782Z" },
     { url = "https://files.pythonhosted.org/packages/56/a5/df8f46ef7da168f1bc52cd86e09a9de5c6f19cc1da04454d51b7d4f43408/scipy-1.17.0-cp314-cp314t-win_arm64.whl", hash = "sha256:031121914e295d9791319a1875444d55079885bbae5bdc9c5e0f2ee5f09d34ff", size = 25246266, upload-time = "2026-01-10T21:30:45.923Z" },
+]
+
+[[package]]
+name = "six"
+version = "1.17.0"
+source = { registry = "https://pypi.org/simple" }
+sdist = { url = "https://files.pythonhosted.org/packages/94/e7/b2c673351809dca68a0e064b6af791aa332cf192da575fd474ed7d6f16a2/six-1.17.0.tar.gz", hash = "sha256:ff70335d468e7eb6ec65b95b99d3a2836546063f63acc5171de367e834932a81", size = 34031, upload-time = "2024-12-04T17:35:28.174Z" }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/b7/ce/149a00dd41f10bc29e5921b496af8b574d8413afcd5e30dfa0ed46c2cc5e/six-1.17.0-py2.py3-none-any.whl", hash = "sha256:4721f391ed90541fddacab5acf947aa0d3dc7d27b2e1e8eda2be8970586c3274", size = 11050, upload-time = "2024-12-04T17:35:26.475Z" },
 ]
 
 [[package]]
