@@ -210,6 +210,8 @@ class PlaylistClusterer:
         # Determine per-cluster feature importance
         per_cluster_importance: list[dict[str, float]] | None = None
 
+        # EWKM per-cluster weight refinement is applied when use_ewkm=True (default)
+        # and when ≥80 tracks are available.
         if use_ewkm and len(valid_paths) >= _MIN_TRACKS_EWKM:
             # EWKM operates in normalized (unweighted) space; de-weight centroids first
             centroids_norm = kmeans.cluster_centers_ / w_sqrt[np.newaxis, :]
