@@ -881,6 +881,7 @@ dependencies = [
     { name = "librosa" },
     { name = "mutagen" },
     { name = "numpy" },
+    { name = "pyyaml" },
     { name = "scikit-learn" },
     { name = "scipy" },
 ]
@@ -911,6 +912,7 @@ requires-dist = [
     { name = "pygobject", marker = "extra == 'gui'", specifier = ">=3.42.0" },
     { name = "pytest", marker = "extra == 'dev'", specifier = ">=7.4.0" },
     { name = "pytest-cov", marker = "extra == 'dev'", specifier = ">=4.1.0" },
+    { name = "pyyaml", specifier = ">=6.0" },
     { name = "scikit-learn", specifier = ">=1.3.0" },
     { name = "scipy", specifier = ">=1.11.0" },
 ]
