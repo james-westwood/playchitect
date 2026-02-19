@@ -50,15 +50,11 @@ class M3UExporter:
             Path to created playlist file
         """
         # Format BPM range in filename
-        bpm_label = (
-            f"{int(cluster.bpm_mean)}-{int(cluster.bpm_mean + cluster.bpm_std)}bpm"
-        )
+        bpm_label = f"{int(cluster.bpm_mean)}-{int(cluster.bpm_mean + cluster.bpm_std)}bpm"
         genre_label = f" {cluster.genre}" if cluster.genre else ""
 
         # Create filename
-        filename = (
-            f"{self.playlist_prefix} {cluster_index + 1} [{bpm_label}{genre_label}].m3u"
-        )
+        filename = f"{self.playlist_prefix} {cluster_index + 1} [{bpm_label}{genre_label}].m3u"
         playlist_path = self.output_dir / filename
 
         logger.info(f"Exporting cluster {cluster_index} to {filename}")
