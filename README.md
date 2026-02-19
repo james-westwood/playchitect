@@ -1,4 +1,16 @@
+<p align="center">
+  <img src="img/playchitect_logo.jpg" alt="Playchitect logo" width="180">
+</p>
+
 # Playchitect
+
+[![Build Status](https://img.shields.io/badge/Build-WIP-lightgrey.svg)](https://github.com/james-westwood/playchitect/actions)
+[![Coverage](https://img.shields.io/badge/Coverage-85%25%2B-brightgreen.svg)](https://codecov.io/gh/james-westwood/playchitect)
+[![License: GPL v3](https://img.shields.io/badge/License-GPLv3-blue.svg)](https://www.gnu.org/licenses/gpl-3.0)
+[![Python 3.11+](https://img.shields.io/badge/Python-3.11%2B-blue.svg)](https://www.python.org/)
+[![Package Manager: uv](https://img.shields.io/badge/Package%20Manager-uv-orange.svg)](https://github.com/astral-sh/uv)
+[![Code Style: Ruff](https://img.shields.io/badge/Code%20Style-Ruff-blue.svg)](https://github.com/astral-sh/ruff)
+[![Type Checking: Ty](https://img.shields.io/badge/Type%20Checking-Ty-purple.svg)](https://github.com/astral-sh/ty)
 
 **Smart DJ Playlist Manager with Intelligent BPM Clustering**
 
