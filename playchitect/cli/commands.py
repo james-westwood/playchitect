@@ -41,12 +41,8 @@ def cli() -> None:
     type=click.Path(path_type=Path),
     help="Output directory for playlists (default: same as music_path)",
 )
-@click.option(
-    "--target-tracks", "-t", type=int, help="Target number of tracks per playlist"
-)
-@click.option(
-    "--target-duration", "-d", type=int, help="Target duration per playlist in minutes"
-)
+@click.option("--target-tracks", "-t", type=int, help="Target number of tracks per playlist")
+@click.option("--target-duration", "-d", type=int, help="Target duration per playlist in minutes")
 @click.option(
     "--playlist-name",
     "-n",
@@ -184,9 +180,7 @@ def scan(
     click.echo("\nExtracting metadata...")
     extractor = MetadataExtractor()
 
-    with click.progressbar(
-        audio_files, label="Processing files", show_pos=True
-    ) as files:
+    with click.progressbar(audio_files, label="Processing files", show_pos=True) as files:
         metadata_dict = {}
         for file_path in files:
             metadata = extractor.extract(file_path)
@@ -199,6 +193,8 @@ def scan(
     if tracks_with_bpm == 0:
         click.echo("Error: No tracks with BPM metadata found", err=True)
         sys.exit(1)
+
+    emb_extractor = None  # Initialize outside conditional block
 
     # Optional: intensity analysis + MusiCNN embeddings for Block PCA clustering
     # Intensity required when: use_embeddings OR genre-aware clustering
@@ -216,16 +212,12 @@ def scan(
 
         click.echo("\nExtracting audio intensity features...")
         int_analyzer = IntensityAnalyzer(cache_dir=config.get_cache_dir() / "intensity")
-        with click.progressbar(
-            audio_files, label="Intensity analysis", show_pos=True
-        ) as files:
+        with click.progressbar(audio_files, label="Intensity analysis", show_pos=True) as files:
             for file_path in files:
                 try:
                     intensity_dict[file_path] = int_analyzer.analyze(file_path)
                 except Exception as exc:
-                    logger.warning(
-                        "Intensity analysis failed for %s: %s", file_path.name, exc
-                    )
+                    logger.warning("Intensity analysis failed for %s: %s", file_path.name, exc)
 
         # Embedding extraction when requested (lazy import keeps ImportError contained)
         if use_embeddings:
@@ -243,7 +235,7 @@ def scan(
                         else None
                     )
                 )
-                emb_extractor = EmbeddingExtractor(model_path=resolved_model)
+                emb_extractor = EmbeddingExtractor(model_path=resolved_model)  # Store the instance
                 click.echo(
                     "\nExtracting MusiCNN embeddings (may download ~50 MB model on first run)..."
                 )
@@ -255,9 +247,7 @@ def scan(
                         try:
                             embedding_dict[file_path] = emb_extractor.analyze(file_path)
                         except Exception as exc:
-                            logger.warning(
-                                "Embedding failed for %s: %s", file_path.name, exc
-                            )
+                            logger.warning("Embedding failed for %s: %s", file_path.name, exc)
 
                 # Auto-detect genre by majority vote across all tracks
                 genres: list[str] = []
@@ -282,25 +272,8 @@ def scan(
 
             gm = load_genre_map(genre_map) if genre_map else {}
             infer_fn = None
-            if embedding_dict:
-                try:
-                    from playchitect.core.embedding_extractor import (
-                        EmbeddingExtractor,  # noqa: PLC0415
-                    )
-
-                    resolved_model = (
-                        Path(model_path)
-                        if model_path
-                        else (
-                            Path(config.get("embedding_model_path"))
-                            if config.get("embedding_model_path")
-                            else None
-                        )
-                    )
-                    ext = EmbeddingExtractor(model_path=resolved_model)
-                    infer_fn = ext.infer_genre
-                except RuntimeError:
-                    pass
+            if embedding_dict and emb_extractor:  # Use the existing emb_extractor
+                infer_fn = emb_extractor.infer_genre
             genre_dict_resolved = resolve_genres(
                 metadata_dict,
                 embedding_dict,
@@ -337,6 +310,10 @@ def scan(
         sys.exit(1)
 
     click.echo(f"\nCreated {len(clusters)} clusters:")
+    if cluster_mode == "mixed-genre":
+        click.echo(
+            "  (Mixed-genre mode: cross-genre playlists, genre labels not shown per cluster)"
+        )
     for i, cluster in enumerate(clusters):
         duration_min = cluster.total_duration / 60 if cluster.total_duration else 0
         genre_label = f" [{cluster.genre}]" if cluster.genre else ""
@@ -346,10 +323,15 @@ def scan(
             f"Duration: {duration_min:.1f} min"
         )
 
+    from playchitect.core.clustering import _EMBEDDING_PCA_COMPONENTS  # noqa: PLC0415
+
     # Report embedding PCA variance when applicable
     if clusters and clusters[0].embedding_variance_explained is not None:
         var = clusters[0].embedding_variance_explained
-        click.echo(f"\nEmbedding PCA ({12} components): {var:.1%} variance explained")
+        click.echo(
+            f"\nEmbedding PCA ({_EMBEDDING_PCA_COMPONENTS} components): "
+            f"{var:.1%} variance explained"
+        )
 
     # Track selection — opener/closer recommendations per cluster
     override_first_path = Path(first_override) if first_override else None
@@ -368,12 +350,8 @@ def scan(
                 cluster,
                 metadata_dict,
                 {},  # intensity_dict not available in BPM-only mode
-                user_override_first=(
-                    applied_first if applied_first in cluster.tracks else None
-                ),
-                user_override_last=(
-                    applied_last if applied_last in cluster.tracks else None
-                ),
+                user_override_first=(applied_first if applied_first in cluster.tracks else None),
+                user_override_last=(applied_last if applied_last in cluster.tracks else None),
             )
             opener = selection.first_tracks[0] if selection.first_tracks else None
             closer = selection.last_tracks[0] if selection.last_tracks else None
@@ -393,27 +371,19 @@ def scan(
                     f"  (score: {closer.score:.2f} \u2014 {closer.reason})"
                 )
         except ValueError as exc:
-            logger.warning(
-                "Track selection skipped for cluster %s: %s", cluster.cluster_id, exc
-            )
+            logger.warning("Track selection skipped for cluster %s: %s", cluster.cluster_id, exc)
 
     # Persist overrides if requested
     if save_overrides and (override_first_path or override_last_path):
-        config.set_track_override(
-            music_path, first=override_first_path, last=override_last_path
-        )
+        config.set_track_override(music_path, first=override_first_path, last=override_last_path)
         click.echo("\nOverrides saved to config.")
 
     # Export playlists (unless dry-run)
     if dry_run:
-        click.echo(
-            f"\n✓ DRY RUN: Would create {len(clusters)} playlists in {output_dir}"
-        )
+        click.echo(f"\n✓ DRY RUN: Would create {len(clusters)} playlists in {output_dir}")
         click.echo("\nPlaylist preview:")
         for i, cluster in enumerate(clusters):
-            bpm_label = (
-                f"{int(cluster.bpm_mean)}-{int(cluster.bpm_mean + cluster.bpm_std)}bpm"
-            )
+            bpm_label = f"{int(cluster.bpm_mean)}-{int(cluster.bpm_mean + cluster.bpm_std)}bpm"
             genre_label = f" {cluster.genre}" if cluster.genre else ""
             filename = f"{playlist_name} {i + 1} [{bpm_label}{genre_label}].m3u"
             click.echo(f"  {filename} ({cluster.track_count} tracks)")

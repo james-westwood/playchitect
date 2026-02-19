@@ -3,7 +3,14 @@
 import tempfile
 from pathlib import Path
 
-from playchitect.core.genre_resolver import load_genre_map, resolve_genres
+import numpy as np
+
+from playchitect.core.embedding_extractor import EmbeddingFeatures
+from playchitect.core.genre_resolver import (
+    InferGenreProtocol,
+    load_genre_map,
+    resolve_genres,
+)
 from playchitect.core.metadata_extractor import TrackMetadata
 
 
@@ -12,11 +19,7 @@ class TestLoadGenreMap:
 
     def test_valid_yaml_returns_assignments(self) -> None:
         with tempfile.NamedTemporaryFile(suffix=".yaml", delete=False) as f:
-            f.write(
-                b"manual_assignments:\n"
-                b'  "track1.mp3": "techno"\n'
-                b'  "track2.mp3": "house"\n'
-            )
+            f.write(b'manual_assignments:\n  "track1.mp3": "techno"\n  "track2.mp3": "house"\n')
             path = Path(f.name)
         try:
             result = load_genre_map(path)
@@ -31,9 +34,7 @@ class TestLoadGenreMap:
     def test_invalid_genre_skipped(self) -> None:
         with tempfile.NamedTemporaryFile(suffix=".yaml", delete=False) as f:
             f.write(
-                b"manual_assignments:\n"
-                b'  "track1.mp3": "techno"\n'
-                b'  "track2.mp3": "invalid_genre"\n'
+                b'manual_assignments:\n  "track1.mp3": "techno"\n  "track2.mp3": "invalid_genre"\n'
             )
             path = Path(f.name)
         try:
@@ -111,9 +112,7 @@ class TestResolveGenres:
         meta = TrackMetadata(filepath=p, bpm=120)
         metadata_dict = {p: meta}
 
-        result = resolve_genres(
-            metadata_dict, None, {}, music_root=None, infer_genre_fn=None
-        )
+        result = resolve_genres(metadata_dict, None, {}, music_root=None, infer_genre_fn=None)
         assert result[p] == "unknown"
 
     def test_infer_genre_fn_used_when_embeddings(self) -> None:
@@ -121,13 +120,20 @@ class TestResolveGenres:
         meta = TrackMetadata(filepath=p, bpm=120)
         metadata_dict = {p: meta}
 
-        def fake_infer(_features: object) -> str:
-            return "dnb"
+        class MockInferGenreDnb(InferGenreProtocol):
+            def __call__(self, features: EmbeddingFeatures) -> str | None:
+                return "dnb"
 
-        class FakeFeatures:
-            pass
+        fake_infer = MockInferGenreDnb()
 
-        embedding_dict = {p: FakeFeatures()}
+        embedding_dict = {
+            p: EmbeddingFeatures(
+                filepath=Path(""),
+                file_hash="",
+                embedding=np.array([], dtype=np.float32),
+                top_tags=[],
+            )
+        }
 
         result = resolve_genres(
             metadata_dict,
@@ -159,10 +165,20 @@ class TestResolveGenres:
         meta = TrackMetadata(filepath=p, bpm=120)
         metadata_dict = {p: meta}
 
-        def fake_infer(_features: object) -> None:
-            return None
+        class MockInferGenreNone(InferGenreProtocol):
+            def __call__(self, features: EmbeddingFeatures) -> str | None:
+                return None
 
-        embedding_dict = {p: object()}
+        fake_infer = MockInferGenreNone()
+
+        embedding_dict = {
+            p: EmbeddingFeatures(
+                filepath=Path(""),
+                file_hash="",
+                embedding=np.array([], dtype=np.float32),
+                top_tags=[],
+            )
+        }
         result = resolve_genres(
             metadata_dict,
             embedding_dict,
@@ -178,10 +194,20 @@ class TestResolveGenres:
         meta = TrackMetadata(filepath=p, bpm=120)
         metadata_dict = {p: meta}
 
-        def fake_infer(_features: object) -> str:
-            return ""
+        class MockInferGenreEmpty(InferGenreProtocol):
+            def __call__(self, features: EmbeddingFeatures) -> str | None:
+                return ""
 
-        embedding_dict = {p: object()}
+        fake_infer = MockInferGenreEmpty()
+
+        embedding_dict = {
+            p: EmbeddingFeatures(
+                filepath=Path(""),
+                file_hash="",
+                embedding=np.array([], dtype=np.float32),
+                top_tags=[],
+            )
+        }
         result = resolve_genres(
             metadata_dict,
             embedding_dict,
@@ -197,10 +223,20 @@ class TestResolveGenres:
         meta = TrackMetadata(filepath=p, bpm=120)
         metadata_dict = {p: meta}
 
-        def fake_infer(_features: object) -> str:
-            return "rock"  # not in techno, house, ambient, dnb
+        class MockInferGenreUnsupported(InferGenreProtocol):
+            def __call__(self, features: EmbeddingFeatures) -> str | None:
+                return "rock"  # not in techno, house, ambient, dnb
 
-        embedding_dict = {p: object()}
+        fake_infer = MockInferGenreUnsupported()
+
+        embedding_dict = {
+            p: EmbeddingFeatures(
+                filepath=Path(""),
+                file_hash="",
+                embedding=np.array([], dtype=np.float32),
+                top_tags=[],
+            )
+        }
         result = resolve_genres(
             metadata_dict,
             embedding_dict,
@@ -216,10 +252,20 @@ class TestResolveGenres:
         meta = TrackMetadata(filepath=p, bpm=120)
         metadata_dict = {p: meta}
 
-        def fake_infer(_features: object) -> str:
-            raise ValueError("mock inference error")
+        class MockInferGenreRaises(InferGenreProtocol):
+            def __call__(self, features: EmbeddingFeatures) -> str | None:
+                raise ValueError("mock inference error")
 
-        embedding_dict = {p: object()}
+        fake_infer = MockInferGenreRaises()
+
+        embedding_dict = {
+            p: EmbeddingFeatures(
+                filepath=Path(""),
+                file_hash="",
+                embedding=np.array([], dtype=np.float32),
+                top_tags=[],
+            )
+        }
         result = resolve_genres(
             metadata_dict,
             embedding_dict,
