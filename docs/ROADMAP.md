@@ -22,11 +22,11 @@
 - ✅ Unit tests for extracted modules (>85% coverage target)
 - ✅ CI/CD pipeline (GitHub Actions - TODO)
 
-**Test Coverage**: 92% (audio_scanner), 61% (metadata_extractor)
+**Test Coverage**: 92% (audio_scanner), 61% (metadata_extractor — see #21), 92% (intensity_analyzer), 93% (clustering)
 
 ---
 
-### 🚧 Milestone 2: Intelligent Analysis Engine (Weeks 3-4) - NEXT
+### 🚧 Milestone 2: Intelligent Analysis Engine (Weeks 3-4) - IN PROGRESS
 
 **Goals**:
 - Implement K-means clustering
@@ -34,21 +34,25 @@
 - Create smart track selection logic
 
 **Deliverables**:
-- [ ] Intensity analyzer (spectral centroid, high-freq energy, RMS, percussiveness)
-- [ ] K-means clustering with auto-K determination (elbow method)
-- [ ] Cluster splitting for target playlist length
-- [ ] Smart first/last track selector
-- [ ] Analysis result caching system
-- [ ] Enhanced CLI with intelligent features
+- ✅ Intensity analyzer — 8-feature librosa pipeline, STFT-once optimisation, JSON cache (#1)
+- ✅ K-means clustering — BPM-only + 8-dimensional cluster_by_features, elbow method (#2)
+- ✅ Cluster splitting for target playlist length
+- ✅ Toolchain: ruff + ty replacing black/flake8/mypy
+- [ ] Genre-specific PCA feature weighting + EWKM per-cluster refinement (#3)
+- [ ] Smart first/last track selector (#4)
+- [ ] Boost metadata_extractor.py coverage to >85% (#21)
+- [ ] Parallel batch analysis with ProcessPoolExecutor (#22)
+- [ ] Add silhouette score to auto-K selection (#23)
 
 **Critical Files**:
-- `playchitect/core/intensity_analyzer.py` - Librosa integration
-- `playchitect/core/clustering.py` - K-means implementation
-- `playchitect/core/track_selector.py` - Intro/outro detection
+- `playchitect/core/intensity_analyzer.py` - Librosa integration ✅
+- `playchitect/core/clustering.py` - K-means implementation ✅
+- `playchitect/core/weighting.py` - PCA + EWKM feature weighting (TODO)
+- `playchitect/core/track_selector.py` - Intro/outro detection (TODO)
 
 **Key Algorithms**:
-- Hardness Score: `0.4 * spectral_centroid + 0.3 * hf_energy + 0.2 * rms + 0.1 * percussiveness`
-- Feature Vector: `[normalized_bpm, brightness, hf_energy, rms, percussiveness]`
+- Feature Vector (8D): `[bpm, rms_energy, brightness, sub_bass, kick_energy, bass_harmonics, percussiveness, onset_strength]`
+- Weighting: PCA communality weights → EWKM per-cluster refinement → heuristic genre fallback
 - First Track Criteria: Low intensity + intro >30s + no immediate kick drum
 
 ---
