@@ -3,7 +3,8 @@ K-means clustering for playlist generation.
 
 BPM-only clustering is retained for lightweight/MVP usage.
 Multi-dimensional clustering (cluster_by_features) uses BPM + 7 intensity
-features for character-aware playlist grouping.
+features for character-aware playlist grouping, with adaptive feature weighting
+via PCA communality weights and optional EWKM per-cluster refinement.
 """
 
 import logging
@@ -17,20 +18,21 @@ from sklearn.preprocessing import StandardScaler
 
 from playchitect.core.intensity_analyzer import IntensityFeatures
 from playchitect.core.metadata_extractor import TrackMetadata
+from playchitect.core.weighting import (
+    FEATURE_NAMES,  # re-exported for backwards compatibility
+    WeightProfile,
+    ewkm_refine,
+    select_weights,
+)
 
 logger = logging.getLogger(__name__)
 
-# Feature names in the order they appear in the 8-dimensional feature vector.
-FEATURE_NAMES: tuple[str, ...] = (
-    "bpm",
-    "rms_energy",
-    "brightness",
-    "sub_bass",
-    "kick_energy",
-    "bass_harmonics",
-    "percussiveness",
-    "onset_strength",
-)
+# Minimum tracks to activate EWKM per-cluster weight refinement.
+_MIN_TRACKS_EWKM = 80
+
+# Re-export FEATURE_NAMES so existing callers of
+# `from playchitect.core.clustering import FEATURE_NAMES` continue to work.
+__all__ = ["FEATURE_NAMES", "ClusterResult", "PlaylistClusterer"]
 
 
 @dataclass
@@ -47,6 +49,7 @@ class ClusterResult:
     # Populated by cluster_by_features(); None when using cluster_by_bpm().
     feature_means: dict[str, float] | None = field(default=None)
     feature_importance: dict[str, float] | None = field(default=None)
+    weight_source: str | None = field(default=None)  # "pca", "heuristic", or "uniform"
 
 
 class PlaylistClusterer:
@@ -134,9 +137,19 @@ class PlaylistClusterer:
         self,
         metadata_dict: dict[Path, TrackMetadata],
         intensity_dict: dict[Path, IntensityFeatures],
+        genre: str | None = None,
+        use_ewkm: bool = True,
     ) -> list[ClusterResult]:
         """
         Cluster tracks using BPM + 7 intensity features (8-dimensional).
+
+        Feature weights are selected adaptively:
+          - PCA communality weights when ≥40 tracks (bootstrap-validated)
+          - Heuristic genre weights when genre is specified
+          - Uniform weights (1/8 each) as fallback
+
+        EWKM per-cluster weight refinement is applied when ≥80 tracks and
+        use_ewkm=True, giving each cluster its own feature emphasis.
 
         Only tracks present in both dicts with valid BPM are clustered.
         Tracks missing from intensity_dict are skipped and logged.
@@ -144,10 +157,13 @@ class PlaylistClusterer:
         Args:
             metadata_dict: Mapping of file path → TrackMetadata
             intensity_dict: Mapping of file path → IntensityFeatures
+            genre: Optional genre hint for heuristic weights
+                   ('techno', 'house', 'ambient', 'dnb')
+            use_ewkm: Apply EWKM per-cluster weight refinement (requires ≥80 tracks)
 
         Returns:
             List of ClusterResult objects sorted by BPM mean, each with
-            feature_means and feature_importance populated.
+            feature_means, feature_importance, and weight_source populated.
         """
         # Intersect: only tracks with both metadata and intensity features
         common = set(metadata_dict.keys()) & set(intensity_dict.keys())
@@ -175,14 +191,40 @@ class PlaylistClusterer:
 
         features_normalized = self.scaler.fit_transform(features)
 
+        # Select feature weights
+        profile: WeightProfile = select_weights(
+            features_normalized, genre=genre, random_state=self.random_state
+        )
+
+        # Apply weights as scaled Euclidean distance: X_w = X * sqrt(w)
+        w_sqrt = np.sqrt(profile.weights)
+        features_weighted = features_normalized * w_sqrt[np.newaxis, :]
+
         valid_meta = {p: metadata_dict[p] for p in valid_paths}
-        optimal_k = self._determine_optimal_k(features_normalized, valid_meta, len(valid_paths))
-        logger.info(f"Using K={optimal_k} clusters")
+        optimal_k = self._determine_optimal_k(features_weighted, valid_meta, len(valid_paths))
+        logger.info(f"Using K={optimal_k} clusters (weight source: {profile.source})")
 
         kmeans = KMeans(n_clusters=optimal_k, random_state=self.random_state, n_init=10)
-        labels = kmeans.fit_predict(features_normalized)
+        labels = kmeans.fit_predict(features_weighted)
 
-        feature_importance = self._compute_feature_importance(kmeans.cluster_centers_)
+        # Determine per-cluster feature importance
+        per_cluster_importance: list[dict[str, float]] | None = None
+
+        # EWKM per-cluster weight refinement is applied when use_ewkm=True (default)
+        # and when ≥80 tracks are available.
+        if use_ewkm and len(valid_paths) >= _MIN_TRACKS_EWKM:
+            # EWKM operates in normalized (unweighted) space; de-weight centroids first
+            centroids_norm = kmeans.cluster_centers_ / w_sqrt[np.newaxis, :]
+            labels, ewkm_weights = ewkm_refine(features_normalized, labels, centroids_norm)
+            per_cluster_importance = [
+                {name: float(ewkm_weights[k, i]) for i, name in enumerate(FEATURE_NAMES)}
+                for k in range(optimal_k)
+            ]
+            logger.info("EWKM per-cluster weights applied")
+        else:
+            # Fall back to global centroid-variance importance
+            global_importance = self._compute_feature_importance(kmeans.cluster_centers_)
+            per_cluster_importance = [global_importance] * optimal_k
 
         results = self._build_cluster_results(
             valid_paths,
@@ -190,17 +232,19 @@ class PlaylistClusterer:
             optimal_k,
             valid_meta,
             raw_features=features,
-            feature_importance=feature_importance,
+            per_cluster_importance=per_cluster_importance,
+            weight_source=profile.source,
         )
         results.sort(key=lambda r: r.bpm_mean)
 
         for r in results:
-            top_feature = max(feature_importance, key=lambda k: feature_importance[k])
-            logger.info(
-                f"Cluster {r.cluster_id}: {r.track_count} tracks, "
-                f"BPM: {r.bpm_mean:.1f} ± {r.bpm_std:.1f}, "
-                f"top feature: {top_feature} ({feature_importance[top_feature]:.2f})"
-            )
+            if r.feature_importance:
+                top = max(r.feature_importance, key=lambda k: r.feature_importance[k])  # type: ignore[index]
+                logger.info(
+                    f"Cluster {r.cluster_id}: {r.track_count} tracks, "
+                    f"BPM: {r.bpm_mean:.1f} ± {r.bpm_std:.1f}, "
+                    f"top feature: {top} ({r.feature_importance[top]:.2f})"
+                )
 
         return results
 
@@ -213,7 +257,9 @@ class PlaylistClusterer:
         n_clusters: int,
         metadata_dict: dict[Path, TrackMetadata],
         raw_features: np.ndarray | None = None,
+        per_cluster_importance: list[dict[str, float]] | None = None,
         feature_importance: dict[str, float] | None = None,
+        weight_source: str | None = None,
     ) -> list[ClusterResult]:
         """Build ClusterResult list from K-means labels."""
         results = []
@@ -235,6 +281,13 @@ class PlaylistClusterer:
                     name: float(cluster_raw[:, i].mean()) for i, name in enumerate(FEATURE_NAMES)
                 }
 
+            # Per-cluster importance: from EWKM or global centroid-variance
+            f_importance = (
+                per_cluster_importance[cid]
+                if per_cluster_importance is not None
+                else feature_importance
+            )
+
             results.append(
                 ClusterResult(
                     cluster_id=cid,
@@ -244,7 +297,8 @@ class PlaylistClusterer:
                     track_count=len(cluster_tracks),
                     total_duration=float(sum(cluster_durations)),
                     feature_means=f_means,
-                    feature_importance=feature_importance,
+                    feature_importance=f_importance,
+                    weight_source=weight_source,
                 )
             )
 
