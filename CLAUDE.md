@@ -22,7 +22,7 @@ Playchitect transforms DJ playlist creation from rigid BPM-based grouping to int
 ## Technology Stack
 
 **Backend**:
-- Python 3.11+ with native type hints
+- Python 3.13+ with native type hints
 - librosa (audio intensity analysis)
 - mutagen (metadata extraction)
 - scikit-learn (K-means clustering)
@@ -30,14 +30,14 @@ Playchitect transforms DJ playlist creation from rigid BPM-based grouping to int
 
 **Frontend** (Milestone 3):
 - GTK4 + libadwaita (native GNOME)
-- PyGObject bindings
+- PyGObject bindings (system package — cannot be pip-installed)
 - GNOME Sushi integration (spacebar preview)
 
 **Development**:
 - Package management: uv
-- Testing: pytest
-- Pre-commit hooks: ruff, ty, pytest
-- CI/CD: GitHub Actions (to be set up)
+- Testing: pytest with 218 tests (unit + integration)
+- Pre-commit hooks: ruff, ty, pytest-unit, cli-smoke-test
+- CI/CD: GitHub Actions (.github/workflows/ci.yml)
 
 ## Project Structure
 
@@ -72,7 +72,8 @@ playchitect/
 ### Setup
 ```bash
 cd /home/james/audio/playchitect
-uv venv  # Already done
+# Venv uses system Python 3.13 + system-site-packages for GTK4/gi access
+uv venv --python /usr/bin/python3 --system-site-packages  # Already done
 uv pip install -e ".[dev]"  # Already done
 ```
 
@@ -91,10 +92,10 @@ uv run playchitect scan /path/to/music --output /path/to/playlists
 uv run pre-commit run --all-files
 
 # Format code
-uv run black playchitect/ tests/
+uv run ruff format playchitect/ tests/
 
 # Type check
-uv run mypy playchitect/
+uv run ty check
 ```
 
 ## Feature Branching Policy
@@ -108,7 +109,7 @@ uv run mypy playchitect/
 | Feature | `feature/<issue-number>-<slug>` | `feature/1-intensity-analyzer` |
 | Bug fix | `fix/<issue-number>-<slug>` | `fix/7-rms-overflow` |
 | Docs | `docs/<slug>` | `docs/update-readme` |
-| Chore | `chore/<slug>` | `chore/bump-librosa` |
+| Chore | `chore/<slug>` | `chore/chore/bump-librosa` |
 
 ### Claude's Git Workflow
 
@@ -144,7 +145,7 @@ gh pr create --title "feat(analysis): implement librosa intensity analyzer" \
 - [ ] All tests pass: `uv run pytest -v`
 - [ ] Coverage >85% on modified modules
 - [ ] Pre-commit hooks pass: `uv run pre-commit run --all-files`
-- [ ] Type hints complete and mypy clean
+- [ ] Type hints complete and ty clean
 - [ ] No magic numbers — use named constants
 - [ ] No direct commits to `main`
 
@@ -259,8 +260,8 @@ Playchitect originated from `/home/james/audio-management/scripts/create_random_
 3. **Python Version**: 3.11+ (native type hints, modern features)
 4. **GUI Framework**: GTK4 + libadwaita (native GNOME)
 5. **Testing Strategy**: TDD with pytest, >85% coverage target
-6. **Type Checking**: Strict ty with native type hints
-7. **Code Style**: Ruff with 100-char line length
+6. **Type Checking**: Strict ty with native type hints (Rust-based, replaces mypy)
+7. **Code Style**: Ruff with 100-char line length (ruff format)
 
 ## Important Notes
 

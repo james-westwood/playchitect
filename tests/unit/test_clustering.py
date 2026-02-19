@@ -14,9 +14,7 @@ from playchitect.core.metadata_extractor import TrackMetadata
 # ── Helpers ────────────────────────────────────────────────────────────────────
 
 
-def make_metadata(
-    name: str, bpm: float = 128.0, duration: float = 360.0
-) -> TrackMetadata:
+def make_metadata(name: str, bpm: float = 128.0, duration: float = 360.0) -> TrackMetadata:
     return TrackMetadata(filepath=Path(name), bpm=bpm, duration=duration)
 
 
@@ -262,9 +260,7 @@ class TestClusterByFeatures:
             name = f"hard_{i}.mp3"
             p = Path(name)
             meta[p] = make_metadata(name, bpm=bpm_base + i * 0.2)
-            intensity[p] = make_intensity(
-                name, rms=0.8, brightness=0.2, perc=0.9, kick=0.85
-            )
+            intensity[p] = make_intensity(name, rms=0.8, brightness=0.2, perc=0.9, kick=0.85)
         return meta, intensity
 
     def _make_ambient(
@@ -277,9 +273,7 @@ class TestClusterByFeatures:
             name = f"ambient_{i}.mp3"
             p = Path(name)
             meta[p] = make_metadata(name, bpm=bpm_base + i * 0.2)
-            intensity[p] = make_intensity(
-                name, rms=0.1, brightness=0.9, perc=0.05, kick=0.1
-            )
+            intensity[p] = make_intensity(name, rms=0.1, brightness=0.9, perc=0.05, kick=0.1)
         return meta, intensity
 
     def test_basic_operation(self) -> None:
@@ -307,9 +301,7 @@ class TestClusterByFeatures:
         assert sum(r.track_count for r in results) == 16
 
         # The two groups should have different percussiveness means
-        perc_means = [
-            r.feature_means["percussiveness"] for r in results if r.feature_means
-        ]
+        perc_means = [r.feature_means["percussiveness"] for r in results if r.feature_means]
         assert max(perc_means) - min(perc_means) > 0.3
 
     def test_feature_importance_present_and_normalized(self) -> None:
@@ -357,10 +349,7 @@ class TestClusterByFeatures:
 
     def test_skips_tracks_missing_from_intensity_dict(self) -> None:
         """Tracks in metadata but not intensity_dict are skipped gracefully."""
-        meta = {
-            Path(f"t{i}.mp3"): make_metadata(f"t{i}.mp3", bpm=130.0 + i)
-            for i in range(12)
-        }
+        meta = {Path(f"t{i}.mp3"): make_metadata(f"t{i}.mp3", bpm=130.0 + i) for i in range(12)}
         # Only provide intensity for half
         intensity = {p: make_intensity(p.name) for p in list(meta.keys())[:6]}
 
@@ -397,12 +386,8 @@ class TestClusterByFeatures:
         meta = {**hard_meta, **amb_meta}
         intensity = {**hard_intensity, **amb_intensity}
 
-        c1 = PlaylistClusterer(
-            target_tracks_per_playlist=8, min_clusters=2, random_state=42
-        )
-        c2 = PlaylistClusterer(
-            target_tracks_per_playlist=8, min_clusters=2, random_state=42
-        )
+        c1 = PlaylistClusterer(target_tracks_per_playlist=8, min_clusters=2, random_state=42)
+        c2 = PlaylistClusterer(target_tracks_per_playlist=8, min_clusters=2, random_state=42)
 
         r1 = c1.cluster_by_features(meta, intensity)
         r2 = c2.cluster_by_features(meta, intensity)
@@ -415,9 +400,7 @@ class TestClusterByFeatures:
     def test_feature_importance_zero_variance(self) -> None:
         """Identical cluster centroids produce equal feature importances."""
         clusterer = PlaylistClusterer(target_tracks_per_playlist=5)
-        centroids = np.array(
-            [[1.0] * len(FEATURE_NAMES)] * 3
-        )  # 3 clusters, all identical
+        centroids = np.array([[1.0] * len(FEATURE_NAMES)] * 3)  # 3 clusters, all identical
         importance = clusterer._compute_feature_importance(centroids)
 
         expected = 1.0 / len(FEATURE_NAMES)
@@ -427,10 +410,7 @@ class TestClusterByFeatures:
 
     def test_bpm_only_still_works_after_import(self) -> None:
         """cluster_by_bpm is unaffected by new code — backwards compatibility."""
-        meta = {
-            Path(f"t{i}.mp3"): make_metadata(f"t{i}.mp3", bpm=120.0 + i)
-            for i in range(10)
-        }
+        meta = {Path(f"t{i}.mp3"): make_metadata(f"t{i}.mp3", bpm=120.0 + i) for i in range(10)}
         clusterer = PlaylistClusterer(target_tracks_per_playlist=5, min_clusters=2)
         results = clusterer.cluster_by_bpm(meta)
 
@@ -482,9 +462,7 @@ class TestGenreAwareClustering:
 
     def _make_mixed_genre_data(
         self,
-    ) -> tuple[
-        dict[Path, TrackMetadata], dict[Path, IntensityFeatures], dict[Path, str]
-    ]:
+    ) -> tuple[dict[Path, TrackMetadata], dict[Path, IntensityFeatures], dict[Path, str]]:
         """Techno 125 BPM + DnB 170 BPM with distinct intensity profiles."""
         meta: dict[Path, TrackMetadata] = {}
         intensity: dict[Path, IntensityFeatures] = {}

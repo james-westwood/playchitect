@@ -28,6 +28,16 @@ repos:
         pass_filenames: false
         always_run: true
 
+  # CLI dry-run smoke test — verifies sensible output against synthetic FLAC fixtures
+  - repo: local
+    hooks:
+      - id: cli-smoke-test
+        name: CLI Smoke Test (dry-run)
+        entry: bash -c 'uv run pytest tests/integration/ -v --tb=short --no-cov -q'
+        language: system
+        pass_filenames: false
+        always_run: true
+
   # GUI smoke tests
   - repo: local
     hooks:

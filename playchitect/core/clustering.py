@@ -125,9 +125,7 @@ class PlaylistClusterer:
 
     # ── Public API ─────────────────────────────────────────────────────────────
 
-    def cluster_by_bpm(
-        self, metadata_dict: dict[Path, TrackMetadata]
-    ) -> list[ClusterResult]:
+    def cluster_by_bpm(self, metadata_dict: dict[Path, TrackMetadata]) -> list[ClusterResult]:
         """
         Cluster tracks by BPM only (lightweight / MVP mode).
 
@@ -153,9 +151,7 @@ class PlaylistClusterer:
         bpms = np.array([valid_tracks[t].bpm for t in tracks]).reshape(-1, 1)
         bpms_normalized = self.scaler.fit_transform(bpms)
 
-        optimal_k = self._determine_optimal_k(
-            bpms_normalized, valid_tracks, len(tracks)
-        )
+        optimal_k = self._determine_optimal_k(bpms_normalized, valid_tracks, len(tracks))
         logger.info(f"Using K={optimal_k} clusters")
 
         kmeans = KMeans(n_clusters=optimal_k, random_state=self.random_state, n_init=10)
@@ -255,9 +251,7 @@ class PlaylistClusterer:
 
         skipped = len(metadata_dict) - len(valid_paths)
         if skipped > 0:
-            logger.warning(
-                f"Skipped {skipped} tracks missing intensity features or BPM"
-            )
+            logger.warning(f"Skipped {skipped} tracks missing intensity features or BPM")
 
         if not valid_paths:
             logger.error("No tracks with both BPM and intensity features found")
@@ -268,15 +262,11 @@ class PlaylistClusterer:
             valid_meta = {p: metadata_dict[p] for p in valid_paths}
             return self._create_single_cluster(valid_meta)
 
-        logger.info(
-            f"Clustering {len(valid_paths)} tracks on {len(FEATURE_NAMES)} features"
-        )
+        logger.info(f"Clustering {len(valid_paths)} tracks on {len(FEATURE_NAMES)} features")
 
         # Build (N, 8) feature matrix: BPM column + 7 intensity columns (raw BPM)
         bpm_col = np.array([[metadata_dict[p].bpm or 120.0] for p in valid_paths])
-        intensity_matrix = np.array(
-            [intensity_dict[p].to_feature_vector() for p in valid_paths]
-        )
+        intensity_matrix = np.array([intensity_dict[p].to_feature_vector() for p in valid_paths])
         features = np.hstack([bpm_col, intensity_matrix])  # (N, 8)
 
         features_normalized = self.scaler.fit_transform(features)
@@ -294,9 +284,7 @@ class PlaylistClusterer:
             # Further filter to tracks that also have embeddings
             valid_paths = [p for p in valid_paths if p in embedding_dict]
             if not valid_paths:
-                logger.error(
-                    "No tracks with embeddings found; cannot use embedding_dict"
-                )
+                logger.error("No tracks with embeddings found; cannot use embedding_dict")
                 return []
 
             # Rebuild feature matrix for the embedding-filtered subset of paths
@@ -312,12 +300,8 @@ class PlaylistClusterer:
                     features_normalized[i, 0] *= bpm_scaling.get(p, 1.0)
 
             # PCA-compress 128-dim embeddings → 12 semantic components
-            emb_matrix = np.array(
-                [embedding_dict[p].embedding for p in valid_paths]
-            )  # (N', 128)
-            pca = PCA(
-                n_components=_EMBEDDING_PCA_COMPONENTS, random_state=self.random_state
-            )
+            emb_matrix = np.array([embedding_dict[p].embedding for p in valid_paths])  # (N', 128)
+            pca = PCA(n_components=_EMBEDDING_PCA_COMPONENTS, random_state=self.random_state)
             emb_pca = pca.fit_transform(emb_matrix)  # (N', 12)
             emb_scaler = StandardScaler()
             emb_scaled = emb_scaler.fit_transform(emb_pca)  # (N', 12)
@@ -344,9 +328,7 @@ class PlaylistClusterer:
             weight_source = profile.source
 
         valid_meta = {p: metadata_dict[p] for p in valid_paths}
-        optimal_k = self._determine_optimal_k(
-            features_for_kmeans, valid_meta, len(valid_paths)
-        )
+        optimal_k = self._determine_optimal_k(features_for_kmeans, valid_meta, len(valid_paths))
         logger.info(f"Using K={optimal_k} clusters (weight source: {weight_source})")
 
         kmeans = KMeans(n_clusters=optimal_k, random_state=self.random_state, n_init=10)
@@ -360,14 +342,9 @@ class PlaylistClusterer:
             # EWKM operates in normalized (unweighted) space; de-weight centroids first
             w_sqrt = np.sqrt(profile.weights)
             centroids_norm = kmeans.cluster_centers_ / w_sqrt[np.newaxis, :]
-            labels, ewkm_weights = ewkm_refine(
-                features_normalized, labels, centroids_norm
-            )
+            labels, ewkm_weights = ewkm_refine(features_normalized, labels, centroids_norm)
             per_cluster_importance = [
-                {
-                    name: float(ewkm_weights[k, i])
-                    for i, name in enumerate(FEATURE_NAMES)
-                }
+                {name: float(ewkm_weights[k, i]) for i, name in enumerate(FEATURE_NAMES)}
                 for k in range(optimal_k)
             ]
             logger.info("EWKM per-cluster weights applied")
@@ -440,9 +417,7 @@ class PlaylistClusterer:
             else:
                 meta_sub = {p: metadata_dict[p] for p in paths}
                 int_sub = {p: intensity_dict[p] for p in paths}
-                emb_sub = (
-                    {p: embedding_dict[p] for p in paths} if embedding_dict else None
-                )
+                emb_sub = {p: embedding_dict[p] for p in paths} if embedding_dict else None
                 sub_results = self.cluster_by_features(
                     meta_sub,
                     int_sub,
@@ -528,6 +503,12 @@ class PlaylistClusterer:
             mask = labels == cid
             cluster_tracks = [tracks[i] for i in np.where(mask)[0]]
 
+            # Skip empty clusters — can occur when K-means K exceeds the number
+            # of distinct data points (e.g. few unique BPM values).
+            if not cluster_tracks:
+                logger.debug("Skipping empty cluster %d", cid)
+                continue
+
             cluster_bpms: list[float] = [
                 b for t in cluster_tracks if (b := metadata_dict[t].bpm) is not None
             ]
@@ -538,8 +519,7 @@ class PlaylistClusterer:
             if raw_features is not None:
                 cluster_raw = raw_features[mask]
                 f_means = {
-                    name: float(cluster_raw[:, i].mean())
-                    for i, name in enumerate(FEATURE_NAMES)
+                    name: float(cluster_raw[:, i].mean()) for i, name in enumerate(FEATURE_NAMES)
                 }
 
             # Per-cluster importance: from EWKM or global centroid-variance
@@ -656,9 +636,7 @@ class PlaylistClusterer:
     ) -> list[ClusterResult]:
         """Create a single cluster when there are insufficient tracks."""
         tracks = list(metadata_dict.keys())
-        bpms: list[float] = [
-            b for t in tracks if (b := metadata_dict[t].bpm) is not None
-        ]
+        bpms: list[float] = [b for t in tracks if (b := metadata_dict[t].bpm) is not None]
         durations = [metadata_dict[t].duration or 0 for t in tracks]
 
         return [
@@ -672,9 +650,7 @@ class PlaylistClusterer:
             )
         ]
 
-    def split_cluster(
-        self, cluster: ClusterResult, target_size: int
-    ) -> list[ClusterResult]:
+    def split_cluster(self, cluster: ClusterResult, target_size: int) -> list[ClusterResult]:
         """
         Split a cluster that exceeds target size.
 
@@ -694,18 +670,20 @@ class PlaylistClusterer:
         shuffled = cluster.tracks.copy()
         rng.shuffle(shuffled)
 
+        avg_duration = cluster.total_duration / cluster.track_count if cluster.track_count else 0.0
         subclusters = []
         for i in range(num_splits):
             start = i * target_size
             end = min((i + 1) * target_size, len(shuffled))
+            sub_count = end - start
             subclusters.append(
                 ClusterResult(
                     cluster_id=f"{cluster.cluster_id}_{i}",
                     tracks=shuffled[start:end],
                     bpm_mean=cluster.bpm_mean,
                     bpm_std=cluster.bpm_std,
-                    track_count=end - start,
-                    total_duration=0.0,
+                    track_count=sub_count,
+                    total_duration=avg_duration * sub_count,
                 )
             )
 
