@@ -277,7 +277,8 @@ class IntensityAnalyzer:
         Calculate percussiveness using HPSS on the pre-computed spectrogram.
 
         Uses librosa.decompose.hpss directly on the magnitude spectrogram,
-        avoiding the iSTFT round-trip that librosa.effects.hpss performs.
+        avoiding the iSTFT round-trip that librosa.effects.hpss performs for
+        a ~2x speedup on this step.
 
         Args:
             S: Magnitude spectrogram
