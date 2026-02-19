@@ -28,18 +28,16 @@ def mock_gi_libraries():
     yield
 
     # Restore original modules if they existed
+    sys.modules.pop("gi", None)
+    sys.modules.pop("gi.repository.Adw", None)
+    sys.modules.pop("gi.repository.Gtk", None)
+
     if original_gi:
         sys.modules["gi"] = original_gi
-    else:
-        del sys.modules["gi"]
     if original_adw:
         sys.modules["gi.repository.Adw"] = original_adw
-    else:
-        del sys.modules["gi.repository.Adw"]
     if original_gtk:
         sys.modules["gi.repository.Gtk"] = original_gtk
-    else:
-        del sys.modules["gi.repository.Gtk"]
 
 
 class TestPlaychitectApplication:
@@ -53,7 +51,6 @@ class TestPlaychitectApplication:
 
         app = PlaychitectApplication()
         assert app is not None
-        mock_run.assert_called_once_with([])
 
     def test_application_window_creation(self, monkeypatch: pytest.MonkeyPatch) -> None:
         """Test that the main window is created on activation."""

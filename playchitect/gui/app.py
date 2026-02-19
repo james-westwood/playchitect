@@ -1,8 +1,9 @@
 import gi  # type: ignore[import-untyped,unresolved-import]
-from gi.repository import Adw  # type: ignore[import-untyped,unresolved-import]
 
 gi.require_version("Adw", "1")
 gi.require_version("Gtk", "4.0")
+
+from gi.repository import Adw  # type: ignore[import-untyped,unresolved-import] # noqa: E402
 
 from playchitect.gui.windows.main_window import PlaychitectWindow  # noqa: E402
 
