@@ -309,7 +309,25 @@ def scan(
         click.echo("Error: Clustering failed", err=True)
         sys.exit(1)
 
-    click.echo(f"\nCreated {len(clusters)} clusters:")
+    # Split any cluster that exceeds the target size
+    split_clusters: list = []
+    for cluster in clusters:
+        if target_tracks and cluster.track_count > target_tracks:
+            split_clusters.extend(clusterer.split_cluster(cluster, target_tracks))
+        elif target_duration and cluster.total_duration > target_duration * 60:
+            avg_secs = cluster.total_duration / cluster.track_count
+            target_size = max(1, int(target_duration * 60 / avg_secs))
+            split_clusters.extend(clusterer.split_cluster(cluster, target_size))
+        else:
+            split_clusters.append(cluster)
+    if len(split_clusters) != len(clusters):
+        click.echo(
+            f"  (split {len(clusters)} clusters → {len(split_clusters)} playlists"
+            f" to meet target size)"
+        )
+    clusters = split_clusters
+
+    click.echo(f"\nCreated {len(clusters)} playlists:")
     if cluster_mode == "mixed-genre":
         click.echo(
             "  (Mixed-genre mode: cross-genre playlists, genre labels not shown per cluster)"
