@@ -23,6 +23,7 @@ class Config:
         "default_target_duration": None,
         "cache_dir": "~/.cache/playchitect",
         "log_level": "INFO",
+        "track_overrides": {},  # {music_dir_str: {"first": str|None, "last": str|None}}
     }
 
     def __init__(self, config_path: Path | None = None):
@@ -107,6 +108,58 @@ class Config:
         cache_path = Path(cache_str).expanduser()
         cache_path.mkdir(parents=True, exist_ok=True)
         return cache_path
+
+    def get_track_override(self, music_dir: Path) -> dict[str, Path | None]:
+        """
+        Return saved opener/closer overrides for a music directory.
+
+        Args:
+            music_dir: Music directory path.
+
+        Returns:
+            Dict with "first" and "last" keys, each a Path or None.
+        """
+        key = str(music_dir.resolve())
+        overrides: dict[str, Any] = self.config.get("track_overrides", {}).get(key, {})
+        return {
+            "first": Path(overrides["first"]) if overrides.get("first") else None,
+            "last": Path(overrides["last"]) if overrides.get("last") else None,
+        }
+
+    def set_track_override(
+        self,
+        music_dir: Path,
+        first: Path | None = None,
+        last: Path | None = None,
+    ) -> None:
+        """
+        Persist opener/closer overrides for a directory and save to disk.
+
+        Args:
+            music_dir: Music directory path (used as the config key).
+            first: Opener track path, or None to leave unchanged.
+            last: Closer track path, or None to leave unchanged.
+        """
+        key = str(music_dir.resolve())
+        overrides: dict[str, Any] = self.config.setdefault("track_overrides", {}).setdefault(
+            key, {}
+        )
+        if first is not None:
+            overrides["first"] = str(first)
+        if last is not None:
+            overrides["last"] = str(last)
+        self.save()
+
+    def clear_track_override(self, music_dir: Path) -> None:
+        """
+        Remove all overrides for a directory and save to disk.
+
+        Args:
+            music_dir: Music directory path.
+        """
+        key = str(music_dir.resolve())
+        self.config.setdefault("track_overrides", {}).pop(key, None)
+        self.save()
 
 
 # Global config instance
