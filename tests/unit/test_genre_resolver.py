@@ -1,0 +1,129 @@
+"""Unit tests for genre_resolver module."""
+
+import tempfile
+from pathlib import Path
+
+from playchitect.core.genre_resolver import load_genre_map, resolve_genres
+from playchitect.core.metadata_extractor import TrackMetadata
+
+
+class TestLoadGenreMap:
+    """Tests for load_genre_map."""
+
+    def test_valid_yaml_returns_assignments(self) -> None:
+        with tempfile.NamedTemporaryFile(suffix=".yaml", delete=False) as f:
+            f.write(
+                b"manual_assignments:\n"
+                b'  "track1.mp3": "techno"\n'
+                b'  "track2.mp3": "house"\n'
+            )
+            path = Path(f.name)
+        try:
+            result = load_genre_map(path)
+            assert result == {"track1.mp3": "techno", "track2.mp3": "house"}
+        finally:
+            path.unlink(missing_ok=True)
+
+    def test_nonexistent_returns_empty(self) -> None:
+        result = load_genre_map(Path("/nonexistent/genre_map.yaml"))
+        assert result == {}
+
+    def test_invalid_genre_skipped(self) -> None:
+        with tempfile.NamedTemporaryFile(suffix=".yaml", delete=False) as f:
+            f.write(
+                b"manual_assignments:\n"
+                b'  "track1.mp3": "techno"\n'
+                b'  "track2.mp3": "invalid_genre"\n'
+            )
+            path = Path(f.name)
+        try:
+            result = load_genre_map(path)
+            assert result == {"track1.mp3": "techno"}
+        finally:
+            path.unlink(missing_ok=True)
+
+    def test_empty_file_returns_empty(self) -> None:
+        with tempfile.NamedTemporaryFile(suffix=".yaml", delete=False) as f:
+            f.write(b"{}")
+            path = Path(f.name)
+        try:
+            result = load_genre_map(path)
+            assert result == {}
+        finally:
+            path.unlink(missing_ok=True)
+
+
+class TestResolveGenres:
+    """Tests for resolve_genres."""
+
+    def test_manual_override_takes_priority(self) -> None:
+        p = Path("/music/track.mp3")
+        meta = TrackMetadata(filepath=p, bpm=120, genre="house")
+        metadata_dict = {p: meta}
+        genre_map = {str(p): "techno"}
+
+        result = resolve_genres(
+            metadata_dict,
+            None,
+            genre_map,
+            music_root=Path("/music"),
+            infer_genre_fn=None,
+        )
+        assert result[p] == "techno"
+
+    def test_metadata_genre_used_when_no_override(self) -> None:
+        p = Path("/music/track.mp3")
+        meta = TrackMetadata(filepath=p, bpm=120, genre="house")
+        metadata_dict = {p: meta}
+
+        result = resolve_genres(
+            metadata_dict, None, {}, music_root=Path("/music"), infer_genre_fn=None
+        )
+        assert result[p] == "house"
+
+    def test_filename_match_in_genre_map(self) -> None:
+        p = Path("/music/subdir/track.mp3")
+        meta = TrackMetadata(filepath=p, bpm=120)
+        metadata_dict = {p: meta}
+        genre_map = {"track.mp3": "ambient"}
+
+        result = resolve_genres(
+            metadata_dict,
+            None,
+            genre_map,
+            music_root=Path("/music"),
+            infer_genre_fn=None,
+        )
+        assert result[p] == "ambient"
+
+    def test_unknown_when_no_sources(self) -> None:
+        p = Path("/music/track.mp3")
+        meta = TrackMetadata(filepath=p, bpm=120)
+        metadata_dict = {p: meta}
+
+        result = resolve_genres(
+            metadata_dict, None, {}, music_root=None, infer_genre_fn=None
+        )
+        assert result[p] == "unknown"
+
+    def test_infer_genre_fn_used_when_embeddings(self) -> None:
+        p = Path("/music/track.mp3")
+        meta = TrackMetadata(filepath=p, bpm=120)
+        metadata_dict = {p: meta}
+
+        def fake_infer(_features: object) -> str:
+            return "dnb"
+
+        class FakeFeatures:
+            pass
+
+        embedding_dict = {p: FakeFeatures()}
+
+        result = resolve_genres(
+            metadata_dict,
+            embedding_dict,
+            {},
+            music_root=None,
+            infer_genre_fn=fake_infer,
+        )
+        assert result[p] == "dnb"

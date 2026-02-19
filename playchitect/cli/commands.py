@@ -41,8 +41,12 @@ def cli() -> None:
     type=click.Path(path_type=Path),
     help="Output directory for playlists (default: same as music_path)",
 )
-@click.option("--target-tracks", "-t", type=int, help="Target number of tracks per playlist")
-@click.option("--target-duration", "-d", type=int, help="Target duration per playlist in minutes")
+@click.option(
+    "--target-tracks", "-t", type=int, help="Target number of tracks per playlist"
+)
+@click.option(
+    "--target-duration", "-d", type=int, help="Target duration per playlist in minutes"
+)
 @click.option(
     "--playlist-name",
     "-n",
@@ -90,6 +94,18 @@ def cli() -> None:
     default=None,
     help="Path to msd-musicnn-1.pb (auto-downloaded if absent).",
 )
+@click.option(
+    "--cluster-mode",
+    type=click.Choice(["single-genre", "per-genre", "mixed-genre"]),
+    default="single-genre",
+    help="Clustering mode: single-genre (default), per-genre, or mixed-genre.",
+)
+@click.option(
+    "--genre-map",
+    type=click.Path(exists=True, path_type=Path),
+    default=None,
+    help="YAML file with manual genre assignments (manual_assignments: {path: genre}).",
+)
 def scan(
     music_path: Path | None,
     output: Path | None,
@@ -103,6 +119,8 @@ def scan(
     save_overrides: bool,
     use_embeddings: bool,
     model_path: str | None,
+    cluster_mode: str,
+    genre_map: Path | None,
 ) -> None:
     """
     Scan music directory and create intelligent playlists.
@@ -133,7 +151,10 @@ def scan(
     if target_tracks is None and target_duration is None:
         target_tracks = 25  # Default to 25 tracks
     elif target_tracks and target_duration:
-        click.echo("Error: Specify either --target-tracks or --target-duration, not both", err=True)
+        click.echo(
+            "Error: Specify either --target-tracks or --target-duration, not both",
+            err=True,
+        )
         sys.exit(1)
 
     if dry_run:
@@ -163,7 +184,9 @@ def scan(
     click.echo("\nExtracting metadata...")
     extractor = MetadataExtractor()
 
-    with click.progressbar(audio_files, label="Processing files", show_pos=True) as files:
+    with click.progressbar(
+        audio_files, label="Processing files", show_pos=True
+    ) as files:
         metadata_dict = {}
         for file_path in files:
             metadata = extractor.extract(file_path)
@@ -178,74 +201,133 @@ def scan(
         sys.exit(1)
 
     # Optional: intensity analysis + MusiCNN embeddings for Block PCA clustering
+    # Intensity required when: use_embeddings OR genre-aware clustering
     embedding_dict = None
     intensity_dict: dict = {}
     auto_genre: str | None = None
+    genre_dict_resolved: dict | None = None
+    need_intensity = use_embeddings or cluster_mode in ("per-genre", "mixed-genre")
 
-    if use_embeddings:
+    if need_intensity:
         # Intensity analysis is required by cluster_by_features
-        from playchitect.core.intensity_analyzer import IntensityAnalyzer  # noqa: PLC0415
+        from playchitect.core.intensity_analyzer import (
+            IntensityAnalyzer,
+        )  # noqa: PLC0415
 
         click.echo("\nExtracting audio intensity features...")
         int_analyzer = IntensityAnalyzer(cache_dir=config.get_cache_dir() / "intensity")
-        with click.progressbar(audio_files, label="Intensity analysis", show_pos=True) as files:
+        with click.progressbar(
+            audio_files, label="Intensity analysis", show_pos=True
+        ) as files:
             for file_path in files:
                 try:
                     intensity_dict[file_path] = int_analyzer.analyze(file_path)
                 except Exception as exc:
-                    logger.warning("Intensity analysis failed for %s: %s", file_path.name, exc)
+                    logger.warning(
+                        "Intensity analysis failed for %s: %s", file_path.name, exc
+                    )
 
-        # Embedding extraction (lazy import keeps ImportError contained)
-        try:
-            from playchitect.core.embedding_extractor import EmbeddingExtractor  # noqa: PLC0415
+        # Embedding extraction when requested (lazy import keeps ImportError contained)
+        if use_embeddings:
+            try:
+                from playchitect.core.embedding_extractor import (
+                    EmbeddingExtractor,
+                )  # noqa: PLC0415
 
-            resolved_model = (
-                Path(model_path)
-                if model_path
-                else (
-                    Path(config.get("embedding_model_path"))
-                    if config.get("embedding_model_path")
-                    else None
+                resolved_model = (
+                    Path(model_path)
+                    if model_path
+                    else (
+                        Path(config.get("embedding_model_path"))
+                        if config.get("embedding_model_path")
+                        else None
+                    )
                 )
-            )
-            emb_extractor = EmbeddingExtractor(model_path=resolved_model)
-            click.echo(
-                "\nExtracting MusiCNN embeddings (may download ~50 MB model on first run)..."
-            )
-            with click.progressbar(audio_files, label="Embedding files", show_pos=True) as files:
-                embedding_dict = {}
-                for file_path in files:
-                    try:
-                        embedding_dict[file_path] = emb_extractor.analyze(file_path)
-                    except Exception as exc:
-                        logger.warning("Embedding failed for %s: %s", file_path.name, exc)
+                emb_extractor = EmbeddingExtractor(model_path=resolved_model)
+                click.echo(
+                    "\nExtracting MusiCNN embeddings (may download ~50 MB model on first run)..."
+                )
+                with click.progressbar(
+                    audio_files, label="Embedding files", show_pos=True
+                ) as files:
+                    embedding_dict = {}
+                    for file_path in files:
+                        try:
+                            embedding_dict[file_path] = emb_extractor.analyze(file_path)
+                        except Exception as exc:
+                            logger.warning(
+                                "Embedding failed for %s: %s", file_path.name, exc
+                            )
 
-            # Auto-detect genre by majority vote across all tracks
-            genres: list[str] = []
-            for feat in embedding_dict.values():
-                g = emb_extractor.infer_genre(feat)
-                if g:
-                    genres.append(g)
-            if genres:
-                auto_genre = max(set(genres), key=genres.count)
-                click.echo(f"Auto-detected genre: {auto_genre}")
-        except RuntimeError as exc:
-            click.echo(f"Warning: {exc}", err=True)
-            click.echo("Falling back to intensity-only clustering.", err=True)
-            embedding_dict = None
+                # Auto-detect genre by majority vote across all tracks
+                genres: list[str] = []
+                for feat in embedding_dict.values():
+                    g = emb_extractor.infer_genre(feat)
+                    if g:
+                        genres.append(g)
+                if genres:
+                    auto_genre = max(set(genres), key=genres.count)
+                    click.echo(f"Auto-detected genre: {auto_genre}")
+            except RuntimeError as exc:
+                click.echo(f"Warning: {exc}", err=True)
+                click.echo("Falling back to intensity-only clustering.", err=True)
+                embedding_dict = None
+
+        # Resolve per-track genre for genre-aware modes
+        if cluster_mode in ("per-genre", "mixed-genre"):
+            from playchitect.core.genre_resolver import (  # noqa: PLC0415
+                load_genre_map,
+                resolve_genres,
+            )
+
+            gm = load_genre_map(genre_map) if genre_map else {}
+            infer_fn = None
+            if embedding_dict:
+                try:
+                    from playchitect.core.embedding_extractor import (
+                        EmbeddingExtractor,  # noqa: PLC0415
+                    )
+
+                    resolved_model = (
+                        Path(model_path)
+                        if model_path
+                        else (
+                            Path(config.get("embedding_model_path"))
+                            if config.get("embedding_model_path")
+                            else None
+                        )
+                    )
+                    ext = EmbeddingExtractor(model_path=resolved_model)
+                    infer_fn = ext.infer_genre
+                except RuntimeError:
+                    pass
+            genre_dict_resolved = resolve_genres(
+                metadata_dict,
+                embedding_dict,
+                gm,
+                music_root=music_path,
+                infer_genre_fn=infer_fn,
+            )
+            known_count = sum(1 for g in genre_dict_resolved.values() if g != "unknown")
+            click.echo(
+                f"Genre resolution: {known_count}/{len(genre_dict_resolved)} tracks assigned"
+            )
 
     # Perform clustering
     click.echo("\nClustering tracks...")
     clusterer = PlaylistClusterer(
-        target_tracks_per_playlist=target_tracks, target_duration_per_playlist=target_duration
+        target_tracks_per_playlist=target_tracks,
+        target_duration_per_playlist=target_duration,
     )
 
-    if use_embeddings and intensity_dict and embedding_dict:
+    if intensity_dict:
         clusters = clusterer.cluster_by_features(
             metadata_dict,
             intensity_dict,
             embedding_dict=embedding_dict,
             genre=auto_genre,
+            cluster_mode=cluster_mode,
+            genre_dict=genre_dict_resolved,
         )
     else:
         clusters = clusterer.cluster_by_bpm(metadata_dict)
@@ -257,8 +339,9 @@ def scan(
     click.echo(f"\nCreated {len(clusters)} clusters:")
     for i, cluster in enumerate(clusters):
         duration_min = cluster.total_duration / 60 if cluster.total_duration else 0
+        genre_label = f" [{cluster.genre}]" if cluster.genre else ""
         click.echo(
-            f"  Cluster {i + 1}: {cluster.track_count} tracks, "
+            f"  Cluster {i + 1}{genre_label}: {cluster.track_count} tracks, "
             f"BPM: {cluster.bpm_mean:.1f} ± {cluster.bpm_std:.1f}, "
             f"Duration: {duration_min:.1f} min"
         )
@@ -285,8 +368,12 @@ def scan(
                 cluster,
                 metadata_dict,
                 {},  # intensity_dict not available in BPM-only mode
-                user_override_first=applied_first if applied_first in cluster.tracks else None,
-                user_override_last=applied_last if applied_last in cluster.tracks else None,
+                user_override_first=(
+                    applied_first if applied_first in cluster.tracks else None
+                ),
+                user_override_last=(
+                    applied_last if applied_last in cluster.tracks else None
+                ),
             )
             opener = selection.first_tracks[0] if selection.first_tracks else None
             closer = selection.last_tracks[0] if selection.last_tracks else None
@@ -306,26 +393,35 @@ def scan(
                     f"  (score: {closer.score:.2f} \u2014 {closer.reason})"
                 )
         except ValueError as exc:
-            logger.warning("Track selection skipped for cluster %s: %s", cluster.cluster_id, exc)
+            logger.warning(
+                "Track selection skipped for cluster %s: %s", cluster.cluster_id, exc
+            )
 
     # Persist overrides if requested
     if save_overrides and (override_first_path or override_last_path):
-        config.set_track_override(music_path, first=override_first_path, last=override_last_path)
+        config.set_track_override(
+            music_path, first=override_first_path, last=override_last_path
+        )
         click.echo("\nOverrides saved to config.")
 
     # Export playlists (unless dry-run)
     if dry_run:
-        click.echo(f"\n✓ DRY RUN: Would create {len(clusters)} playlists in {output_dir}")
+        click.echo(
+            f"\n✓ DRY RUN: Would create {len(clusters)} playlists in {output_dir}"
+        )
         click.echo("\nPlaylist preview:")
         for i, cluster in enumerate(clusters):
-            bpm_label = f"{int(cluster.bpm_mean)}-{int(cluster.bpm_mean + cluster.bpm_std)}bpm"
-            filename = f"{playlist_name} {i + 1} [{bpm_label}].m3u"
+            bpm_label = (
+                f"{int(cluster.bpm_mean)}-{int(cluster.bpm_mean + cluster.bpm_std)}bpm"
+            )
+            genre_label = f" {cluster.genre}" if cluster.genre else ""
+            filename = f"{playlist_name} {i + 1} [{bpm_label}{genre_label}].m3u"
             click.echo(f"  {filename} ({cluster.track_count} tracks)")
         click.echo("\n💡 Remove --dry-run to create actual playlist files")
     else:
         click.echo(f"\nExporting playlists to {output_dir}...")
         exporter = M3UExporter(output_dir, playlist_prefix=playlist_name)
-        playlist_paths = exporter.export_clusters(clusters)
+        playlist_paths = exporter.export_clusters(clusters, metadata_dict=metadata_dict)
 
         click.echo(f"\n✓ Successfully created {len(playlist_paths)} playlists:")
         for path in playlist_paths:

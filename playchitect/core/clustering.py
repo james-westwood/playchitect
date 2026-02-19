@@ -39,7 +39,7 @@ _SEMANTIC_BLOCK_WEIGHT: float = 0.30
 
 # Re-export FEATURE_NAMES so existing callers of
 # `from playchitect.core.clustering import FEATURE_NAMES` continue to work.
-__all__ = ["FEATURE_NAMES", "ClusterResult", "PlaylistClusterer"]
+__all__ = ["CLUSTER_MODES", "FEATURE_NAMES", "ClusterResult", "PlaylistClusterer"]
 
 
 @dataclass
@@ -60,6 +60,30 @@ class ClusterResult:
 
     # Populated when embedding_dict is supplied; None otherwise.
     embedding_variance_explained: float | None = field(default=None)
+
+    # Populated in per-genre mode; None otherwise.
+    genre: str | None = field(default=None)
+
+
+# Genre-aware clustering modes
+_CLUSTER_MODE_SINGLE = "single-genre"
+_CLUSTER_MODE_PER_GENRE = "per-genre"
+_CLUSTER_MODE_MIXED = "mixed-genre"
+CLUSTER_MODES: tuple[str, ...] = (
+    _CLUSTER_MODE_SINGLE,
+    _CLUSTER_MODE_PER_GENRE,
+    _CLUSTER_MODE_MIXED,
+)
+
+# BPM scaling for mixed-genre mode: reference BPM and genre-typical BPMs.
+# Scaled BPM = raw_bpm * (REF_BPM / genre_typical) so different genres align.
+_REF_BPM: float = 120.0
+_GENRE_TYPICAL_BPM: dict[str, float] = {
+    "techno": 125.0,
+    "house": 120.0,
+    "ambient": 100.0,
+    "dnb": 170.0,
+}
 
 
 class PlaylistClusterer:
@@ -99,7 +123,9 @@ class PlaylistClusterer:
 
     # ── Public API ─────────────────────────────────────────────────────────────
 
-    def cluster_by_bpm(self, metadata_dict: dict[Path, TrackMetadata]) -> list[ClusterResult]:
+    def cluster_by_bpm(
+        self, metadata_dict: dict[Path, TrackMetadata]
+    ) -> list[ClusterResult]:
         """
         Cluster tracks by BPM only (lightweight / MVP mode).
 
@@ -125,7 +151,9 @@ class PlaylistClusterer:
         bpms = np.array([valid_tracks[t].bpm for t in tracks]).reshape(-1, 1)
         bpms_normalized = self.scaler.fit_transform(bpms)
 
-        optimal_k = self._determine_optimal_k(bpms_normalized, valid_tracks, len(tracks))
+        optimal_k = self._determine_optimal_k(
+            bpms_normalized, valid_tracks, len(tracks)
+        )
         logger.info(f"Using K={optimal_k} clusters")
 
         kmeans = KMeans(n_clusters=optimal_k, random_state=self.random_state, n_init=10)
@@ -150,6 +178,9 @@ class PlaylistClusterer:
         embedding_dict: dict[Path, Any] | None = None,
         genre: str | None = None,
         use_ewkm: bool = True,
+        cluster_mode: str = _CLUSTER_MODE_SINGLE,
+        genre_dict: dict[Path, str] | None = None,
+        bpm_scaling: dict[Path, float] | None = None,
     ) -> list[ClusterResult]:
         """
         Cluster tracks using BPM + 7 intensity features (8-dimensional).
@@ -171,6 +202,11 @@ class PlaylistClusterer:
         Tracks missing from intensity_dict or (when embedding_dict is given)
         from embedding_dict are skipped and logged.
 
+        Cluster modes (when genre_dict is supplied):
+          - single-genre: Full feature space, single K-means (default)
+          - per-genre: Separate K-means per genre → genre-homogeneous playlists
+          - mixed-genre: Single K-means with BPM scaled per genre → cross-genre playlists
+
         Args:
             metadata_dict:  Mapping of file path → TrackMetadata
             intensity_dict: Mapping of file path → IntensityFeatures
@@ -178,19 +214,48 @@ class PlaylistClusterer:
                             When supplied, Block PCA (70/30) is used.
             genre:          Optional genre hint ('techno', 'house', 'ambient', 'dnb')
             use_ewkm:       Apply EWKM per-cluster weight refinement (8D mode only)
+            cluster_mode:   'single-genre' | 'per-genre' | 'mixed-genre'
+            genre_dict:     Per-track genre (from genre resolver); required for
+                            per-genre and mixed-genre modes.
+            bpm_scaling:    Optional per-path BPM scaling (e.g. for mixed-genre);
+                            raw BPM * scale used in features, original for reporting.
 
         Returns:
             List of ClusterResult objects sorted by BPM mean, each with
             feature_means, feature_importance, and weight_source populated.
             embedding_variance_explained is set when embedding_dict is used.
+            genre is set in per-genre mode.
         """
         # Intersect: only tracks with both metadata and intensity features
         common = set(metadata_dict.keys()) & set(intensity_dict.keys())
         valid_paths = sorted(p for p in common if metadata_dict[p].bpm is not None)
 
+        if cluster_mode == _CLUSTER_MODE_PER_GENRE and genre_dict:
+            return self._cluster_per_genre(
+                metadata_dict,
+                intensity_dict,
+                embedding_dict,
+                valid_paths,
+                genre_dict,
+                use_ewkm,
+            )
+        if cluster_mode == _CLUSTER_MODE_MIXED and genre_dict:
+            return self._cluster_mixed_genre(
+                metadata_dict,
+                intensity_dict,
+                embedding_dict,
+                valid_paths,
+                genre_dict,
+                use_ewkm,
+            )
+
+        # single-genre: continue with original logic
+
         skipped = len(metadata_dict) - len(valid_paths)
         if skipped > 0:
-            logger.warning(f"Skipped {skipped} tracks missing intensity features or BPM")
+            logger.warning(
+                f"Skipped {skipped} tracks missing intensity features or BPM"
+            )
 
         if not valid_paths:
             logger.error("No tracks with both BPM and intensity features found")
@@ -201,11 +266,21 @@ class PlaylistClusterer:
             valid_meta = {p: metadata_dict[p] for p in valid_paths}
             return self._create_single_cluster(valid_meta)
 
-        logger.info(f"Clustering {len(valid_paths)} tracks on {len(FEATURE_NAMES)} features")
+        logger.info(
+            f"Clustering {len(valid_paths)} tracks on {len(FEATURE_NAMES)} features"
+        )
 
         # Build (N, 8) feature matrix: BPM column + 7 intensity columns
-        bpm_col = np.array([[metadata_dict[p].bpm] for p in valid_paths])
-        intensity_matrix = np.array([intensity_dict[p].to_feature_vector() for p in valid_paths])
+        # Apply bpm_scaling when provided (mixed-genre mode uses scaled BPM for distances)
+        def _scale_bpm(p: Path) -> float:
+            raw = metadata_dict[p].bpm or 120.0
+            scale = bpm_scaling.get(p, 1.0) if bpm_scaling else 1.0
+            return raw * scale
+
+        bpm_col = np.array([[_scale_bpm(p)] for p in valid_paths])
+        intensity_matrix = np.array(
+            [intensity_dict[p].to_feature_vector() for p in valid_paths]
+        )
         features = np.hstack([bpm_col, intensity_matrix])  # (N, 8)
 
         features_normalized = self.scaler.fit_transform(features)
@@ -216,11 +291,13 @@ class PlaylistClusterer:
             # Further filter to tracks that also have embeddings
             valid_paths = [p for p in valid_paths if p in embedding_dict]
             if not valid_paths:
-                logger.error("No tracks with embeddings found; cannot use embedding_dict")
+                logger.error(
+                    "No tracks with embeddings found; cannot use embedding_dict"
+                )
                 return []
 
             # Rebuild feature matrix for the embedding-filtered subset of paths
-            bpm_col_f = np.array([[metadata_dict[p].bpm] for p in valid_paths])
+            bpm_col_f = np.array([[_scale_bpm(p)] for p in valid_paths])
             intensity_matrix_f = np.array(
                 [intensity_dict[p].to_feature_vector() for p in valid_paths]
             )
@@ -228,8 +305,12 @@ class PlaylistClusterer:
             features_normalized = self.scaler.fit_transform(features)
 
             # PCA-compress 128-dim embeddings → 12 semantic components
-            emb_matrix = np.array([embedding_dict[p].embedding for p in valid_paths])  # (N', 128)
-            pca = PCA(n_components=_EMBEDDING_PCA_COMPONENTS, random_state=self.random_state)
+            emb_matrix = np.array(
+                [embedding_dict[p].embedding for p in valid_paths]
+            )  # (N', 128)
+            pca = PCA(
+                n_components=_EMBEDDING_PCA_COMPONENTS, random_state=self.random_state
+            )
             emb_pca = pca.fit_transform(emb_matrix)  # (N', 12)
             emb_scaler = StandardScaler()
             emb_scaled = emb_scaler.fit_transform(emb_pca)  # (N', 12)
@@ -256,7 +337,9 @@ class PlaylistClusterer:
             weight_source = profile.source
 
         valid_meta = {p: metadata_dict[p] for p in valid_paths}
-        optimal_k = self._determine_optimal_k(features_for_kmeans, valid_meta, len(valid_paths))
+        optimal_k = self._determine_optimal_k(
+            features_for_kmeans, valid_meta, len(valid_paths)
+        )
         logger.info(f"Using K={optimal_k} clusters (weight source: {weight_source})")
 
         kmeans = KMeans(n_clusters=optimal_k, random_state=self.random_state, n_init=10)
@@ -270,9 +353,14 @@ class PlaylistClusterer:
             # EWKM operates in normalized (unweighted) space; de-weight centroids first
             w_sqrt = np.sqrt(profile.weights)
             centroids_norm = kmeans.cluster_centers_ / w_sqrt[np.newaxis, :]
-            labels, ewkm_weights = ewkm_refine(features_normalized, labels, centroids_norm)
+            labels, ewkm_weights = ewkm_refine(
+                features_normalized, labels, centroids_norm
+            )
             per_cluster_importance = [
-                {name: float(ewkm_weights[k, i]) for i, name in enumerate(FEATURE_NAMES)}
+                {
+                    name: float(ewkm_weights[k, i])
+                    for i, name in enumerate(FEATURE_NAMES)
+                }
                 for k in range(optimal_k)
             ]
             logger.info("EWKM per-cluster weights applied")
@@ -309,6 +397,101 @@ class PlaylistClusterer:
 
         return results
 
+    def _cluster_per_genre(
+        self,
+        metadata_dict: dict[Path, TrackMetadata],
+        intensity_dict: dict[Path, IntensityFeatures],
+        embedding_dict: dict[Path, Any] | None,
+        valid_paths: list[Path],
+        genre_dict: dict[Path, str],
+        use_ewkm: bool,
+    ) -> list[ClusterResult]:
+        """Run separate K-means per genre; merge results with genre-prefixed IDs."""
+        if embedding_dict is not None:
+            valid_paths = [p for p in valid_paths if p in embedding_dict]
+
+        # Group paths by genre
+        by_genre: dict[str, list[Path]] = {}
+        for p in valid_paths:
+            g = genre_dict.get(p, "unknown")
+            by_genre.setdefault(g, []).append(p)
+
+        if not by_genre:
+            logger.error("No tracks with genre found for per-genre clustering")
+            return []
+
+        all_results: list[ClusterResult] = []
+        for g, paths in sorted(by_genre.items()):
+            if len(paths) < self.min_clusters:
+                logger.warning(
+                    "Genre '%s' has only %d tracks; creating single cluster",
+                    g,
+                    len(paths),
+                )
+                meta_sub = {p: metadata_dict[p] for p in paths}
+                sub_results = self._create_single_cluster(meta_sub)
+            else:
+                meta_sub = {p: metadata_dict[p] for p in paths}
+                int_sub = {p: intensity_dict[p] for p in paths}
+                emb_sub = (
+                    {p: embedding_dict[p] for p in paths} if embedding_dict else None
+                )
+                sub_results = self.cluster_by_features(
+                    meta_sub,
+                    int_sub,
+                    embedding_dict=emb_sub,
+                    genre=g if g != "unknown" else None,
+                    use_ewkm=use_ewkm,
+                    cluster_mode=_CLUSTER_MODE_SINGLE,
+                    genre_dict=None,
+                )
+            for r in sub_results:
+                r.genre = g
+                r.cluster_id = f"{g}_{r.cluster_id}"
+            all_results.extend(sub_results)
+
+        all_results.sort(key=lambda r: r.bpm_mean)
+        return all_results
+
+    def _cluster_mixed_genre(
+        self,
+        metadata_dict: dict[Path, TrackMetadata],
+        intensity_dict: dict[Path, IntensityFeatures],
+        embedding_dict: dict[Path, Any] | None,
+        valid_paths: list[Path],
+        genre_dict: dict[Path, str],
+        use_ewkm: bool,
+    ) -> list[ClusterResult]:
+        """Run single K-means with BPM scaled per genre for cross-genre coherence."""
+        if embedding_dict is not None:
+            valid_paths = [p for p in valid_paths if p in embedding_dict]
+
+        if not valid_paths:
+            logger.error("No valid paths for mixed-genre clustering")
+            return []
+
+        # Scale BPM per genre so e.g. 170 DnB and 125 techno align
+        bpm_scaling: dict[Path, float] = {}
+        for p in valid_paths:
+            g = genre_dict.get(p, "unknown")
+            typical = _GENRE_TYPICAL_BPM.get(g, _REF_BPM)
+            bpm_scaling[p] = _REF_BPM / typical
+
+        meta_sub = {p: metadata_dict[p] for p in valid_paths}
+        int_sub = {p: intensity_dict[p] for p in valid_paths}
+
+        logger.info("Mixed-genre mode: BPM scaled by genre-typical values")
+        return self.cluster_by_features(
+            meta_sub,
+            int_sub,
+            embedding_dict=embedding_dict,
+            genre=None,  # Mixed: no single genre for weighting
+            use_ewkm=use_ewkm,
+            cluster_mode=_CLUSTER_MODE_SINGLE,
+            genre_dict=None,
+            bpm_scaling=bpm_scaling,
+        )
+
     # ── Private helpers ────────────────────────────────────────────────────────
 
     def _build_cluster_results(
@@ -339,7 +522,8 @@ class PlaylistClusterer:
             if raw_features is not None:
                 cluster_raw = raw_features[mask]
                 f_means = {
-                    name: float(cluster_raw[:, i].mean()) for i, name in enumerate(FEATURE_NAMES)
+                    name: float(cluster_raw[:, i].mean())
+                    for i, name in enumerate(FEATURE_NAMES)
                 }
 
             # Per-cluster importance: from EWKM or global centroid-variance
@@ -456,7 +640,9 @@ class PlaylistClusterer:
     ) -> list[ClusterResult]:
         """Create a single cluster when there are insufficient tracks."""
         tracks = list(metadata_dict.keys())
-        bpms: list[float] = [b for t in tracks if (b := metadata_dict[t].bpm) is not None]
+        bpms: list[float] = [
+            b for t in tracks if (b := metadata_dict[t].bpm) is not None
+        ]
         durations = [metadata_dict[t].duration or 0 for t in tracks]
 
         return [
@@ -470,7 +656,9 @@ class PlaylistClusterer:
             )
         ]
 
-    def split_cluster(self, cluster: ClusterResult, target_size: int) -> list[ClusterResult]:
+    def split_cluster(
+        self, cluster: ClusterResult, target_size: int
+    ) -> list[ClusterResult]:
         """
         Split a cluster that exceeds target size.
 
