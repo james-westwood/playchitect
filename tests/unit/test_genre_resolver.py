@@ -52,6 +52,16 @@ class TestLoadGenreMap:
         finally:
             path.unlink(missing_ok=True)
 
+    def test_missing_manual_assignments_key_returns_empty(self) -> None:
+        with tempfile.NamedTemporaryFile(suffix=".yaml", delete=False) as f:
+            f.write(b"other_key: value\n")
+            path = Path(f.name)
+        try:
+            result = load_genre_map(path)
+            assert result == {}
+        finally:
+            path.unlink(missing_ok=True)
+
 
 class TestResolveGenres:
     """Tests for resolve_genres."""
@@ -127,3 +137,94 @@ class TestResolveGenres:
             infer_genre_fn=fake_infer,
         )
         assert result[p] == "dnb"
+
+    def test_relative_path_match_in_genre_map(self) -> None:
+        """Genre map with relative path (e.g. subdir/track.mp3) resolves when music_root given."""
+        p = Path("/music/electro/track.mp3")
+        meta = TrackMetadata(filepath=p, bpm=120)
+        metadata_dict = {p: meta}
+        genre_map = {"electro/track.mp3": "techno"}  # relative to /music
+        result = resolve_genres(
+            metadata_dict,
+            None,
+            genre_map,
+            music_root=Path("/music"),
+            infer_genre_fn=None,
+        )
+        assert result[p] == "techno"
+
+    def test_infer_genre_fn_returns_none_fallback_to_unknown(self) -> None:
+        """When infer_genre_fn returns None, track gets 'unknown'."""
+        p = Path("/music/track.mp3")
+        meta = TrackMetadata(filepath=p, bpm=120)
+        metadata_dict = {p: meta}
+
+        def fake_infer(_features: object) -> None:
+            return None
+
+        embedding_dict = {p: object()}
+        result = resolve_genres(
+            metadata_dict,
+            embedding_dict,
+            {},
+            music_root=None,
+            infer_genre_fn=fake_infer,
+        )
+        assert result[p] == "unknown"
+
+    def test_infer_genre_fn_returns_empty_string_fallback_to_unknown(self) -> None:
+        """When infer_genre_fn returns empty string, track gets 'unknown'."""
+        p = Path("/music/track.mp3")
+        meta = TrackMetadata(filepath=p, bpm=120)
+        metadata_dict = {p: meta}
+
+        def fake_infer(_features: object) -> str:
+            return ""
+
+        embedding_dict = {p: object()}
+        result = resolve_genres(
+            metadata_dict,
+            embedding_dict,
+            {},
+            music_root=None,
+            infer_genre_fn=fake_infer,
+        )
+        assert result[p] == "unknown"
+
+    def test_infer_genre_fn_returns_unsupported_genre_fallback_to_unknown(self) -> None:
+        """When infer_genre_fn returns genre not in SUPPORTED_GENRES, track gets 'unknown'."""
+        p = Path("/music/track.mp3")
+        meta = TrackMetadata(filepath=p, bpm=120)
+        metadata_dict = {p: meta}
+
+        def fake_infer(_features: object) -> str:
+            return "rock"  # not in techno, house, ambient, dnb
+
+        embedding_dict = {p: object()}
+        result = resolve_genres(
+            metadata_dict,
+            embedding_dict,
+            {},
+            music_root=None,
+            infer_genre_fn=fake_infer,
+        )
+        assert result[p] == "unknown"
+
+    def test_infer_genre_fn_raises_fallback_to_unknown(self) -> None:
+        """When infer_genre_fn raises, track gets 'unknown' (exception logged)."""
+        p = Path("/music/track.mp3")
+        meta = TrackMetadata(filepath=p, bpm=120)
+        metadata_dict = {p: meta}
+
+        def fake_infer(_features: object) -> str:
+            raise ValueError("mock inference error")
+
+        embedding_dict = {p: object()}
+        result = resolve_genres(
+            metadata_dict,
+            embedding_dict,
+            {},
+            music_root=None,
+            infer_genre_fn=fake_infer,
+        )
+        assert result[p] == "unknown"

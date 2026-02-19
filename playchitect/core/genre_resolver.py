@@ -10,12 +10,21 @@ Resolves per-track genre using priority:
 
 import logging
 from pathlib import Path
-from typing import Any
+from typing import Protocol
 
 from playchitect.core.metadata_extractor import TrackMetadata
 from playchitect.core.weighting import SUPPORTED_GENRES
 
 logger = logging.getLogger(__name__)
+
+
+class InferGenreProtocol(Protocol):
+    """Protocol for genre inference from embedding features."""
+
+    def __call__(self, features: object) -> str | None:
+        """Infer genre from embedding features; returns None if unknown."""
+        ...
+
 
 # Normalised genre labels we use internally (lowercase, consistent with weighting)
 _KNOWN_GENRES = {g.lower() for g in SUPPORTED_GENRES}
@@ -112,10 +121,10 @@ def _match_override(
 
 def resolve_genres(
     metadata_dict: dict[Path, TrackMetadata],
-    embedding_dict: dict[Path, Any] | None,
+    embedding_dict: dict[Path, object] | None,
     genre_map: dict[str, str],
     music_root: Path | None,
-    infer_genre_fn: Any = None,
+    infer_genre_fn: InferGenreProtocol | None = None,
 ) -> dict[Path, str]:
     """
     Resolve per-track genre from overrides, metadata, and embeddings.
@@ -130,7 +139,8 @@ def resolve_genres(
         metadata_dict: Mapping path -> TrackMetadata
         embedding_dict: Optional mapping path -> EmbeddingFeatures
         genre_map: Manual assignments from load_genre_map()
-        music_root: Base path for relative matching in genre_map
+        music_root: Base path for relative matching in genre_map. When None, only
+            exact path and filename-only keys in genre_map match (no relative-path).
         infer_genre_fn: Optional callable(features) -> str | None;
             e.g. EmbeddingExtractor.infer_genre
 

@@ -75,14 +75,16 @@ CLUSTER_MODES: tuple[str, ...] = (
     _CLUSTER_MODE_MIXED,
 )
 
-# BPM scaling for mixed-genre mode: reference BPM and genre-typical BPMs.
-# Scaled BPM = raw_bpm * (REF_BPM / genre_typical) so different genres align.
+# BPM scaling for mixed-genre mode. Scale is applied AFTER StandardScaler
+# so genre-specific adjustments are preserved in the feature space.
+# Industry-typical BPM ranges (techno ~125, house ~120, ambient ~100, dnb ~170).
 _REF_BPM: float = 120.0
 _GENRE_TYPICAL_BPM: dict[str, float] = {
     "techno": 125.0,
     "house": 120.0,
     "ambient": 100.0,
     "dnb": 170.0,
+    "unknown": 120.0,  # No scaling for unknown; log warning when encountered
 }
 
 
@@ -270,20 +272,21 @@ class PlaylistClusterer:
             f"Clustering {len(valid_paths)} tracks on {len(FEATURE_NAMES)} features"
         )
 
-        # Build (N, 8) feature matrix: BPM column + 7 intensity columns
-        # Apply bpm_scaling when provided (mixed-genre mode uses scaled BPM for distances)
-        def _scale_bpm(p: Path) -> float:
-            raw = metadata_dict[p].bpm or 120.0
-            scale = bpm_scaling.get(p, 1.0) if bpm_scaling else 1.0
-            return raw * scale
-
-        bpm_col = np.array([[_scale_bpm(p)] for p in valid_paths])
+        # Build (N, 8) feature matrix: BPM column + 7 intensity columns (raw BPM)
+        bpm_col = np.array([[metadata_dict[p].bpm or 120.0] for p in valid_paths])
         intensity_matrix = np.array(
             [intensity_dict[p].to_feature_vector() for p in valid_paths]
         )
         features = np.hstack([bpm_col, intensity_matrix])  # (N, 8)
 
         features_normalized = self.scaler.fit_transform(features)
+
+        # Apply BPM scaling AFTER StandardScaler so genre adjustments are preserved
+        # (StandardScaler would otherwise re-normalize and undo pre-scaled BPM)
+        if bpm_scaling:
+            bpm_idx = 0
+            for i, p in enumerate(valid_paths):
+                features_normalized[i, bpm_idx] *= bpm_scaling.get(p, 1.0)
 
         embedding_pca_variance: float | None = None
 
@@ -297,12 +300,16 @@ class PlaylistClusterer:
                 return []
 
             # Rebuild feature matrix for the embedding-filtered subset of paths
-            bpm_col_f = np.array([[_scale_bpm(p)] for p in valid_paths])
+            bpm_col_f = np.array([[metadata_dict[p].bpm or 120.0] for p in valid_paths])
             intensity_matrix_f = np.array(
                 [intensity_dict[p].to_feature_vector() for p in valid_paths]
             )
             features = np.hstack([bpm_col_f, intensity_matrix_f])  # (N', 8)
             features_normalized = self.scaler.fit_transform(features)
+
+            if bpm_scaling:
+                for i, p in enumerate(valid_paths):
+                    features_normalized[i, 0] *= bpm_scaling.get(p, 1.0)
 
             # PCA-compress 128-dim embeddings → 12 semantic components
             emb_matrix = np.array(
@@ -472,10 +479,19 @@ class PlaylistClusterer:
 
         # Scale BPM per genre so e.g. 170 DnB and 125 techno align
         bpm_scaling: dict[Path, float] = {}
+        unknown_count = 0
         for p in valid_paths:
             g = genre_dict.get(p, "unknown")
-            typical = _GENRE_TYPICAL_BPM.get(g, _REF_BPM)
+            if g not in _GENRE_TYPICAL_BPM:
+                unknown_count += 1
+                g = "unknown"
+            typical = _GENRE_TYPICAL_BPM[g]
             bpm_scaling[p] = _REF_BPM / typical
+        if unknown_count > 0:
+            logger.warning(
+                "Mixed-genre: %d tracks with unknown/unmapped genre (scale=1.0)",
+                unknown_count,
+            )
 
         meta_sub = {p: metadata_dict[p] for p in valid_paths}
         int_sub = {p: intensity_dict[p] for p in valid_paths}
