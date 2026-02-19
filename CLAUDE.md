@@ -35,8 +35,8 @@ Playchitect transforms DJ playlist creation from rigid BPM-based grouping to int
 
 **Development**:
 - Package management: uv
-- Testing: pytest with 27 unit tests
-- Pre-commit hooks: black, flake8, mypy, pytest
+- Testing: pytest
+- Pre-commit hooks: ruff, ty, pytest
 - CI/CD: GitHub Actions (to be set up)
 
 ## Project Structure
@@ -259,8 +259,8 @@ Playchitect originated from `/home/james/audio-management/scripts/create_random_
 3. **Python Version**: 3.11+ (native type hints, modern features)
 4. **GUI Framework**: GTK4 + libadwaita (native GNOME)
 5. **Testing Strategy**: TDD with pytest, >85% coverage target
-6. **Type Checking**: Strict mypy with native type hints
-7. **Code Style**: Black with 100-char line length
+6. **Type Checking**: Strict ty with native type hints
+7. **Code Style**: Ruff with 100-char line length
 
 ## Important Notes
 

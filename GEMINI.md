@@ -15,8 +15,8 @@ AudioScanner → MetadataExtractor → IntensityAnalyzer → Clustering → Play
 **Tech stack**: Python 3.11+, librosa, scikit-learn, mutagen, numpy, scipy, GTK4/libadwaita (GUI, future milestone).
 **Package manager**: uv
 **Testing**: pytest with >85% coverage target on core modules
-**Style**: black (100-char line length), flake8, mypy (strict)
-**Pre-commit hooks**: black, flake8, mypy, pytest run on every commit
+**Style**: ruff (100-char line length, formatter, linter)
+**Pre-commit hooks**: ruff, ty, pytest run on every commit
 
 ---
 
@@ -38,7 +38,7 @@ Evaluate every diff across these dimensions:
 ### 3. Type Safety
 - Do all public functions have complete type hints (PEP 484)?
 - Are `Optional`, `Union`, and native `|` types used correctly?
-- Would mypy strict mode pass?
+- Would ty strict mode pass?
 
 ### 4. Test Quality
 - Is coverage >85% for the modified module(s)?
