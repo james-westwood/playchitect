@@ -13,6 +13,7 @@ import playchitect.core.embedding_extractor as emb_mod
 from playchitect.core.embedding_extractor import (
     _EMB_OUTPUT_LAYER,
     _MSD_MUSICNN_URL,
+    _TAG_OUTPUT_LAYER,
     EmbeddingExtractor,
     EmbeddingFeatures,
 )
@@ -428,3 +429,325 @@ class TestEmbeddingExtractorDownload:
         extractor._download_model(custom_path)
 
         assert retrieved[0] == custom_path
+
+
+# ── TestEmbeddingExtractorFileHash ────────────────────────────────────────────
+
+
+class TestEmbeddingExtractorFileHash:
+    """Test _compute_file_hash."""
+
+    @pytest.fixture()
+    def extractor(self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> EmbeddingExtractor:
+        monkeypatch.setattr(emb_mod, "_ESSENTIA_AVAILABLE", True)
+        return EmbeddingExtractor(cache_enabled=False, model_path=tmp_path / "fake.pb")
+
+    def test_hash_is_md5_hex(self, extractor: EmbeddingExtractor, tmp_path: Path) -> None:
+        f = tmp_path / "audio.mp3"
+        f.write_bytes(b"hello world")
+        h = extractor._compute_file_hash(f)
+        assert len(h) == 32
+        assert all(c in "0123456789abcdef" for c in h)
+
+    def test_identical_content_same_hash(
+        self, extractor: EmbeddingExtractor, tmp_path: Path
+    ) -> None:
+        data = b"same content" * 100
+        f1 = tmp_path / "a.mp3"
+        f2 = tmp_path / "b.mp3"
+        f1.write_bytes(data)
+        f2.write_bytes(data)
+        assert extractor._compute_file_hash(f1) == extractor._compute_file_hash(f2)
+
+    def test_different_content_different_hash(
+        self, extractor: EmbeddingExtractor, tmp_path: Path
+    ) -> None:
+        f1 = tmp_path / "a.mp3"
+        f2 = tmp_path / "b.mp3"
+        f1.write_bytes(b"content_a")
+        f2.write_bytes(b"content_b")
+        assert extractor._compute_file_hash(f1) != extractor._compute_file_hash(f2)
+
+
+# ── TestBuildTopTags ──────────────────────────────────────────────────────────
+
+
+class TestBuildTopTags:
+    """Test _build_top_tags directly."""
+
+    @pytest.fixture()
+    def extractor(self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> EmbeddingExtractor:
+        monkeypatch.setattr(emb_mod, "_ESSENTIA_AVAILABLE", True)
+        return EmbeddingExtractor(cache_enabled=False, model_path=tmp_path / "fake.pb")
+
+    def test_fallback_to_numeric_when_labels_none(self, extractor: EmbeddingExtractor) -> None:
+        """No metadata file → _load_tag_labels returns None → numeric labels."""
+        activations = np.array([0.1, 0.9, 0.5], dtype=np.float32)
+        tags = extractor._build_top_tags(activations)
+        # Numeric labels, sorted descending by confidence
+        assert tags[0] == ("1", pytest.approx(0.9))
+        assert tags[1] == ("2", pytest.approx(0.5))
+        assert tags[2] == ("0", pytest.approx(0.1))
+
+    def test_fallback_to_numeric_when_label_count_mismatch(
+        self, extractor: EmbeddingExtractor, tmp_path: Path
+    ) -> None:
+        """3 labels but 5 activations → numeric fallback."""
+        meta = tmp_path / "fake.json"
+        meta.write_text('{"classes": ["a", "b", "c"]}')
+        extractor.model_path = tmp_path / "fake.pb"
+        activations = np.ones(5, dtype=np.float32)
+        tags = extractor._build_top_tags(activations)
+        # Labels should be numeric 0-4
+        assert all(t[0].isdigit() for t in tags)
+
+    def test_sorted_descending_by_confidence(
+        self, extractor: EmbeddingExtractor, tmp_path: Path
+    ) -> None:
+        """Output must be sorted highest confidence first."""
+        meta = tmp_path / "fake.json"
+        meta.write_text('{"classes": ["low", "high", "mid"]}')
+        extractor.model_path = tmp_path / "fake.pb"
+        activations = np.array([0.1, 0.9, 0.5], dtype=np.float32)
+        tags = extractor._build_top_tags(activations)
+        confs = [c for _, c in tags]
+        assert confs == sorted(confs, reverse=True)
+        assert tags[0][0] == "high"
+
+
+# ── TestLoadTagLabels ─────────────────────────────────────────────────────────
+
+
+class TestLoadTagLabels:
+    """Test _load_tag_labels."""
+
+    @pytest.fixture()
+    def extractor(self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> EmbeddingExtractor:
+        monkeypatch.setattr(emb_mod, "_ESSENTIA_AVAILABLE", True)
+        return EmbeddingExtractor(cache_enabled=False, model_path=tmp_path / "fake.pb")
+
+    def test_no_meta_file_returns_none(self, extractor: EmbeddingExtractor) -> None:
+        assert extractor._load_tag_labels() is None
+
+    def test_corrupt_meta_file_returns_none(
+        self, extractor: EmbeddingExtractor, tmp_path: Path
+    ) -> None:
+        meta = tmp_path / "fake.json"
+        meta.write_text("NOT VALID JSON {{{")
+        assert extractor._load_tag_labels() is None
+
+    def test_valid_meta_returns_labels(self, extractor: EmbeddingExtractor, tmp_path: Path) -> None:
+        meta = tmp_path / "fake.json"
+        meta.write_text('{"classes": ["tag_0", "tag_1", "tag_2"]}')
+        labels = extractor._load_tag_labels()
+        assert labels == ["tag_0", "tag_1", "tag_2"]
+
+    def test_cached_in_memory_on_second_call(
+        self, extractor: EmbeddingExtractor, tmp_path: Path
+    ) -> None:
+        """Second call returns cached result without re-reading the file."""
+        meta = tmp_path / "fake.json"
+        meta.write_text('{"classes": ["a", "b"]}')
+        first = extractor._load_tag_labels()
+        # Delete the file; second call should still return cached value
+        meta.unlink()
+        second = extractor._load_tag_labels()
+        assert first == second == ["a", "b"]
+
+
+# ── TestAnalyzeAdditional ─────────────────────────────────────────────────────
+
+
+class TestAnalyzeAdditional:
+    """Additional analyze() coverage tests."""
+
+    @pytest.fixture()
+    def extractor(self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> EmbeddingExtractor:
+        monkeypatch.setattr(emb_mod, "_ESSENTIA_AVAILABLE", True)
+        return EmbeddingExtractor(
+            cache_dir=tmp_path / "cache",
+            cache_enabled=True,
+            model_path=tmp_path / "fake.pb",
+        )
+
+    def test_analyze_nonexistent_file_raises(
+        self, extractor: EmbeddingExtractor, tmp_path: Path
+    ) -> None:
+        with pytest.raises(FileNotFoundError):
+            extractor.analyze(tmp_path / "does_not_exist.mp3")
+
+    def test_analyze_returns_cached_on_second_call(
+        self,
+        tmp_path: Path,
+        monkeypatch: pytest.MonkeyPatch,
+    ) -> None:
+        """Second analyze() call hits the cache without touching the model."""
+        monkeypatch.setattr(emb_mod, "_ESSENTIA_AVAILABLE", True)
+
+        n_frames = 3
+        n_tags = 4
+
+        class MockModel:
+            def __init__(self, graphFilename: str, output: str = "", **kwargs: object):
+                self.output = output
+                MockModel.call_count += 1
+
+            def __call__(self, audio: np.ndarray) -> np.ndarray:
+                if self.output == _EMB_OUTPUT_LAYER:
+                    return np.ones((n_frames, 128), dtype=np.float32)
+                return np.ones((n_frames, n_tags), dtype=np.float32)
+
+            call_count = 0
+
+        monkeypatch.setattr(emb_mod, "_EssentiaModel", MockModel)
+
+        model_file = tmp_path / "fake.pb"
+        model_file.write_bytes(b"x")
+        meta_file = tmp_path / "fake.json"
+        meta_file.write_text(
+            '{"classes": ' + str([f"t{i}" for i in range(n_tags)]).replace("'", '"') + "}"
+        )
+
+        extractor = EmbeddingExtractor(
+            model_path=model_file,
+            cache_dir=tmp_path / "cache",
+            cache_enabled=True,
+        )
+
+        audio_file = tmp_path / "track.wav"
+        audio_file.write_bytes(b"\x00" * 200)
+
+        import librosa as _librosa  # noqa: PLC0415
+
+        monkeypatch.setattr(
+            _librosa, "load", lambda *a, **kw: (np.zeros(16000, dtype=np.float32), 16000)
+        )
+
+        MockModel.call_count = 0
+        feat1 = extractor.analyze(audio_file)
+        feat2 = extractor.analyze(audio_file)  # Should hit cache
+
+        # Embedding content matches
+        np.testing.assert_array_equal(feat1.embedding, feat2.embedding)
+        # Model constructor called exactly twice (emb + tags) on first analyze only
+        assert MockModel.call_count == 2
+
+
+# ── TestAnalyzeBatch ──────────────────────────────────────────────────────────
+
+
+class TestAnalyzeBatch:
+    """Test analyze_batch()."""
+
+    @pytest.fixture()
+    def extractor(self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> EmbeddingExtractor:
+        monkeypatch.setattr(emb_mod, "_ESSENTIA_AVAILABLE", True)
+        return EmbeddingExtractor(cache_enabled=False, model_path=tmp_path / "fake.pb")
+
+    def test_batch_skips_nonexistent_files(
+        self, extractor: EmbeddingExtractor, tmp_path: Path
+    ) -> None:
+        missing = tmp_path / "ghost.mp3"
+        result = extractor.analyze_batch([missing])
+        assert missing not in result
+        assert len(result) == 0
+
+    def test_batch_returns_successful_subset(
+        self,
+        tmp_path: Path,
+        monkeypatch: pytest.MonkeyPatch,
+    ) -> None:
+        """analyze_batch returns only successfully-analyzed paths."""
+        monkeypatch.setattr(emb_mod, "_ESSENTIA_AVAILABLE", True)
+
+        class MockModel:
+            def __init__(self, graphFilename: str, output: str = "", **kwargs: object):
+                self.output = output
+
+            def __call__(self, audio: np.ndarray) -> np.ndarray:
+                if self.output == _EMB_OUTPUT_LAYER:
+                    return np.ones((2, 128), dtype=np.float32)
+                return np.ones((2, 4), dtype=np.float32)
+
+        monkeypatch.setattr(emb_mod, "_EssentiaModel", MockModel)
+
+        model_file = tmp_path / "fake.pb"
+        model_file.write_bytes(b"x")
+        meta = tmp_path / "fake.json"
+        meta.write_text('{"classes": ["a", "b", "c", "d"]}')
+
+        extractor = EmbeddingExtractor(model_path=model_file, cache_enabled=False)
+
+        good = tmp_path / "good.wav"
+        good.write_bytes(b"\x00" * 200)
+        bad = tmp_path / "bad.mp3"  # doesn't exist
+
+        import librosa as _librosa  # noqa: PLC0415
+
+        monkeypatch.setattr(
+            _librosa, "load", lambda *a, **kw: (np.zeros(16000, dtype=np.float32), 16000)
+        )
+
+        results = extractor.analyze_batch([good, bad])
+        assert good in results
+        assert bad not in results
+
+
+# ── TestEnsureModel ───────────────────────────────────────────────────────────
+
+
+class TestEnsureModel:
+    """Test _ensure_model lazy initialization."""
+
+    def test_model_initialized_only_once(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        """Calling _ensure_model twice creates each model instance exactly once."""
+        monkeypatch.setattr(emb_mod, "_ESSENTIA_AVAILABLE", True)
+
+        init_calls: list[str] = []
+
+        class MockModel:
+            def __init__(self, graphFilename: str, output: str = "", **kwargs: object):
+                init_calls.append(output)
+
+        monkeypatch.setattr(emb_mod, "_EssentiaModel", MockModel)
+
+        model_file = tmp_path / "fake.pb"
+        model_file.write_bytes(b"x")
+
+        extractor = EmbeddingExtractor(model_path=model_file, cache_enabled=False)
+        extractor._ensure_model()
+        extractor._ensure_model()  # Second call — should not re-create
+
+        # Each model (emb + tags) created exactly once
+        assert init_calls.count(_EMB_OUTPUT_LAYER) == 1
+        assert init_calls.count(_TAG_OUTPUT_LAYER) == 1
+
+    def test_ensure_model_triggers_download_when_missing(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        """_ensure_model calls _download_model when .pb does not exist."""
+        monkeypatch.setattr(emb_mod, "_ESSENTIA_AVAILABLE", True)
+
+        downloaded: list[Path] = []
+
+        class MockModel:
+            def __init__(self, graphFilename: str, output: str = "", **kwargs: object):
+                pass
+
+        monkeypatch.setattr(emb_mod, "_EssentiaModel", MockModel)
+
+        model_file = tmp_path / "missing.pb"  # does NOT exist yet
+
+        def fake_download(target: Path) -> None:
+            target.parent.mkdir(parents=True, exist_ok=True)
+            target.write_bytes(b"fake_model")  # create it
+            downloaded.append(target)
+
+        extractor = EmbeddingExtractor(model_path=model_file, cache_enabled=False)
+        extractor._download_model = fake_download  # type: ignore[method-assign]
+        extractor._ensure_model()
+
+        assert len(downloaded) == 1
+        assert downloaded[0] == model_file
