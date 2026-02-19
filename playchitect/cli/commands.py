@@ -12,6 +12,7 @@ from playchitect.core.audio_scanner import AudioScanner
 from playchitect.core.clustering import PlaylistClusterer
 from playchitect.core.export import M3UExporter
 from playchitect.core.metadata_extractor import MetadataExtractor
+from playchitect.core.track_selector import TrackSelector
 from playchitect.utils.config import get_config
 
 # Configure logging
@@ -59,6 +60,24 @@ def cli() -> None:
     is_flag=True,
     help="Use test music path from config (for testing)",
 )
+@click.option(
+    "--first-override",
+    type=click.Path(exists=True),
+    default=None,
+    help="Override the auto-selected opener track.",
+)
+@click.option(
+    "--last-override",
+    type=click.Path(exists=True),
+    default=None,
+    help="Override the auto-selected closer track.",
+)
+@click.option(
+    "--save-overrides",
+    is_flag=True,
+    default=False,
+    help="Persist --first-override / --last-override to config for future runs.",
+)
 def scan(
     music_path: Path | None,
     output: Path | None,
@@ -67,6 +86,9 @@ def scan(
     playlist_name: str,
     dry_run: bool,
     use_test_path: bool,
+    first_override: str | None,
+    last_override: str | None,
+    save_overrides: bool,
 ) -> None:
     """
     Scan music directory and create intelligent playlists.
@@ -161,6 +183,51 @@ def scan(
             f"BPM: {cluster.bpm_mean:.1f} ± {cluster.bpm_std:.1f}, "
             f"Duration: {duration_min:.1f} min"
         )
+
+    # Track selection — opener/closer recommendations per cluster
+    override_first_path = Path(first_override) if first_override else None
+    override_last_path = Path(last_override) if last_override else None
+
+    # Load saved overrides when CLI flags are absent
+    saved_overrides = config.get_track_override(music_path)
+    applied_first = override_first_path or saved_overrides.get("first")
+    applied_last = override_last_path or saved_overrides.get("last")
+
+    selector = TrackSelector()
+    click.echo("\nOpener / Closer recommendations:")
+    for cluster in clusters:
+        try:
+            selection = selector.select(
+                cluster,
+                metadata_dict,
+                {},  # intensity_dict not available in BPM-only mode
+                user_override_first=applied_first if applied_first in cluster.tracks else None,
+                user_override_last=applied_last if applied_last in cluster.tracks else None,
+            )
+            opener = selection.first_tracks[0] if selection.first_tracks else None
+            closer = selection.last_tracks[0] if selection.last_tracks else None
+            header = (
+                f"  Cluster {cluster.cluster_id} "
+                f"(BPM {cluster.bpm_mean:.1f} \u00b1 {cluster.bpm_std:.1f}):"
+            )
+            click.echo(header)
+            if opener:
+                click.echo(
+                    f"    Opener: {opener.path.name}"
+                    f"  (score: {opener.score:.2f} \u2014 {opener.reason})"
+                )
+            if closer:
+                click.echo(
+                    f"    Closer: {closer.path.name}"
+                    f"  (score: {closer.score:.2f} \u2014 {closer.reason})"
+                )
+        except ValueError as exc:
+            logger.warning("Track selection skipped for cluster %s: %s", cluster.cluster_id, exc)
+
+    # Persist overrides if requested
+    if save_overrides and (override_first_path or override_last_path):
+        config.set_track_override(music_path, first=override_first_path, last=override_last_path)
+        click.echo("\nOverrides saved to config.")
 
     # Export playlists (unless dry-run)
     if dry_run:
