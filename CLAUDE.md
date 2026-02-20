@@ -173,6 +173,95 @@ Gemini will output either:
 - PR title becomes the squash commit message (must follow conventional commits)
 - Delete the feature branch after merge
 
+---
+
+## Parallel Development with Git Worktree + Background Gemini
+
+For larger features, Claude and Gemini can work in **true parallel** using `git worktree`.
+This avoids the bottleneck of waiting for Gemini to finish before Claude can continue.
+
+### How It Works
+
+The feature is split into two parts:
+- **Claude** takes the higher-level implementation (main feature branch)
+- **Gemini** takes a smaller, well-scoped sub-task (sub-branch in a separate worktree)
+
+Both run simultaneously — Claude in the main directory, Gemini in `/tmp/playchitect-gemini`.
+
+### Setup
+
+```bash
+# 1. Create the main feature branch (Claude's branch)
+git checkout main && git pull
+git checkout -b feature/11-cue-sheet
+
+# 2. Create Gemini's sub-branch off the feature branch
+git checkout -b feature/11-cue-timing
+git push -u origin feature/11-cue-timing
+git checkout feature/11-cue-sheet
+
+# 3. Add a worktree for Gemini's sub-branch
+git worktree add /tmp/playchitect-gemini feature/11-cue-timing
+```
+
+### Launching Gemini in the Background
+
+```bash
+gemini --yolo -p "$(cat /tmp/gemini_prompt.txt)" > /tmp/gemini_task.log 2>&1 &
+echo "Gemini PID: $!"
+```
+
+Key points for the Gemini prompt:
+- Specify `Working directory: /tmp/playchitect-gemini`
+- Name the branch explicitly and say it is already checked out
+- Tell Gemini to open its PR against the **feature branch** (not `main`)
+- Tell Gemini **not** to commit to main or the parent feature branch
+
+### Checking on Gemini
+
+```bash
+# Check if it's still running
+ps aux | grep gemini | grep -v grep
+
+# Tail the log
+tail -30 /tmp/gemini_task.log
+
+# Check if Gemini has committed anything
+git -C /tmp/playchitect-gemini log --oneline -5
+```
+
+### Merging the Sub-Branch
+
+```bash
+# Run Gemini review from the sub-branch, with the feature branch as base
+git checkout feature/11-cue-timing
+./scripts/review_pr.sh feature/11-cue-sheet
+
+# On APPROVE, merge locally (GitHub merge may conflict if both branches
+# touched the same file — resolve, commit, then the PR closes automatically)
+git checkout feature/11-cue-sheet
+git merge origin/feature/11-cue-timing
+# resolve any conflicts, then:
+git push origin feature/11-cue-sheet
+```
+
+### Cleaning Up
+
+```bash
+git worktree remove /tmp/playchitect-gemini
+git branch -D feature/11-cue-timing
+git push origin --delete feature/11-cue-timing
+```
+
+### Lessons Learned (Issue #11)
+
+- **Works well when tasks are truly independent.** The split between timing utilities (Gemini) and the generator/CLI (Claude) meant zero code overlap during development.
+- **Gemini can hit 429 rate-limit errors** and stall without producing output. Monitor the log; if the line count stops growing, kill (`kill <PID>`) and relaunch.
+- **If the worktree disappears**, check `git worktree list`. Untracked files from the lost worktree may be left in the main working directory — check `git status`, read them, and commit what's useful directly on the sub-branch.
+- **Conflict on shared files is expected** when both branches independently create the same file (e.g. both writing `cue_timing.py`). Resolve with `git checkout --theirs <file>` to prefer the sub-branch version, or merge manually. The PR will close automatically once the conflict is resolved and pushed.
+- **Sub-branch PR base must be the feature branch**, not `main`. Use `gh pr create --base feature/11-cue-sheet`.
+- **Run `./scripts/review_pr.sh <base-branch>` from the sub-branch**, not the feature branch.
+
 ## Milestone Status
 
 ### ✅ Milestone 1: Foundation & Core Refactoring (Complete)
@@ -286,6 +375,5 @@ Playchitect originated from `/home/james/audio-management/scripts/create_random_
 
 ---
 
-**Last Updated**: 2026-02-19
-**Current Milestone**: 1 Complete, Starting Milestone 2
-**Next Session**: Implement librosa intensity analyzer
+**Last Updated**: 2026-02-20
+**Current Milestone**: Milestones 1–4 largely complete (400 tests passing)
