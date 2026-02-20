@@ -1,43 +1,14 @@
-"""Smoke tests for the Playchitect GTK4 GUI application."""
+"""Smoke tests for the Playchitect GTK4 GUI application.
 
-import sys
+gi mocks are installed by tests/gui/conftest.py before this module is collected.
+"""
+
 from unittest.mock import MagicMock
 
 import pytest
 
-# Mock gi.repository to prevent import errors if PyGObject is not fully installed
-sys.modules["gi.repository"] = MagicMock()
-sys.modules["gi.repository.Adw"] = MagicMock()
-sys.modules["gi.repository.Gtk"] = MagicMock()
-
-# Import app module after mocking
+# Import app module — gi is already mocked by conftest.py
 from playchitect.gui.app import PlaychitectApplication  # noqa: E402
-
-
-@pytest.fixture(scope="module", autouse=True)
-def mock_gi_libraries():
-    """Ensure gi.repository is mocked for all GUI tests."""
-    original_gi = sys.modules.get("gi")
-    original_adw = sys.modules.get("gi.repository.Adw")
-    original_gtk = sys.modules.get("gi.repository.Gtk")
-
-    sys.modules["gi.repository"] = MagicMock()
-    sys.modules["gi.repository.Adw"] = MagicMock()
-    sys.modules["gi.repository.Gtk"] = MagicMock()
-
-    yield
-
-    # Restore original modules if they existed
-    sys.modules.pop("gi", None)
-    sys.modules.pop("gi.repository.Adw", None)
-    sys.modules.pop("gi.repository.Gtk", None)
-
-    if original_gi:
-        sys.modules["gi"] = original_gi
-    if original_adw:
-        sys.modules["gi.repository.Adw"] = original_adw
-    if original_gtk:
-        sys.modules["gi.repository.Gtk"] = original_gtk
 
 
 class TestPlaychitectApplication:
