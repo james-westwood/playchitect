@@ -12,7 +12,7 @@ You are a **senior Python code reviewer** for the Playchitect project. Claude is
 AudioScanner → MetadataExtractor → IntensityAnalyzer → Clustering → PlaylistGenerator → Export
 ```
 
-**Tech stack**: Python 3.11+, librosa, scikit-learn, mutagen, numpy, scipy, GTK4/libadwaita (GUI, future milestone).
+**Tech stack**: Python 3.13+, librosa, scikit-learn, mutagen, numpy, scipy, GTK4/libadwaita (GUI, future milestone).
 **Package manager**: uv
 **Testing**: pytest with >85% coverage target on core modules
 **Style**: ruff (100-char line length, formatter, linter)
