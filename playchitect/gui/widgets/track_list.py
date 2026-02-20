@@ -140,6 +140,7 @@ class TrackListWidget(Gtk.Box):
     __gsignals__ = {
         "track-activated": (GObject.SignalFlags.RUN_FIRST, None, (GObject.Object,)),
         "selection-changed": (GObject.SignalFlags.RUN_FIRST, None, (int,)),
+        "preview-requested": (GObject.SignalFlags.RUN_FIRST, None, ()),
     }
 
     def __init__(self) -> None:
@@ -202,6 +203,11 @@ class TrackListWidget(Gtk.Box):
         right_click.set_button(3)
         right_click.connect("pressed", self._on_right_click)
         self._column_view.add_controller(right_click)
+
+        # Spacebar → preview-requested signal
+        key_ctrl = Gtk.EventControllerKey()
+        key_ctrl.connect("key-pressed", self._on_key_pressed)
+        self._column_view.add_controller(key_ctrl)
 
         self._add_columns()
 
@@ -295,11 +301,25 @@ class TrackListWidget(Gtk.Box):
         label.set_xalign(1.0)
         label.set_text(track.duration_str)
 
+    # ── Keyboard shortcuts ────────────────────────────────────────────────────
+
+    def _on_key_pressed(
+        self,
+        _ctrl: Gtk.EventControllerKey,
+        keyval: int,
+        _keycode: int,
+        _state: Gdk.ModifierType,
+    ) -> bool:
+        if keyval == Gdk.KEY_space and self.get_selected_tracks():
+            self.emit("preview-requested")
+            return True
+        return False
+
     # ── Context menu ─────────────────────────────────────────────────────────
 
     def _build_context_menu(self) -> None:
         menu = Gio.Menu()
-        menu.append("Preview", "track.preview")
+        menu.append("Quick Look", "track.preview")
         menu.append("Export to M3U…", "track.export")
         menu.append("Remove from list", "track.remove")
 
@@ -419,3 +439,7 @@ class TrackListWidget(Gtk.Box):
     def filtered_count(self) -> int:
         """Number of tracks visible after applying the current search filter."""
         return self._filter_model.get_n_items()
+
+    def get_selected_paths(self) -> list[str]:
+        """Return filepath strings for all currently selected tracks."""
+        return [t.filepath for t in self.get_selected_tracks()]
