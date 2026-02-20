@@ -54,3 +54,4 @@ Thumbs.db
 # Flatpak
 .flatpak-builder/
 repo/
+pr_review_*.md

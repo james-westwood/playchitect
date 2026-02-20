@@ -41,6 +41,9 @@ jobs:
       - name: CLI smoke tests
         run: uv run pytest tests/integration/test_cli_smoke.py -v --no-cov
 
+      - name: Fast performance benchmarks
+        run: uv run pytest tests/benchmarks/ -v --no-cov
+
   # ── Job 2: Extended CLI integration tests ───────────────────────────────────
   # Runs only on PRs targeting main, after lint-and-test passes.
   extended-cli:
