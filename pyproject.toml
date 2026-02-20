@@ -51,15 +51,30 @@ dev = [
     "ty>=0.0.17",
     "pre-commit>=3.3.0",
     "soundfile>=0.12.0",  # For unit tests with synthetic audio
+    "Pillow>=10.0.0",
 ]
 
 [project.scripts]
 playchitect = "playchitect.cli.commands:main"
 playchitect-gui = "playchitect.gui.app:main"
+playchitect-install-desktop = "playchitect.utils.desktop_install:main"
 
 [project.urls]
 Homepage = "https://github.com/james-westwood/playchitect"
 Issues = "https://github.com/james-westwood/playchitect/issues"
+
+[tool.setuptools.data-files]
+"share/applications" = ["data/playchitect.desktop"]
+"share/metainfo" = ["data/com.github.jameswestwood.Playchitect.appdata.xml"]
+"share/icons/hicolor/16x16/apps" = ["data/icons/hicolor/16x16/apps/com.github.jameswestwood.Playchitect.png"]
+"share/icons/hicolor/22x22/apps" = ["data/icons/hicolor/22x22/apps/com.github.jameswestwood.Playchitect.png"]
+"share/icons/hicolor/24x24/apps" = ["data/icons/hicolor/24x24/apps/com.github.jameswestwood.Playchitect.png"]
+"share/icons/hicolor/32x32/apps" = ["data/icons/hicolor/32x32/apps/com.github.jameswestwood.Playchitect.png"]
+"share/icons/hicolor/48x48/apps" = ["data/icons/hicolor/48x48/apps/com.github.jameswestwood.Playchitect.png"]
+"share/icons/hicolor/64x64/apps" = ["data/icons/hicolor/64x64/apps/com.github.jameswestwood.Playchitect.png"]
+"share/icons/hicolor/128x128/apps" = ["data/icons/hicolor/128x128/apps/com.github.jameswestwood.Playchitect.png"]
+"share/icons/hicolor/256x256/apps" = ["data/icons/hicolor/256x256/apps/com.github.jameswestwood.Playchitect.png"]
+"share/icons/hicolor/512x512/apps" = ["data/icons/hicolor/512x512/apps/com.github.jameswestwood.Playchitect.png"]
 
 [tool.ruff]
 line-length = 100
