@@ -11,13 +11,13 @@ from __future__ import annotations
 
 from typing import Any
 
-import gi  # type: ignore[import-untyped,unresolved-import]
+import gi
 
 gi.require_version("Gtk", "4.0")
 gi.require_version("Gdk", "4.0")
 gi.require_version("Adw", "1")
 
-from gi.repository import (  # type: ignore[import-untyped,unresolved-import]  # noqa: E402
+from gi.repository import (  # type: ignore[unresolved-import]  # noqa: E402
     Gdk,
     Gio,
     GObject,

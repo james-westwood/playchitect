@@ -12,7 +12,7 @@ repos:
     hooks:
       - id: ty
         name: ty
-        entry: uv run ty check
+        entry: uv run ty check playchitect/core playchitect/cli playchitect/utils tests
         language: system
         types: [python]
         pass_filenames: false

@@ -17,7 +17,7 @@ class Config:
     DEFAULT_CONFIG_PATH = Path.home() / ".config" / "playchitect" / "config.yaml"
 
     DEFAULT_CONFIG = {
-        "test_music_path": "/mnt/1tb_ssd/Media/Music/Trying Before You Buying/dark 4",
+        "test_music_path": "/mnt/1tb_ssd/Media/Music/Trying Before You Buying/dark 3",
         "default_output_dir": None,
         "default_target_tracks": 25,
         "default_target_duration": None,

@@ -86,6 +86,7 @@ _repo_mod.GObject = _gobject_mock  # type: ignore[attr-defined]
 _repo_mod.Gtk = _gtk_mock  # type: ignore[attr-defined]
 _repo_mod.Gdk = MagicMock()  # type: ignore[attr-defined]
 _repo_mod.Gio = MagicMock()  # type: ignore[attr-defined]
+_repo_mod.GLib = MagicMock()  # type: ignore[attr-defined]
 _repo_mod.Pango = _pango_mock  # type: ignore[attr-defined]
 _repo_mod.Adw = _adw_mock  # type: ignore[attr-defined]
 
@@ -95,5 +96,6 @@ sys.modules.setdefault("gi.repository.GObject", _gobject_mock)
 sys.modules.setdefault("gi.repository.Gtk", _gtk_mock)
 sys.modules.setdefault("gi.repository.Gdk", MagicMock())
 sys.modules.setdefault("gi.repository.Gio", MagicMock())
+sys.modules.setdefault("gi.repository.GLib", MagicMock())
 sys.modules.setdefault("gi.repository.Pango", _pango_mock)
 sys.modules.setdefault("gi.repository.Adw", _adw_mock)
