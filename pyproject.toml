@@ -51,6 +51,9 @@ dev = [
     "ty>=0.0.17",
     "pre-commit>=3.3.0",
     "soundfile>=0.12.0",  # For unit tests with synthetic audio
+    # Pillow is a dev-only dep: used by scripts/generate_icons.py to regenerate
+    # icon assets from the source JPEG. Pre-generated PNGs/ICO are committed to
+    # the repo, so Pillow is NOT needed at runtime by the installed package.
     "Pillow>=10.0.0",
 ]
 
@@ -63,7 +66,22 @@ playchitect-install-desktop = "playchitect.utils.desktop_install:main"
 Homepage = "https://github.com/james-westwood/playchitect"
 Issues = "https://github.com/james-westwood/playchitect/issues"
 
+[tool.setuptools]
+# Explicit package list; mirrors what auto-discovery would find.
+packages = [
+    "playchitect",
+    "playchitect.cli",
+    "playchitect.core",
+    "playchitect.gui",
+    "playchitect.gui.widgets",
+    "playchitect.gui.windows",
+    "playchitect.utils",
+]
+
 [tool.setuptools.data-files]
+# System-level XDG/freedesktop paths for `pip install` into a prefix.
+# For per-user or system-wide installation without pip, use:
+#   playchitect-install-desktop [--system-wide]
 "share/applications" = ["data/playchitect.desktop"]
 "share/metainfo" = ["data/com.github.jameswestwood.Playchitect.appdata.xml"]
 "share/icons/hicolor/16x16/apps" = ["data/icons/hicolor/16x16/apps/com.github.jameswestwood.Playchitect.png"]
@@ -75,6 +93,7 @@ Issues = "https://github.com/james-westwood/playchitect/issues"
 "share/icons/hicolor/128x128/apps" = ["data/icons/hicolor/128x128/apps/com.github.jameswestwood.Playchitect.png"]
 "share/icons/hicolor/256x256/apps" = ["data/icons/hicolor/256x256/apps/com.github.jameswestwood.Playchitect.png"]
 "share/icons/hicolor/512x512/apps" = ["data/icons/hicolor/512x512/apps/com.github.jameswestwood.Playchitect.png"]
+"share/icons/hicolor" = ["data/icons/playchitect.ico"]
 
 [tool.ruff]
 line-length = 100
