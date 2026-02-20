@@ -13,11 +13,15 @@ from gi.repository import Adw, GLib, Gtk  # type: ignore[unresolved-import]  # n
 
 from playchitect.core.audio_scanner import AudioScanner  # noqa: E402
 from playchitect.core.metadata_extractor import MetadataExtractor  # noqa: E402
+from playchitect.core.track_previewer import TrackPreviewer  # noqa: E402
 from playchitect.gui.widgets.cluster_view import ClusterViewPanel  # noqa: E402
 from playchitect.gui.widgets.track_list import TrackListWidget, TrackModel  # noqa: E402
 from playchitect.utils.config import get_config  # noqa: E402
 
 logger = logging.getLogger(__name__)
+
+# How long (ms) the "Previewing…" title stays before reverting.
+_PREVIEW_TITLE_TIMEOUT_MS: int = 3000
 
 
 class PlaychitectWindow(Adw.ApplicationWindow):
@@ -27,9 +31,20 @@ class PlaychitectWindow(Adw.ApplicationWindow):
         self.set_title("Playchitect")
         self.set_default_size(1000, 700)
 
+        # ── Preview service ───────────────────────────────────────────────────
+        self._previewer = TrackPreviewer()
+        self._track_title = "Playchitect"  # restored after preview flash
+
+        # ── Header bar ────────────────────────────────────────────────────────
         header = Adw.HeaderBar()
         self._spinner = Gtk.Spinner()
         header.pack_end(self._spinner)
+
+        # Preview availability chip (right side of header)
+        self._preview_chip = Gtk.Label()
+        self._preview_chip.add_css_class("caption")
+        self._update_preview_chip()
+        header.pack_start(self._preview_chip)
 
         toolbar_view = Adw.ToolbarView()
         toolbar_view.add_top_bar(header)
@@ -46,10 +61,10 @@ class PlaychitectWindow(Adw.ApplicationWindow):
         paned.set_start_child(self.cluster_panel)
 
         self.track_list = TrackListWidget()
+        self.track_list.connect("preview-requested", self._on_preview_requested)
         paned.set_end_child(self.track_list)
 
         toolbar_view.set_content(paned)
-
         self.set_content(toolbar_view)
 
         # Load default music directory after the window is shown
@@ -57,6 +72,41 @@ class PlaychitectWindow(Adw.ApplicationWindow):
         music_path = config.get_test_music_path()
         if music_path and music_path.is_dir():
             GLib.idle_add(self._start_scan, music_path)
+
+    # ── Preview chip ──────────────────────────────────────────────────────────
+
+    def _update_preview_chip(self) -> None:
+        """Set the header chip text and style to reflect preview availability."""
+        launcher = self._previewer.launcher_name()
+        if launcher == "sushi":
+            self._preview_chip.set_text("Sushi ✓")
+            self._preview_chip.set_tooltip_text("Quick Look via GNOME Sushi (Space)")
+        elif launcher == "xdg-open":
+            self._preview_chip.set_text("Preview: xdg-open")
+            self._preview_chip.set_tooltip_text("Quick Look via xdg-open (Space)")
+        else:
+            self._preview_chip.set_text("No preview")
+            self._preview_chip.set_tooltip_text("Install GNOME Sushi for Quick Look support")
+
+    # ── Preview handler ───────────────────────────────────────────────────────
+
+    def _on_preview_requested(self, _widget: TrackListWidget) -> None:
+        """Handle spacebar / Quick Look — preview first selected track."""
+        paths = [Path(p) for p in self.track_list.get_selected_paths()]
+        result = self._previewer.preview_first(paths)
+
+        if result.success and result.filepath is not None:
+            name = result.filepath.stem
+            self.set_title(f"Playchitect — Previewing: {name}")
+            GLib.timeout_add(_PREVIEW_TITLE_TIMEOUT_MS, self._revert_title)
+        else:
+            logger.warning("Preview failed: %s", result.error)
+
+    def _revert_title(self) -> bool:
+        self.set_title(self._track_title)
+        return False  # don't repeat
+
+    # ── Scan ──────────────────────────────────────────────────────────────────
 
     def _start_scan(self, music_path: Path) -> bool:
         """Kick off a background scan; return False so GLib.idle_add doesn't repeat."""
@@ -97,19 +147,17 @@ class PlaychitectWindow(Adw.ApplicationWindow):
     def _on_scan_complete(self, tracks: list[TrackModel]) -> bool:
         self.track_list.load_tracks(tracks)
         self._spinner.stop()
-        self.set_title(f"Playchitect — {len(tracks)} tracks")
+        self._track_title = f"Playchitect — {len(tracks)} tracks"
+        self.set_title(self._track_title)
         return False
 
     def _on_scan_error(self) -> bool:
         self._spinner.stop()
-        self.set_title("Playchitect — scan failed")
+        self._track_title = "Playchitect — scan failed"
+        self.set_title(self._track_title)
         return False
 
     def _on_cluster_selected(self, _panel: ClusterViewPanel, cluster_id: object) -> None:
         """Filter the track list to show only tracks in the selected cluster."""
-        # cluster_id is emitted as GObject.TYPE_PYOBJECT — cast for the search entry.
         self.track_list._search_entry.set_text("")
-        # Re-emit as a track-list cluster filter when clustering is wired in.
-        # For now, scroll the track list to show tracks in this cluster by
-        # updating the window title so the user knows which cluster is active.
         self.set_title(f"Playchitect — Cluster {cluster_id}")

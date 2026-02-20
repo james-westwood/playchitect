@@ -342,3 +342,58 @@ class TestFilterFunc:
             bpm = 138.0
 
         assert widget._filter_func(_ArtistTrack(), None) is True
+
+
+class TestGetSelectedPaths:
+    def test_returns_filepaths_of_selected_tracks(self, widget: TrackListWidget) -> None:
+        tracks = [_make_track("A"), _make_track("B"), _make_track("C")]
+        widget.load_tracks(tracks)
+        widget._selection._selected = {0, 2}
+        paths = widget.get_selected_paths()
+        assert len(paths) == 2
+        assert "/music/A.flac" in paths
+        assert "/music/C.flac" in paths
+
+    def test_empty_when_nothing_selected(self, widget: TrackListWidget) -> None:
+        widget.load_tracks([_make_track("A"), _make_track("B")])
+        assert widget.get_selected_paths() == []
+
+
+class TestKeyPressed:
+    """_on_key_pressed uses Gdk from gi.repository (not gi.repository.Gdk)."""
+
+    @staticmethod
+    def _gdk() -> Any:
+        # track_list.py imports Gdk via `from gi.repository import Gdk`,
+        # so the live reference is sys.modules["gi.repository"].Gdk.
+        return sys.modules["gi.repository"].Gdk
+
+    def test_spacebar_with_selection_emits_signal(self, widget: TrackListWidget) -> None:
+        widget.load_tracks([_make_track("A")])
+        widget._selection._selected = {0}
+        widget.emit = MagicMock()
+        self._gdk().KEY_space = 32
+
+        result = widget._on_key_pressed(MagicMock(), 32, 0, MagicMock())
+        widget.emit.assert_called_once_with("preview-requested")
+        assert result is True
+
+    def test_spacebar_without_selection_does_not_emit(self, widget: TrackListWidget) -> None:
+        widget.load_tracks([_make_track("A")])
+        widget._selection._selected = set()
+        widget.emit = MagicMock()
+        self._gdk().KEY_space = 32
+
+        result = widget._on_key_pressed(MagicMock(), 32, 0, MagicMock())
+        widget.emit.assert_not_called()
+        assert result is False
+
+    def test_other_key_returns_false(self, widget: TrackListWidget) -> None:
+        widget.load_tracks([_make_track("A")])
+        widget._selection._selected = {0}
+        widget.emit = MagicMock()
+        self._gdk().KEY_space = 32
+
+        result = widget._on_key_pressed(MagicMock(), 65, 0, MagicMock())  # 'A' key
+        widget.emit.assert_not_called()
+        assert result is False
