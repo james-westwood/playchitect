@@ -10,7 +10,7 @@ import click
 
 from playchitect.core.audio_scanner import AudioScanner
 from playchitect.core.clustering import PlaylistClusterer
-from playchitect.core.export import M3UExporter
+from playchitect.core.export import CUEExporter, M3UExporter
 from playchitect.core.metadata_extractor import MetadataExtractor
 from playchitect.core.track_selector import TrackSelector
 from playchitect.utils.config import get_config
@@ -91,6 +91,13 @@ def cli() -> None:
     help="Path to msd-musicnn-1.pb (auto-downloaded if absent).",
 )
 @click.option(
+    "--cue",
+    "export_cue",
+    is_flag=True,
+    default=False,
+    help="Also write a CUE sheet alongside each M3U playlist.",
+)
+@click.option(
     "--cluster-mode",
     type=click.Choice(["single-genre", "per-genre", "mixed-genre"]),
     default="single-genre",
@@ -115,6 +122,7 @@ def scan(
     save_overrides: bool,
     use_embeddings: bool,
     model_path: str | None,
+    export_cue: bool,
     cluster_mode: str,
     genre_map: Path | None,
 ) -> None:
@@ -407,6 +415,8 @@ def scan(
     # Export playlists (unless dry-run)
     if dry_run:
         click.echo(f"\n✓ DRY RUN: Would create {len(clusters)} playlists in {output_dir}")
+        if export_cue:
+            click.echo("  (CUE sheets would also be written alongside M3U playlists)")
         click.echo("\nPlaylist preview:")
         for i, cluster in enumerate(clusters):
             bpm_label = f"{int(cluster.bpm_mean)}-{int(cluster.bpm_mean + cluster.bpm_std)}bpm"
@@ -422,6 +432,14 @@ def scan(
         click.echo(f"\n✓ Successfully created {len(playlist_paths)} playlists:")
         for path in playlist_paths:
             click.echo(f"  {path.name}")
+
+        if export_cue:
+            click.echo(f"\nWriting CUE sheets to {output_dir}...")
+            cue_exporter = CUEExporter(output_dir, playlist_prefix=playlist_name)
+            cue_paths = cue_exporter.export_clusters(clusters, metadata_dict=metadata_dict)
+            click.echo(f"✓ Successfully created {len(cue_paths)} CUE sheets:")
+            for path in cue_paths:
+                click.echo(f"  {path.name}")
 
         click.echo(f"\nPlaylists saved to: {output_dir}")
 
