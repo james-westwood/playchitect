@@ -20,10 +20,14 @@ Signals:
 
 from __future__ import annotations
 
+import logging
+
 import gi
 
 gi.require_version("Gtk", "4.0")
 gi.require_version("Adw", "1")
+
+logger = logging.getLogger(__name__)
 
 from gi.repository import Adw, GLib, GObject, Gtk  # type: ignore[unresolved-import]  # noqa: E402
 
@@ -183,6 +187,8 @@ class ClusterCard(Gtk.Frame):
         root = self.get_root()
         if isinstance(root, Gtk.Window):
             dialog.present(root)
+        else:
+            logger.warning("ClusterCard: cannot present rename dialog — no parent window")
 
     def _on_rename_response(
         self, _dialog: Adw.AlertDialog, response: str, entry: Gtk.Entry
