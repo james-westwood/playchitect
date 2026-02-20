@@ -5,11 +5,9 @@ All tests are GTK-free — ClusterStats is a pure-Python dataclass.
 
 from __future__ import annotations
 
-from dataclasses import dataclass
-from pathlib import Path
-
 import pytest
 
+from playchitect.core.clustering import ClusterResult
 from playchitect.gui.widgets.cluster_stats import (
     _BAR_WIDTH,
     _HIGH_THRESHOLD,
@@ -18,36 +16,17 @@ from playchitect.gui.widgets.cluster_stats import (
     ClusterStats,
 )
 
-# ── Minimal ClusterResult stub ────────────────────────────────────────────────
-
-
-@dataclass
-class _FakeClusterResult:
-    """Minimal stand-in for ClusterResult; avoids importing sklearn at test time."""
-
-    cluster_id: int | str
-    tracks: list[Path]
-    bpm_mean: float
-    bpm_std: float
-    track_count: int
-    total_duration: float
-    feature_means: dict[str, float] | None = None
-    feature_importance: dict[str, float] | None = None
-    weight_source: str | None = None
-    embedding_variance_explained: float | None = None
-    genre: str | None = None
-
 
 def _make_result(
-    cluster_id: int = 1,
+    cluster_id: int | str = 1,
     bpm_mean: float = 125.0,
     bpm_std: float = 2.5,
     track_count: int = 20,
     total_duration: float = 3600.0,
     feature_means: dict[str, float] | None = None,
     feature_importance: dict[str, float] | None = None,
-) -> _FakeClusterResult:
-    return _FakeClusterResult(
+) -> ClusterResult:
+    return ClusterResult(
         cluster_id=cluster_id,
         tracks=[],
         bpm_mean=bpm_mean,
@@ -65,7 +44,7 @@ def _make_result(
 class TestClusterStatsFromResult:
     def test_basic_fields_populated(self):
         result = _make_result(cluster_id=3, bpm_mean=128.0, bpm_std=3.0, track_count=15)
-        stats = ClusterStats.from_result(result)  # type: ignore[arg-type]
+        stats = ClusterStats.from_result(result)
 
         assert stats.cluster_id == 3
         assert stats.track_count == 15
@@ -73,7 +52,7 @@ class TestClusterStatsFromResult:
 
     def test_bpm_range_from_std(self):
         result = _make_result(bpm_mean=120.0, bpm_std=5.0)
-        stats = ClusterStats.from_result(result)  # type: ignore[arg-type]
+        stats = ClusterStats.from_result(result)
 
         assert stats.bpm_min == pytest.approx(115.0)
         assert stats.bpm_max == pytest.approx(125.0)
@@ -81,31 +60,31 @@ class TestClusterStatsFromResult:
     def test_bpm_min_clamped_to_one(self):
         # Even if mean - std < 1, bpm_min must be ≥ 1.
         result = _make_result(bpm_mean=3.0, bpm_std=5.0)
-        stats = ClusterStats.from_result(result)  # type: ignore[arg-type]
+        stats = ClusterStats.from_result(result)
 
         assert stats.bpm_min >= 1.0
 
     def test_bpm_max_always_greater_than_min(self):
         result = _make_result(bpm_mean=100.0, bpm_std=0.0)
-        stats = ClusterStats.from_result(result)  # type: ignore[arg-type]
+        stats = ClusterStats.from_result(result)
 
         assert stats.bpm_max > stats.bpm_min
 
     def test_intensity_from_rms_energy(self):
         result = _make_result(feature_means={"rms_energy": 0.75, "spectral_centroid": 0.5})
-        stats = ClusterStats.from_result(result)  # type: ignore[arg-type]
+        stats = ClusterStats.from_result(result)
 
         assert stats.intensity_mean == pytest.approx(0.75)
 
     def test_intensity_falls_back_to_zero_when_no_feature_means(self):
         result = _make_result(feature_means=None)
-        stats = ClusterStats.from_result(result)  # type: ignore[arg-type]
+        stats = ClusterStats.from_result(result)
 
         assert stats.intensity_mean == 0.0
 
     def test_intensity_falls_back_to_zero_when_rms_missing(self):
         result = _make_result(feature_means={"spectral_centroid": 0.5})
-        stats = ClusterStats.from_result(result)  # type: ignore[arg-type]
+        stats = ClusterStats.from_result(result)
 
         assert stats.intensity_mean == 0.0
 
@@ -113,7 +92,7 @@ class TestClusterStatsFromResult:
         result = _make_result(
             feature_importance={"bpm": 0.3, "rms_energy": 0.5, "spectral_centroid": 0.2}
         )
-        stats = ClusterStats.from_result(result)  # type: ignore[arg-type]
+        stats = ClusterStats.from_result(result)
 
         names = [name for name, _ in stats.feature_importance]
         assert names == ["rms_energy", "bpm", "spectral_centroid"]
@@ -122,20 +101,20 @@ class TestClusterStatsFromResult:
         result = _make_result(
             feature_importance={"bpm": 0.5, "hf_energy": 0.0, "percussiveness": 0.3}
         )
-        stats = ClusterStats.from_result(result)  # type: ignore[arg-type]
+        stats = ClusterStats.from_result(result)
 
         names = [name for name, _ in stats.feature_importance]
         assert "hf_energy" not in names
 
     def test_no_feature_importance_gives_empty_list(self):
         result = _make_result(feature_importance=None)
-        stats = ClusterStats.from_result(result)  # type: ignore[arg-type]
+        stats = ClusterStats.from_result(result)
 
         assert stats.feature_importance == []
 
     def test_string_cluster_id_preserved(self):
-        result = _make_result(cluster_id="1a")  # type: ignore[arg-type]
-        stats = ClusterStats.from_result(result)  # type: ignore[arg-type]
+        result = _make_result(cluster_id="1a")
+        stats = ClusterStats.from_result(result)
 
         assert stats.cluster_id == "1a"
 
@@ -462,12 +441,12 @@ class TestGlobalBpmRange:
 class TestFromResults:
     def test_converts_all_results(self):
         results = [_make_result(cluster_id=i) for i in range(4)]
-        stats_list = ClusterStats.from_results(results)  # type: ignore[arg-type]
+        stats_list = ClusterStats.from_results(results)
         assert len(stats_list) == 4
         assert [s.cluster_id for s in stats_list] == [0, 1, 2, 3]
 
     def test_empty_list(self):
-        assert ClusterStats.from_results([]) == []  # type: ignore[arg-type]
+        assert ClusterStats.from_results([]) == []
 
 
 # ── TestBpmFillBars ───────────────────────────────────────────────────────────
@@ -495,3 +474,46 @@ class TestBpmFillBars:
     def test_100_bpm_is_half(self):
         bars = self._make(100.0).bpm_fill_bars
         assert bars.count("█") == 5
+
+
+# ── TestStr ───────────────────────────────────────────────────────────────────
+
+
+class TestIntensityFraction:
+    def _make(self, intensity: float) -> ClusterStats:
+        return ClusterStats(
+            cluster_id=1,
+            track_count=5,
+            bpm_min=120.0,
+            bpm_max=125.0,
+            bpm_mean=122.5,
+            intensity_mean=intensity,
+            total_duration=1800.0,
+        )
+
+    def test_normal_value_unchanged(self):
+        assert self._make(0.5).intensity_fraction() == pytest.approx(0.5)
+
+    def test_clamped_below_zero(self):
+        assert self._make(-0.5).intensity_fraction() == pytest.approx(0.0)
+
+    def test_clamped_above_one(self):
+        assert self._make(1.5).intensity_fraction() == pytest.approx(1.0)
+
+
+class TestStr:
+    def test_str_contains_cluster_label(self):
+        stats = ClusterStats(
+            cluster_id=3,
+            track_count=15,
+            bpm_min=120.0,
+            bpm_max=128.0,
+            bpm_mean=124.0,
+            intensity_mean=0.6,
+            total_duration=5400.0,
+        )
+        result = str(stats)
+        assert "Cluster 3" in result
+        assert "120–128 BPM" in result
+        assert "15 tracks" in result
+        assert "1h 30m" in result

@@ -173,7 +173,7 @@ class ClusterStats:
             max(s.bpm_max for s in stats),
         )
 
-    def __str__(self) -> str:  # pragma: no cover
+    def __str__(self) -> str:
         return (
             f"[{self.cluster_label}] {self.bpm_range_str} | "
             f"{self.intensity_label} | {self.track_count_str} | {self.duration_str}"
