@@ -79,7 +79,7 @@ class TestInstallLinux:
             )
             assert expected in dest_calls, f"PNG {size}x{size} not copied"
 
-    def test_runs_update_desktop_database(self, tmp_path):
+    def test_runs_update_desktop_database_with_correct_path(self, tmp_path):
         with (
             patch("playchitect.utils.desktop_install.platform.system", return_value="Linux"),
             patch("playchitect.utils.desktop_install.shutil.copy2"),
@@ -88,10 +88,11 @@ class TestInstallLinux:
         ):
             install(system_wide=False)
 
-        cmds = [c[0][0][0] for c in mock_run.call_args_list]
-        assert "update-desktop-database" in cmds
+        expected_app_dir = str(tmp_path / ".local" / "share" / "applications")
+        full_cmds = [c.args[0] for c in mock_run.call_args_list]
+        assert ["update-desktop-database", expected_app_dir] in full_cmds
 
-    def test_runs_gtk_update_icon_cache(self, tmp_path):
+    def test_runs_gtk_update_icon_cache_with_force_flag(self, tmp_path):
         with (
             patch("playchitect.utils.desktop_install.platform.system", return_value="Linux"),
             patch("playchitect.utils.desktop_install.shutil.copy2"),
@@ -100,8 +101,9 @@ class TestInstallLinux:
         ):
             install(system_wide=False)
 
-        cmds = [c[0][0][0] for c in mock_run.call_args_list]
-        assert "gtk-update-icon-cache" in cmds
+        expected_icon_base = str(tmp_path / ".local" / "share" / "icons" / "hicolor")
+        full_cmds = [c.args[0] for c in mock_run.call_args_list]
+        assert ["gtk-update-icon-cache", "--force", expected_icon_base] in full_cmds
 
     def test_system_wide_uses_usr_local(self, tmp_path):
         with (
