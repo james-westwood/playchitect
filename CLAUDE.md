@@ -257,7 +257,7 @@ Playchitect originated from `/home/james/audio-management/scripts/create_random_
 
 1. **License**: GPL-3.0 (copyleft, requires derivatives to be open source)
 2. **Package Manager**: uv (fast, reproducible builds)
-3. **Python Version**: 3.11+ (native type hints, modern features)
+3. **Python Version**: 3.13+ (native type hints, modern features)
 4. **GUI Framework**: GTK4 + libadwaita (native GNOME)
 5. **Testing Strategy**: TDD with pytest, >85% coverage target
 6. **Type Checking**: Strict ty with native type hints (Rust-based, replaces mypy)
