@@ -1,0 +1,48 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<component type="desktop-application">
+  <id>com.github.jameswestwood.Playchitect</id>
+
+  <metadata_license>MIT</metadata_license>
+  <project_license>GPL-3.0</project_license>
+
+  <name>Playchitect</name>
+  <summary>Smart DJ playlist management with intelligent BPM clustering</summary>
+
+  <description>
+    <p>
+      Playchitect transforms DJ playlist creation from rigid BPM-based grouping to
+      intelligent multi-dimensional clustering. Instead of grouping tracks solely by
+      tempo, it analyses BPM alongside spectral brightness, high-frequency energy,
+      RMS loudness and percussiveness to create playlists that feel coherent — not
+      just mathematically similar.
+    </p>
+    <p>Features include:</p>
+    <ul>
+      <li>K-means clustering across 5 audio dimensions</li>
+      <li>Automatic detection of intro/outro-friendly tracks</li>
+      <li>M3U and CUE sheet export</li>
+      <li>Native GNOME interface built with GTK4 and libadwaita</li>
+    </ul>
+  </description>
+
+  <launchable type="desktop-id">playchitect.desktop</launchable>
+
+  <provides>
+    <mediatype>audio/x-mpegurl</mediatype>
+    <mediatype>application/x-cue</mediatype>
+    <mediatype>audio/mpegurl</mediatype>
+  </provides>
+
+  <url type="homepage">https://github.com/james-westwood/playchitect</url>
+  <url type="bugtracker">https://github.com/james-westwood/playchitect/issues</url>
+
+  <releases>
+    <release version="0.1.0" date="2026-02-20">
+      <description>
+        <p>Initial release with core clustering engine and GTK4 GUI.</p>
+      </description>
+    </release>
+  </releases>
+
+  <content_rating type="oars-1.1"/>
+</component>

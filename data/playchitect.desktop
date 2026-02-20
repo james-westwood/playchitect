@@ -1,0 +1,14 @@
+[Desktop Entry]
+Version=1.0
+Type=Application
+Name=Playchitect
+GenericName=DJ Playlist Manager
+Comment=Smart playlist management with intelligent BPM clustering
+Icon=com.github.jameswestwood.Playchitect
+Exec=playchitect-gui %F
+Terminal=false
+Categories=AudioVideo;Audio;Music;
+MimeType=audio/x-mpegurl;application/x-cue;audio/mpegurl;
+Keywords=music;dj;playlist;bpm;techno;
+StartupNotify=true
+StartupWMClass=Playchitect
