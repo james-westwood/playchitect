@@ -67,12 +67,14 @@ class _FakeGtkBase:
 _gtk_mock = MagicMock()
 _gtk_mock.Box = _FakeGtkBase
 _gtk_mock.ColumnView = _FakeGtkBase
+_gtk_mock.Frame = _FakeGtkBase  # ClusterCard base class
 
 _adw_mock = MagicMock()
 _adw_mock.Application = _FakeGtkBase
 _adw_mock.ApplicationWindow = _FakeGtkBase
 _adw_mock.HeaderBar = _FakeGtkBase
 _adw_mock.ToolbarView = _FakeGtkBase
+_adw_mock.AlertDialog = _FakeGtkBase
 
 _pango_mock = MagicMock()
 _pango_mock.EllipsizeMode = MagicMock()
