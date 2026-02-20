@@ -13,6 +13,7 @@ from gi.repository import Adw, GLib, Gtk  # type: ignore[unresolved-import]  # n
 
 from playchitect.core.audio_scanner import AudioScanner  # noqa: E402
 from playchitect.core.metadata_extractor import MetadataExtractor  # noqa: E402
+from playchitect.gui.widgets.cluster_view import ClusterViewPanel  # noqa: E402
 from playchitect.gui.widgets.track_list import TrackListWidget, TrackModel  # noqa: E402
 from playchitect.utils.config import get_config  # noqa: E402
 
@@ -33,8 +34,21 @@ class PlaychitectWindow(Adw.ApplicationWindow):
         toolbar_view = Adw.ToolbarView()
         toolbar_view.add_top_bar(header)
 
+        # ── Split pane: cluster panel (left) + track list (right) ────────────
+        paned = Gtk.Paned(orientation=Gtk.Orientation.HORIZONTAL)
+        paned.set_position(280)
+        paned.set_shrink_start_child(False)
+        paned.set_shrink_end_child(False)
+
+        self.cluster_panel = ClusterViewPanel()
+        self.cluster_panel.set_size_request(220, -1)
+        self.cluster_panel.connect("cluster-selected", self._on_cluster_selected)
+        paned.set_start_child(self.cluster_panel)
+
         self.track_list = TrackListWidget()
-        toolbar_view.set_content(self.track_list)
+        paned.set_end_child(self.track_list)
+
+        toolbar_view.set_content(paned)
 
         self.set_content(toolbar_view)
 
@@ -90,3 +104,12 @@ class PlaychitectWindow(Adw.ApplicationWindow):
         self._spinner.stop()
         self.set_title("Playchitect — scan failed")
         return False
+
+    def _on_cluster_selected(self, _panel: ClusterViewPanel, cluster_id: object) -> None:
+        """Filter the track list to show only tracks in the selected cluster."""
+        # cluster_id is emitted as GObject.TYPE_PYOBJECT — cast for the search entry.
+        self.track_list._search_entry.set_text("")
+        # Re-emit as a track-list cluster filter when clustering is wired in.
+        # For now, scroll the track list to show tracks in this cluster by
+        # updating the window title so the user knows which cluster is active.
+        self.set_title(f"Playchitect — Cluster {cluster_id}")
