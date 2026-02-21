@@ -19,7 +19,7 @@ logger = logging.getLogger(__name__)
 class Sequencer:
     """Orders tracks within a cluster to form a narrative sequence."""
 
-    def __init__(self):
+    def __init__(self) -> None:
         """Initialise sequencer."""
         self.selector = TrackSelector()
 

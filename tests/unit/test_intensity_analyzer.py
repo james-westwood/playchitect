@@ -4,7 +4,7 @@ Unit tests for intensity_analyzer module.
 
 import os
 from pathlib import Path
-from unittest.mock import patch
+from unittest.mock import MagicMock, patch
 
 import numpy as np
 import pytest
@@ -384,3 +384,138 @@ class TestIntegration:
         for features in features_list:
             vector = features.to_feature_vector()
             assert np.all((vector >= 0.0) & (vector <= 1.0))
+
+
+def _make_fixture_features(filepath: Path) -> IntensityFeatures:
+    return IntensityFeatures(
+        filepath=filepath,
+        file_hash="deadbeef",
+        rms_energy=0.5,
+        brightness=0.6,
+        sub_bass_energy=0.3,
+        kick_energy=0.7,
+        bass_harmonics=0.4,
+        percussiveness=0.8,
+        onset_strength=0.65,
+    )
+
+
+class TestAnalyzeBatch:
+    """Tests for IntensityAnalyzer.analyze_batch() and estimate_batch_seconds()."""
+
+    def test_cached_tracks_skip_pool(self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+        """Files already cached should not cause ProcessPoolExecutor to be constructed."""
+        filepaths = [tmp_path / f"track_{i}.mp3" for i in range(3)]
+        for p in filepaths:
+            p.touch()
+
+        # Patch _load_from_cache to always return a fixture result
+        monkeypatch.setattr(
+            IntensityAnalyzer,
+            "_load_from_cache",
+            lambda self, file_hash: _make_fixture_features(tmp_path / "fixture.mp3"),
+        )
+        # Patch _compute_file_hash so we don't need real audio
+        monkeypatch.setattr(IntensityAnalyzer, "_compute_file_hash", lambda self, p: "deadbeef")
+
+        with patch("playchitect.core.intensity_analyzer.ProcessPoolExecutor") as mock_ppe:
+            analyzer = IntensityAnalyzer(cache_dir=tmp_path, cache_enabled=False)
+            result = analyzer.analyze_batch(filepaths)
+
+        mock_ppe.assert_not_called()
+        assert len(result) == 3
+
+    def test_progress_callback_called(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        """progress_callback must be called once per file with (n_done, n_total)."""
+        filepaths = [tmp_path / f"track_{i}.mp3" for i in range(3)]
+        for p in filepaths:
+            p.touch()
+
+        monkeypatch.setattr(
+            IntensityAnalyzer,
+            "_load_from_cache",
+            lambda self, file_hash: _make_fixture_features(tmp_path / "fixture.mp3"),
+        )
+        monkeypatch.setattr(IntensityAnalyzer, "_compute_file_hash", lambda self, p: "deadbeef")
+
+        calls: list[tuple[int, int]] = []
+
+        def cb(n_done: int, n_total: int) -> None:
+            calls.append((n_done, n_total))
+
+        analyzer = IntensityAnalyzer(cache_dir=tmp_path, cache_enabled=False)
+        analyzer.analyze_batch(filepaths, progress_callback=cb)
+
+        assert len(calls) == 3
+        assert calls[0] == (1, 3)
+        assert calls[1] == (2, 3)
+        assert calls[2] == (3, 3)
+
+    def test_error_is_omitted_not_raised(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        """A worker error should omit the track from results; no exception should propagate."""
+        filepath = tmp_path / "bad_track.mp3"
+        filepath.touch()
+
+        # Cache miss — force the file into the pool
+        monkeypatch.setattr(IntensityAnalyzer, "_load_from_cache", lambda self, h: None)
+        monkeypatch.setattr(IntensityAnalyzer, "_compute_file_hash", lambda self, p: "deadbeef")
+
+        # Make the future raise ValueError
+        failing_future: MagicMock = MagicMock()
+        failing_future.result.side_effect = ValueError("corrupt audio")
+
+        mock_executor = MagicMock()
+        mock_executor.__enter__ = MagicMock(return_value=mock_executor)
+        mock_executor.__exit__ = MagicMock(return_value=False)
+        mock_executor.submit.return_value = failing_future
+
+        with patch(
+            "playchitect.core.intensity_analyzer.ProcessPoolExecutor", return_value=mock_executor
+        ):
+            with patch(
+                "playchitect.core.intensity_analyzer.as_completed",
+                return_value=[failing_future],
+            ):
+                analyzer = IntensityAnalyzer(cache_dir=tmp_path, cache_enabled=False)
+                result = analyzer.analyze_batch([filepath])
+
+        assert result == {}
+
+    def test_estimate_batch_seconds(self) -> None:
+        """estimate_batch_seconds should return n_uncached * 2.0."""
+        assert IntensityAnalyzer.estimate_batch_seconds(100) == 200.0
+        assert IntensityAnalyzer.estimate_batch_seconds(0) == 0.0
+        assert IntensityAnalyzer.estimate_batch_seconds(1) == 2.0
+
+    def test_default_max_workers_is_capped(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        """With cpu_count() == 32, max_workers should be capped at 6."""
+        filepath = tmp_path / "track.mp3"
+        filepath.touch()
+
+        monkeypatch.setattr(IntensityAnalyzer, "_load_from_cache", lambda self, h: None)
+        monkeypatch.setattr(IntensityAnalyzer, "_compute_file_hash", lambda self, p: "aabbccdd")
+
+        captured: list[int] = []
+
+        mock_executor = MagicMock()
+        mock_executor.__enter__ = MagicMock(return_value=mock_executor)
+        mock_executor.__exit__ = MagicMock(return_value=False)
+        mock_executor.submit.return_value = MagicMock()
+
+        def fake_ppe(max_workers: int | None = None, **kwargs: object) -> MagicMock:
+            captured.append(max_workers or 0)
+            return mock_executor
+
+        with patch("playchitect.core.intensity_analyzer.ProcessPoolExecutor", side_effect=fake_ppe):
+            with patch("playchitect.core.intensity_analyzer.as_completed", return_value=[]):
+                with patch("os.cpu_count", return_value=32):
+                    analyzer = IntensityAnalyzer(cache_dir=tmp_path, cache_enabled=False)
+                    analyzer.analyze_batch([filepath])
+
+        assert captured == [6]
