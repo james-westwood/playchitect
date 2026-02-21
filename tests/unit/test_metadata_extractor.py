@@ -221,6 +221,9 @@ class TestMetadataExtractor:
         """Test BPM suspiciousness logic."""
         extractor = MetadataExtractor()
 
+        # None is not suspicious
+        assert extractor.is_bpm_suspicious(None, "Techno") is False
+
         # Whole numbers are not suspicious
         assert extractor.is_bpm_suspicious(128.0, "Techno") is False
         assert extractor.is_bpm_suspicious(120.0, None) is False
@@ -285,6 +288,127 @@ class TestMetadataExtractor:
         metadata = extractor.extract(test_file)
 
         assert metadata.bpm == 141.0
+
+    def test_extract_mutagen_returns_none(self, tmp_path, monkeypatch):
+        """Test extraction when MutagenFile returns None (lines 105-107)."""
+        monkeypatch.setattr("playchitect.core.metadata_extractor.MutagenFile", lambda p: None)
+        monkeypatch.setattr(MetadataExtractor, "calculate_bpm", lambda self, p: 128.0)
+
+        extractor = MetadataExtractor()
+        test_file = tmp_path / "test.mp3"
+        test_file.touch()
+
+        metadata = extractor.extract(test_file)
+
+        assert metadata.bpm == 128.0
+
+    def test_extract_year_and_duration(self, tmp_path, monkeypatch):
+        """Test year and duration extraction (lines 132, 136)."""
+
+        class MockAudio:
+            def __init__(self):
+                self.tags = {"date": ["2020"]}
+                self.info = type("Info", (), {"length": 180.5})()
+
+            def __getitem__(self, key):
+                return self.tags[key]
+
+            def __contains__(self, key):
+                return key in self.tags
+
+        monkeypatch.setattr(
+            "playchitect.core.metadata_extractor.MutagenFile", lambda p: MockAudio()
+        )
+
+        extractor = MetadataExtractor()
+        test_file = tmp_path / "test.mp3"
+        test_file.touch()
+
+        metadata = extractor.extract(test_file)
+
+        assert metadata.year == 2020
+        assert metadata.duration == 180.5
+
+    def test_extract_last_ditch_exception(self, tmp_path, monkeypatch):
+        """Test last-ditch BPM exception is swallowed (lines 144-145)."""
+
+        def raise_exception(p):
+            raise Exception("Mutagen failed")
+
+        monkeypatch.setattr("playchitect.core.metadata_extractor.MutagenFile", raise_exception)
+        monkeypatch.setattr(MetadataExtractor, "calculate_bpm", raise_exception)
+
+        extractor = MetadataExtractor()
+        test_file = tmp_path / "test.mp3"
+        test_file.touch()
+
+        metadata = extractor.extract(test_file)
+
+        assert metadata.bpm is None
+
+    def test_calculate_bpm_short_silent(self, tmp_path, monkeypatch):
+        """Test calculate_bpm with short and silent audio (lines 207, 211)."""
+        import librosa
+
+        test_file = tmp_path / "test.wav"
+        test_file.touch()
+
+        extractor = MetadataExtractor()
+
+        # Short audio (line 207)
+        monkeypatch.setattr(librosa, "load", lambda p, sr, duration: (np.zeros(50), 22050))
+        assert extractor.calculate_bpm(test_file) is None
+
+        # Silent audio (line 211)
+        monkeypatch.setattr(librosa, "load", lambda p, sr, duration: (np.zeros(22050), 22050))
+        assert extractor.calculate_bpm(test_file) is None
+
+    def test_extract_bpm_invalid_value(self):
+        """Test _extract_bpm with unconvertible tag value (lines 248-251)."""
+
+        class MockAudio:
+            def __init__(self):
+                self.tags = {"BPM": ["not-a-number"]}
+
+            def __getitem__(self, key):
+                return self.tags[key]
+
+            def __contains__(self, key):
+                return key in self.tags
+
+        extractor = MetadataExtractor()
+        assert extractor._extract_bpm(MockAudio()) is None
+
+    def test_extract_text_tag_exception(self):
+        """Test _extract_text_tag when str() raises exception (lines 277-278)."""
+
+        class BadValue:
+            def __str__(self):
+                raise Exception("Bad string")
+
+        class MockAudio:
+            def __init__(self):
+                self.tags = {"artist": [BadValue()]}
+
+            def __getitem__(self, key):
+                return self.tags[key]
+
+            def __contains__(self, key):
+                return key in self.tags
+
+        extractor = MetadataExtractor()
+        assert extractor._extract_text_tag(MockAudio(), ["artist"]) is None
+
+    def test_extract_batch_progress_log(self, monkeypatch):
+        """Test batch progress logging (line 317)."""
+        extractor = MetadataExtractor()
+        filepaths = [Path(f"test{i}.mp3") for i in range(51)]
+
+        # Mock extract to avoid actual file system calls
+        monkeypatch.setattr(extractor, "extract", lambda p: TrackMetadata(filepath=p))
+
+        result = extractor.extract_batch(filepaths)
+        assert len(result) == 51
 
 
 class TestMetadataExtractionIntegration:
