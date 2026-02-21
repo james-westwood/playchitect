@@ -137,3 +137,20 @@ class TestCliDryRun:
         match = re.search(r"Would create (\d+) playlists", result.output)
         assert match is not None
         assert int(match.group(1)) >= 2
+
+    # --- sequencing ---
+
+    def test_sequence_mode_ramp(self, flac_music_dir: Path) -> None:
+        """Verify that --sequence-mode ramp runs without error."""
+        runner = CliRunner()
+        args = [
+            str(flac_music_dir),
+            "--dry-run",
+            "--target-tracks",
+            "20",
+            "--sequence-mode",
+            "ramp",
+        ]
+        result = runner.invoke(scan, args)
+        assert result.exit_code == 0
+        assert "Sequencing tracks (mode: ramp)..." in result.output

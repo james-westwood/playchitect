@@ -109,6 +109,12 @@ def cli() -> None:
     default=None,
     help="YAML file with manual genre assignments (manual_assignments: {path: genre}).",
 )
+@click.option(
+    "--sequence-mode",
+    type=click.Choice(["ramp", "fixed"]),
+    default="ramp",
+    help="Track sequencing mode: ramp (intensity build, default) or fixed (no change).",
+)
 def scan(
     music_path: Path | None,
     output: Path | None,
@@ -125,6 +131,7 @@ def scan(
     export_cue: bool,
     cluster_mode: str,
     genre_map: Path | None,
+    sequence_mode: str,
 ) -> None:
     """
     Scan music directory and create intelligent playlists.
@@ -205,12 +212,14 @@ def scan(
     emb_extractor = None  # Initialize outside conditional block
 
     # Optional: intensity analysis + MusiCNN embeddings for Block PCA clustering
-    # Intensity required when: use_embeddings OR genre-aware clustering
+    # Intensity required when: use_embeddings OR genre-aware clustering OR ramp sequencing
     embedding_dict = None
     intensity_dict: dict = {}
     auto_genre: str | None = None
     genre_dict_resolved: dict | None = None
-    need_intensity = use_embeddings or cluster_mode in ("per-genre", "mixed-genre")
+    need_intensity = (
+        use_embeddings or cluster_mode in ("per-genre", "mixed-genre") or sequence_mode == "ramp"
+    )
 
     if need_intensity:
         # Intensity analysis is required by cluster_by_features
@@ -334,6 +343,17 @@ def scan(
             f" to meet target size)"
         )
     clusters = split_clusters
+
+    # Perform sequencing
+    from playchitect.core.sequencer import Sequencer  # noqa: PLC0415
+
+    sequencer = Sequencer()
+    if sequence_mode != "fixed":
+        click.echo(f"Sequencing tracks (mode: {sequence_mode})...")
+        for cluster in clusters:
+            cluster.tracks = sequencer.sequence(
+                cluster, metadata_dict, intensity_dict, mode=sequence_mode
+            )
 
     click.echo(f"\nCreated {len(clusters)} playlists:")
     if cluster_mode == "mixed-genre":
