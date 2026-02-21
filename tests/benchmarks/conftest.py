@@ -10,6 +10,8 @@ from mutagen import File as MutagenFile
 from mutagen.flac import FLAC, FLACNoHeaderError
 from mutagen.id3 import ID3NoHeaderError
 
+SYNTHETIC_SAMPLE_RATE = 22050  # Hz — standard audio sample rate; kept low for smaller files
+
 
 @pytest.fixture(scope="module")
 def synthetic_library(tmp_path_factory: pytest.TempPathFactory):
@@ -20,7 +22,7 @@ def synthetic_library(tmp_path_factory: pytest.TempPathFactory):
 
     def _factory(n_tracks: int, track_duration_seconds: float = 0.5) -> Path:
         base_dir = tmp_path_factory.mktemp(f"synthetic_library_{n_tracks}_tracks")
-        sample_rate = 22050  # Lower sample rate for smaller files and faster processing
+        sample_rate = SYNTHETIC_SAMPLE_RATE
 
         for i in range(n_tracks):
             artist = f"Artist_{random.randint(1, 100)}"

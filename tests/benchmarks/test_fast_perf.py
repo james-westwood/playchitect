@@ -7,16 +7,14 @@ import shutil
 import subprocess
 from collections.abc import Callable
 from pathlib import Path
-from unittest.mock import MagicMock
 
-import numpy as np
 import pytest
 from pytest_benchmark.fixture import BenchmarkFixture
 
 from playchitect.core.audio_scanner import AudioScanner
 from playchitect.core.clustering import PlaylistClusterer
-from playchitect.core.intensity_analyzer import IntensityAnalyzer
-from playchitect.core.metadata_extractor import MetadataExtractor
+from playchitect.core.intensity_analyzer import IntensityAnalyzer, IntensityFeatures
+from playchitect.core.metadata_extractor import MetadataExtractor, TrackMetadata
 
 # Assuming playchitect is installed in the system PATH or callable via uv run
 CLI_COMMAND = "uv run playchitect"
@@ -136,25 +134,30 @@ class TestFastPerformanceChecks:
         analyzer = IntensityAnalyzer()
         benchmark(analyzer.analyze, audio_files[0])
 
-    def test_clustering_cluster_by_features(
-        self, benchmark: BenchmarkFixture, mock_features_array_input: np.ndarray
-    ):
-        """Benchmark PlaylistClusterer.cluster_by_features with mocked in-memory data."""
-        num_tracks = mock_features_array_input.shape[0]
-        mock_metadata_dict = {
-            Path(f"/path/to/track_{i}.flac"): MagicMock(bpm=120) for i in range(num_tracks)
-        }
-        mock_intensity_dict = {
-            Path(f"/path/to/track_{i}.flac"): MagicMock(
-                to_feature_vector=MagicMock(return_value=np.random.rand(7))
+    def test_clustering_cluster_by_features(self, benchmark: BenchmarkFixture):
+        """Benchmark PlaylistClusterer.cluster_by_features with real data class instances."""
+        num_tracks = 1000
+        paths = [Path(f"/path/to/track_{i}.flac") for i in range(num_tracks)]
+        metadata_dict = {p: TrackMetadata(filepath=p, bpm=120.0) for p in paths}
+        intensity_dict = {
+            p: IntensityFeatures(
+                filepath=p,
+                file_hash="fakehash",
+                rms_energy=random.random(),
+                brightness=random.random(),
+                sub_bass_energy=random.random(),
+                kick_energy=random.random(),
+                bass_harmonics=random.random(),
+                percussiveness=random.random(),
+                onset_strength=random.random(),
             )
-            for i in range(num_tracks)
+            for p in paths
         }
         clustering = PlaylistClusterer(target_tracks_per_playlist=20)
         benchmark(
             clustering.cluster_by_features,
-            mock_metadata_dict,
-            mock_intensity_dict,
+            metadata_dict,
+            intensity_dict,
             embedding_dict=None,
             use_ewkm=False,
         )
