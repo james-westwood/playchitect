@@ -259,7 +259,8 @@ class TestMetadataExtractor:
         # Mock MutagenFile to return an object with suspicious BPM
         class MockAudio:
             def __init__(self):
-                self.tags = {"BPM": ["70.5"]}
+                # _extract_bpm checks these keys
+                self.tags = {"BPM": ["70.5"], "genre": ["Techno"]}
 
             def __getitem__(self, key):
                 return self.tags[key]
@@ -267,9 +268,10 @@ class TestMetadataExtractor:
             def __contains__(self, key):
                 return key in self.tags
 
-        import mutagen
-
-        monkeypatch.setattr(mutagen, "File", lambda p: MockAudio())
+        # Correct patch target: the name as it appears in the module under test
+        monkeypatch.setattr(
+            "playchitect.core.metadata_extractor.MutagenFile", lambda p: MockAudio()
+        )
 
         # Mock calculate_bpm to return the "corrected" BPM
         monkeypatch.setattr(MetadataExtractor, "calculate_bpm", lambda self, p: 141.0)
@@ -278,8 +280,8 @@ class TestMetadataExtractor:
         test_file = tmp_path / "test.mp3"
         test_file.touch()
 
-        # We need to ensure genre is set so we can test genre-based suspicion
-        # But here 70.5 is already suspicious because it's not a whole number.
+        # 70.5 is suspicious because it's not a whole number.
+        # It's also suspicious for Techno (threshold 110).
         metadata = extractor.extract(test_file)
 
         assert metadata.bpm == 141.0

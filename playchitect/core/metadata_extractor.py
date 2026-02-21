@@ -175,7 +175,9 @@ class MetadataExtractor:
                 return True
             if "house" in genre_lower and bpm < 100:
                 return True
-            if ("dnb" in genre_lower or "drum" in genre_lower) and bpm < 150:
+
+            dnb_genres = ("dnb", "drum and bass", "drum & bass", "d&b")
+            if any(g in genre_lower for g in dnb_genres) and bpm < 150:
                 return True
 
         return False
