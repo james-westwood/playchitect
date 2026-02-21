@@ -4,6 +4,7 @@ Unit tests for metadata_extractor module.
 
 from pathlib import Path
 
+import numpy as np
 import pytest
 
 from playchitect.core.metadata_extractor import MetadataExtractor, TrackMetadata
@@ -176,6 +177,25 @@ class TestMetadataExtractor:
         extractor.clear_cache()
         assert len(extractor._cache) == 0
 
+    def test_recalculate(self, tmp_path, monkeypatch):
+        """Test forcing recalculation."""
+        extractor = MetadataExtractor(cache_enabled=True)
+        test_file = tmp_path / "test.mp3"
+        test_file.touch()
+
+        # Initial mock BPM
+        monkeypatch.setattr(MetadataExtractor, "calculate_bpm", lambda self, p: 120.0)
+        metadata1 = extractor.extract(test_file)
+        assert metadata1.bpm == 120.0
+
+        # Change mock BPM and recalculate
+        monkeypatch.setattr(MetadataExtractor, "calculate_bpm", lambda self, p: 130.0)
+        metadata2 = extractor.recalculate(test_file)
+
+        assert metadata2.bpm == 130.0
+        assert metadata1 is not metadata2
+        assert extractor.extract(test_file).bpm == 130.0
+
     def test_extract_without_mutagen(self, tmp_path, monkeypatch):
         """Test extraction when mutagen is not available."""
         # Mock mutagen as unavailable
@@ -183,16 +203,88 @@ class TestMetadataExtractor:
 
         monkeypatch.setattr(me_module, "MUTAGEN_AVAILABLE", False)
 
+        # Mock calculate_bpm to return a fixed value
+        monkeypatch.setattr(MetadataExtractor, "calculate_bpm", lambda self, p: 128.0)
+
         extractor = MetadataExtractor()
         test_file = tmp_path / "test.mp3"
         test_file.touch()
 
         metadata = extractor.extract(test_file)
 
-        # Should return metadata with None values
+        # Should return metadata with calculated BPM
         assert metadata.filepath == test_file
-        assert metadata.bpm is None
+        assert metadata.bpm == 128.0
         assert metadata.artist is None
+
+    def test_is_bpm_suspicious(self):
+        """Test BPM suspiciousness logic."""
+        extractor = MetadataExtractor()
+
+        # Whole numbers are not suspicious
+        assert extractor.is_bpm_suspicious(128.0, "Techno") is False
+        assert extractor.is_bpm_suspicious(120.0, None) is False
+
+        # Non-whole numbers ARE suspicious
+        assert extractor.is_bpm_suspicious(128.1, "Techno") is True
+        assert extractor.is_bpm_suspicious(120.005, None) is True
+
+        # Genre mismatches
+        assert extractor.is_bpm_suspicious(70.0, "Techno") is True
+        assert extractor.is_bpm_suspicious(80.0, "House") is True
+        assert extractor.is_bpm_suspicious(87.0, "DnB") is True
+        assert extractor.is_bpm_suspicious(174.0, "Drum & Bass") is False
+
+    def test_calculate_bpm_mock(self, tmp_path, monkeypatch):
+        """Test calculate_bpm method with mocked librosa."""
+        import librosa
+
+        # Create a dummy audio file
+        test_file = tmp_path / "test.wav"
+        test_file.touch()
+
+        # Mock librosa.load with some signal
+        monkeypatch.setattr(librosa, "load", lambda p, sr, duration: (np.random.rand(100), 22050))
+        # Mock librosa.beat.beat_track
+        monkeypatch.setattr(librosa.beat, "beat_track", lambda y, sr: (128.0, []))
+
+        extractor = MetadataExtractor()
+        bpm = extractor.calculate_bpm(test_file)
+
+        assert bpm == 128.0
+
+    def test_extract_suspicious_bpm_recalculates(self, tmp_path, monkeypatch):
+        """Test that suspicious BPM in tags triggers recalculation."""
+
+        # Mock MutagenFile to return an object with suspicious BPM
+        class MockAudio:
+            def __init__(self):
+                # _extract_bpm checks these keys
+                self.tags = {"BPM": ["70.5"], "genre": ["Techno"]}
+
+            def __getitem__(self, key):
+                return self.tags[key]
+
+            def __contains__(self, key):
+                return key in self.tags
+
+        # Correct patch target: the name as it appears in the module under test
+        monkeypatch.setattr(
+            "playchitect.core.metadata_extractor.MutagenFile", lambda p: MockAudio()
+        )
+
+        # Mock calculate_bpm to return the "corrected" BPM
+        monkeypatch.setattr(MetadataExtractor, "calculate_bpm", lambda self, p: 141.0)
+
+        extractor = MetadataExtractor()
+        test_file = tmp_path / "test.mp3"
+        test_file.touch()
+
+        # 70.5 is suspicious because it's not a whole number.
+        # It's also suspicious for Techno (threshold 110).
+        metadata = extractor.extract(test_file)
+
+        assert metadata.bpm == 141.0
 
 
 class TestMetadataExtractionIntegration:

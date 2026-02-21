@@ -9,6 +9,8 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
 
+import numpy as np
+
 try:
     from mutagen import File as MutagenFile
 
@@ -92,13 +94,17 @@ class MetadataExtractor:
 
         if not MUTAGEN_AVAILABLE:
             logger.warning(f"Cannot extract metadata (mutagen not available): {filepath}")
+            # Still try to calculate BPM if mutagen is missing
+            metadata.bpm = self.calculate_bpm(filepath)
             return metadata
 
         try:
             audio = MutagenFile(filepath)
 
             if audio is None:
-                logger.warning(f"Failed to read audio file: {filepath}")
+                logger.warning("Failed to read audio file: %s", filepath)
+                # Fallback to calculation
+                metadata.bpm = self.calculate_bpm(filepath)
             else:
                 # Extract BPM
                 metadata.bpm = self._extract_bpm(audio)
@@ -108,6 +114,17 @@ class MetadataExtractor:
                 metadata.title = self._extract_text_tag(audio, ["title", "TIT2", "\xa9nam"])
                 metadata.album = self._extract_text_tag(audio, ["album", "TALB", "\xa9alb"])
                 metadata.genre = self._extract_text_tag(audio, ["genre", "TCON", "\xa9gen"])
+
+                # Check if extracted BPM is suspicious or missing
+                if metadata.bpm is None or self.is_bpm_suspicious(metadata.bpm, metadata.genre):
+                    logger.info(
+                        "BPM missing or suspicious (%s) for %s, calculating...",
+                        metadata.bpm,
+                        filepath.name,
+                    )
+                    calculated_bpm = self.calculate_bpm(filepath)
+                    if calculated_bpm:
+                        metadata.bpm = calculated_bpm
 
                 # Extract year
                 year_str = self._extract_text_tag(audio, ["date", "year", "TDRC", "\xa9day"])
@@ -119,13 +136,91 @@ class MetadataExtractor:
                     metadata.duration = float(audio.info.length)
 
         except Exception as e:
-            logger.error(f"Error extracting metadata from {filepath}: {e}")
+            logger.error("Error extracting metadata from %s: %s", filepath, e)
+            # Last ditch effort
+            if metadata.bpm is None:
+                try:
+                    metadata.bpm = self.calculate_bpm(filepath)
+                except Exception:
+                    pass
 
-        # Cache the result (even if extraction failed)
+        # Cache the result
         if self.cache_enabled:
             self._cache[filepath] = metadata
 
         return metadata
+
+    def is_bpm_suspicious(self, bpm: float | None, genre: str | None) -> bool:
+        """
+        Determine if a BPM value is suspicious and needs recalculation.
+
+        Args:
+            bpm: The BPM value to check
+            genre: Optional genre hint
+
+        Returns:
+            True if BPM is suspicious
+        """
+        if bpm is None:
+            return False
+
+        # 1. Non-whole numbers are suspicious for electronic music
+        if not np.isclose(bpm, round(bpm), atol=1e-3):
+            return True
+
+        # 2. Genre-based mismatch
+        if genre:
+            genre_lower = genre.lower()
+            if "techno" in genre_lower and bpm < 110:
+                return True
+            if "house" in genre_lower and bpm < 100:
+                return True
+
+            dnb_genres = ("dnb", "drum and bass", "drum & bass", "d&b")
+            if any(g in genre_lower for g in dnb_genres) and bpm < 150:
+                return True
+
+        return False
+
+    def calculate_bpm(self, filepath: Path) -> float | None:
+        """
+        Calculate BPM using librosa.
+
+        Args:
+            filepath: Path to audio file
+
+        Returns:
+            Calculated BPM as float, or None if calculation fails
+        """
+        if not filepath.exists():
+            return None
+
+        try:
+            import librosa  # noqa: PLC0415
+
+            # Only load first 60s for speed, enough for tempo estimation
+            # Use duration=60 but also check file size/duration if possible
+            y, sr = librosa.load(filepath, sr=22050, duration=60)
+
+            # Defensive check for empty or near-empty audio
+            if y is None or len(y) < 100:
+                return None
+
+            # Onset strength requires some signal
+            if np.max(np.abs(y)) < 1e-4:
+                return None
+
+            tempo_result = librosa.beat.beat_track(y=y, sr=sr)
+            # tempo_result is usually (tempo, beats)
+            tempo = np.atleast_1d(tempo_result[0])[0]
+            bpm = float(tempo)
+
+            # Round to nearest whole number as per user preference
+            bpm = float(round(bpm))
+            return bpm if bpm > 0 else None
+        except Exception as e:
+            logger.error("Error calculating BPM for %s: %s", filepath, e)
+            return None
 
     def _extract_bpm(self, audio: Any) -> float | None:
         """
@@ -229,3 +324,20 @@ class MetadataExtractor:
         """Clear the metadata cache."""
         self._cache.clear()
         logger.info("Metadata cache cleared")
+
+    def recalculate(self, filepath: Path) -> TrackMetadata:
+        """
+        Force a recalculation of metadata for a file, bypassing the cache.
+
+        Args:
+            filepath: Path to audio file
+
+        Returns:
+            TrackMetadata object with fresh information
+        """
+        # Remove from cache if present to ensure fresh extraction
+        if filepath in self._cache:
+            del self._cache[filepath]
+
+        # Extract will now run from scratch and cache the result
+        return self.extract(filepath)
