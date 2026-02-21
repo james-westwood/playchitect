@@ -112,8 +112,8 @@ def cli() -> None:
 @click.option(
     "--sequence-mode",
     type=click.Choice(["ramp", "fixed"]),
-    default="ramp",
-    help="Track sequencing mode: ramp (intensity build, default) or fixed (no change).",
+    default="fixed",
+    help="Track sequencing mode: ramp (intensity build) or fixed (no change, default).",
 )
 def scan(
     music_path: Path | None,
