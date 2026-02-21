@@ -1,0 +1,62 @@
+name: Build Flatpak
+
+on:
+  release:
+    types: [published]
+  workflow_dispatch:
+
+jobs:
+  flatpak:
+    name: Build and publish Flatpak bundle
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install system dependencies
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y \
+            flatpak \
+            flatpak-builder \
+            libglib2.0-dev
+
+      - name: Add Flathub remote (for GNOME Platform runtime)
+        run: |
+          flatpak remote-add --user --if-not-exists flathub \
+            https://dl.flathub.org/repo/flathub.flatpakrepo
+
+      - name: Install GNOME Platform runtime and SDK
+        run: |
+          flatpak install --user --noninteractive flathub \
+            org.gnome.Platform//49 \
+            org.gnome.Sdk//49
+
+      - name: Build Flatpak bundle
+        run: |
+          flatpak-builder \
+            --user \
+            --install \
+            --force-clean \
+            --repo=flatpak-repo \
+            build-dir \
+            packaging/flatpak/com.github.jameswestwood.Playchitect.yml
+
+      - name: Export as single-file bundle
+        run: |
+          flatpak build-bundle flatpak-repo \
+            playchitect.flatpak \
+            com.github.jameswestwood.Playchitect
+
+      - name: Upload bundle as workflow artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: playchitect-flatpak
+          path: playchitect.flatpak
+          retention-days: 30
+
+      - name: Attach bundle to GitHub Release
+        if: github.event_name == 'release'
+        uses: softprops/action-gh-release@v2
+        with:
+          files: playchitect.flatpak

@@ -91,13 +91,19 @@ See [`milestones/milestone-2-complete.md`](milestones/milestone-2-complete.md) f
 
 **Goal**: Make Playchitect installable for end users without a development setup.
 
-**Open issues**:
-- **#16** — Flatpak manifest (`packaging/flatpak/`) — see [`release-strategy.md`](release-strategy.md) for distribution options and Flathub AI policy notes
-- **#17** — PyPI publication (`packaging/pypi/`)
+**Completed**:
+- **#17** ✅ — PyPI publishing infrastructure: OIDC workflow, pypi-publishing guide, README install section (PR #61)
 
-**Key files to create**:
-- `packaging/flatpak/com.github.jameswestwood.Playchitect.yml`
-- Verify `pyproject.toml` and automated publishing for PyPI upload
+**Open**:
+- **#16** 🚧 — Self-hosted Flatpak bundle: manifest, CI build workflow, bundle attached to GitHub Releases (PR in progress)
+- **#60** 🔵 — Flathub submission (manual, stretch goal — James opens the PR, requires #16 first)
+
+**Key files created**:
+- `packaging/flatpak/com.github.jameswestwood.Playchitect.yml` — manifest (org.gnome.Platform//49)
+- `.github/workflows/flatpak.yml` — CI: builds bundle and attaches to releases
+- `.github/workflows/publish.yml` — PyPI OIDC publishing
+- `scripts/generate_flatpak_sources.py` — helper to upgrade to offline deps (for Flathub later)
+- `docs/planning/flatpak-guide.md` — local build instructions and Flathub upgrade path
 
 ---
 
@@ -132,4 +138,4 @@ See [`milestones/milestone-2-complete.md`](milestones/milestone-2-complete.md) f
 
 ---
 
-*Last updated: 2026-02-21*
+*Last updated: 2026-02-22*
