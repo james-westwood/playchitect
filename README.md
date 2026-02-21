@@ -1,5 +1,5 @@
 <p align="center">
-  <img src="img/playchitect_logo.jpg" alt="Playchitect logo" width="180">
+  <img src="https://raw.githubusercontent.com/james-westwood/playchitect/main/img/playchitect_logo.jpg" alt="Playchitect logo" width="180">
 </p>
 
 # Playchitect

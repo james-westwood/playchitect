@@ -97,7 +97,7 @@ See [`milestones/milestone-2-complete.md`](milestones/milestone-2-complete.md) f
 
 **Key files to create**:
 - `packaging/flatpak/com.github.jameswestwood.Playchitect.yml`
-- Verify `setup.py` / `pyproject.toml` for PyPI upload
+- Verify `pyproject.toml` and automated publishing for PyPI upload
 
 ---
 
