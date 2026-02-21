@@ -58,6 +58,20 @@ class IntensityFeatures:
     percussiveness: float  # HPSS ratio (0-1)
     onset_strength: float  # Beat intensity (0-1)
 
+    @property
+    def hardness(self) -> float:
+        """
+        Combined hardness/intensity score (0.0–1.0).
+        Weights emphasize treble brightness and percussive drive (techno-optimized).
+        """
+        score = (
+            0.4 * self.brightness
+            + 0.2 * self.rms_energy
+            + 0.2 * self.percussiveness
+            + 0.2 * self.onset_strength
+        )
+        return float(np.clip(score, 0.0, 1.0))
+
     def to_dict(self) -> dict[str, Any]:
         """Convert to dictionary."""
         result = asdict(self)
