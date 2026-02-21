@@ -118,6 +118,28 @@ class TestClusterStatsFromResult:
 
         assert stats.cluster_id == "1a"
 
+    def test_opener_and_closer_populated(self):
+        from pathlib import Path
+
+        opener = Path("/music/opener.flac")
+        closer = Path("/music/closer.flac")
+        result = _make_result()
+        result.opener = opener
+        result.closer = closer
+        stats = ClusterStats.from_result(result)
+
+        assert stats.opener_name == "opener.flac"
+        assert stats.closer_name == "closer.flac"
+
+    def test_opener_and_closer_none_by_default(self):
+        result = _make_result()
+        result.opener = None
+        result.closer = None
+        stats = ClusterStats.from_result(result)
+
+        assert stats.opener_name is None
+        assert stats.closer_name is None
+
 
 # ── TestBpmRangeStr ───────────────────────────────────────────────────────────
 

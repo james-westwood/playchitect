@@ -72,6 +72,9 @@ class _FakeGtkBase:
     def set_size_request(self, *_args: object) -> None:
         pass
 
+    def emit(self, *_args: object, **_kwargs: object) -> None:
+        pass
+
 
 _gtk_mock = MagicMock()
 _gtk_mock.Box = _FakeGtkBase
