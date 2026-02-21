@@ -234,8 +234,14 @@ See [CONTRIBUTING.md](CONTRIBUTING.md) for development setup and guidelines.
 
 ## License
 
-GPL-3.0 (to be confirmed by maintainer)
+This project is licensed under the **GNU General Public License v3.0 (GPL-3.0)**. See the [LICENSE](LICENSE) file for details.
 
-## Credits
+## Credits & AI Orchestration
 
-Built by James Westwood. Extends functionality from original `create_random_playlists.py` script.
+Playchitect is orchestrated and architected by **James Westwood**, a senior Data Scientist and Developer.
+
+The development process leveraged advanced AI collaboration:
+- **Claude** (via Claude CLI): Responsible for implementing the majority of the codebase, core algorithms, and UI logic.
+- **Gemini** (via Gemini CLI): Managed the majority of pull requests, documentation research, and code review processes.
+
+This project stands as a testament to human-AI pair programming at scale.
