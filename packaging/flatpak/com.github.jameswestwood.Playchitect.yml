@@ -14,7 +14,10 @@ finish-args:
   # Music library access (read-only) and playlist output (read-write)
   - --filesystem=xdg-music:ro
   - --filesystem=xdg-documents
-  # Allow opening playlist/audio files passed on the command line
+  # Allow opening arbitrary audio files passed on the command line via %F
+  # (e.g. from Files / Nautilus "Open with Playchitect").  Read-only access to
+  # the full home tree is the standard approach for music players (Lollypop,
+  # Rhythmbox) because users may keep audio files outside ~/Music.
   - --filesystem=home:ro
   # Desktop portals (file chooser, etc.)
   - --talk-name=org.freedesktop.portal.Desktop

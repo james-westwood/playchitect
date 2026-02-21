@@ -6,7 +6,7 @@ This guide covers building and distributing Playchitect as a Flatpak.
 
 Playchitect is distributed as a **self-hosted Flatpak bundle** — users download and
 install a `.flatpak` file rather than adding a remote. This sidesteps Flathub's review
-process (including its AI-code policy) while still providing the sandboxed Flatpak format.
+process (including its AI-code review and AI-authorship policies) while still providing the sandboxed Flatpak format.
 
 A Flathub submission is tracked as a separate manual task in issue #60.
 
