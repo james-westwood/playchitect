@@ -37,6 +37,7 @@ def _make_stats(
         bpm_max=bpm_max,
         bpm_mean=bpm_mean,
         intensity_mean=intensity_mean,
+        hardness_mean=intensity_mean,
         total_duration=total_duration,
         feature_importance=feature_importance or [],
     )

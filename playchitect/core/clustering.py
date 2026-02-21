@@ -64,6 +64,10 @@ class ClusterResult:
     # Populated in per-genre mode; None otherwise.
     genre: str | None = field(default=None)
 
+    # Populated by sequencer / track selector
+    opener: Path | None = field(default=None)
+    closer: Path | None = field(default=None)
+
 
 # Genre-aware clustering modes
 _CLUSTER_MODE_SINGLE = "single-genre"
@@ -359,6 +363,7 @@ class PlaylistClusterer:
             labels,
             optimal_k,
             valid_meta,
+            intensity_dict=intensity_dict,
             raw_features=features,
             per_cluster_importance=per_cluster_importance,
             weight_source=weight_source,
@@ -491,6 +496,7 @@ class PlaylistClusterer:
         labels: np.ndarray,
         n_clusters: int,
         metadata_dict: dict[Path, TrackMetadata],
+        intensity_dict: dict[Path, IntensityFeatures] | None = None,
         raw_features: np.ndarray | None = None,
         per_cluster_importance: list[dict[str, float]] | None = None,
         feature_importance: dict[str, float] | None = None,
@@ -521,6 +527,13 @@ class PlaylistClusterer:
                 f_means = {
                     name: float(cluster_raw[:, i].mean()) for i, name in enumerate(FEATURE_NAMES)
                 }
+                # Also include mean hardness if possible
+                if intensity_dict:
+                    h_vals = [
+                        intensity_dict[t].hardness for t in cluster_tracks if t in intensity_dict
+                    ]
+                    if h_vals:
+                        f_means["hardness"] = float(np.mean(h_vals))
 
             # Per-cluster importance: from EWKM or global centroid-variance
             f_importance = (

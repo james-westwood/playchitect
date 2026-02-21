@@ -134,12 +134,48 @@ class ClusterCard(Gtk.Frame):
         int_row.append(int_text_label)
         outer.append(int_row)
 
+        # ── Hardness bar (New) ────────────────────────────────────────────────
+        hard_row = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL, spacing=6)
+
+        hard_bar_label = Gtk.Label()
+        hard_bar_label.set_markup(f"<tt>{s.hardness_bars}</tt>")
+        hard_bar_label.set_tooltip_text(f"Hardness: {s.hardness_mean:.2f}")
+
+        hard_text_label = Gtk.Label(label="Hardness")
+        hard_text_label.add_css_class("caption")
+        hard_text_label.set_xalign(0.0)
+
+        hard_row.append(hard_bar_label)
+        hard_row.append(hard_text_label)
+        outer.append(hard_row)
+
         # ── Duration ─────────────────────────────────────────────────────────
         duration_label = Gtk.Label(label=f"Duration: {s.duration_str}")
         duration_label.set_xalign(0.0)
         duration_label.add_css_class("caption")
         duration_label.add_css_class("dim-label")
         outer.append(duration_label)
+
+        # ── Recommendations ──────────────────────────────────────────────────
+        if s.opener_name or s.closer_name:
+            rec_box = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=2)
+            rec_box.set_margin_top(4)
+
+            if s.opener_name:
+                op_label = Gtk.Label(label=f"Start: {s.opener_name}")
+                op_label.set_xalign(0.0)
+                op_label.add_css_class("caption")
+                op_label.set_ellipsize(3)  # Pango.EllipsizeMode.END
+                rec_box.append(op_label)
+
+            if s.closer_name:
+                cl_label = Gtk.Label(label=f"End: {s.closer_name}")
+                cl_label.set_xalign(0.0)
+                cl_label.add_css_class("caption")
+                cl_label.set_ellipsize(3)  # Pango.EllipsizeMode.END
+                rec_box.append(cl_label)
+
+            outer.append(rec_box)
 
         # ── Top features (if available) ───────────────────────────────────────
         if s.top_features:

@@ -40,6 +40,7 @@ class TrackModel(GObject.Object):
     artist = GObject.Property(type=str, default="")
     bpm = GObject.Property(type=float, default=0.0)
     intensity = GObject.Property(type=float, default=0.0)
+    hardness = GObject.Property(type=float, default=0.0)
     cluster = GObject.Property(type=int, default=-1)
     duration = GObject.Property(type=float, default=0.0)  # seconds
     audio_format = GObject.Property(type=str, default="")  # ".flac", ".mp3", …
@@ -51,6 +52,7 @@ class TrackModel(GObject.Object):
         artist: str = "",
         bpm: float = 0.0,
         intensity: float = 0.0,
+        hardness: float = 0.0,
         cluster: int = -1,
         duration: float = 0.0,
         audio_format: str = "",
@@ -61,6 +63,7 @@ class TrackModel(GObject.Object):
         self.artist = artist
         self.bpm = bpm
         self.intensity = intensity
+        self.hardness = hardness
         self.cluster = cluster
         self.duration = duration
         self.audio_format = audio_format
@@ -73,8 +76,9 @@ class TrackModel(GObject.Object):
 
     @property
     def intensity_bars(self) -> str:
-        """Five-character unicode bar representing intensity in [0, 1]."""
-        filled = round(max(0.0, min(1.0, self.intensity)) * 5)
+        """Five-character unicode bar representing hardness in [0, 1]."""
+        # Using hardness for the visual bars as it's the more robust metric
+        filled = round(max(0.0, min(1.0, self.hardness)) * 5)
         return "█" * filled + "░" * (5 - filled)
 
     @property
@@ -225,7 +229,7 @@ class TrackListWidget(Gtk.Box):
             ("Title", 220, True, "title"),
             ("Artist", 160, True, "artist"),
             ("BPM", 70, True, "bpm"),
-            ("Intensity", 100, False, None),
+            ("Hardness", 100, False, "hardness"),
             ("Cluster", 80, True, "cluster"),
             ("Time", 70, True, "duration"),
         ]
@@ -287,7 +291,7 @@ class TrackListWidget(Gtk.Box):
         track: TrackModel = item.get_item()
         label: Gtk.Label = item.get_child()
         label.set_text(track.intensity_bars)
-        label.set_tooltip_text(f"Intensity: {track.intensity:.2f}")
+        label.set_tooltip_text(f"Hardness: {track.hardness:.2f}")
 
     def _bind_cluster(self, _factory: Gtk.SignalListItemFactory, item: Gtk.ListItem) -> None:
         track: TrackModel = item.get_item()
@@ -320,12 +324,70 @@ class TrackListWidget(Gtk.Box):
     def _build_context_menu(self) -> None:
         menu = Gio.Menu()
         menu.append("Quick Look", "track.preview")
+        menu.append("Move Up", "track.move_up")
+        menu.append("Move Down", "track.move_down")
         menu.append("Export to M3U…", "track.export")
         menu.append("Remove from list", "track.remove")
 
         self._context_menu = Gtk.PopoverMenu(menu_model=menu)
         self._context_menu.set_parent(self)
         self._context_menu.set_has_arrow(False)
+
+        # Actions
+        group = Gio.SimpleActionGroup()
+        self.insert_action_group("track", group)
+
+        action_up = Gio.SimpleAction.new("move_up", None)
+        action_up.connect("activate", self._on_move_up)
+        group.add_action(action_up)
+
+        action_down = Gio.SimpleAction.new("move_down", None)
+        action_down.connect("activate", self._on_move_down)
+        group.add_action(action_down)
+
+    def _on_move_up(self, _action: Gio.SimpleAction, _param: Any) -> None:
+        # Clear sorting to allow manual reordering
+        self._sort_model.set_sorter(None)
+
+        tracks = self.get_selected_tracks()
+        if len(tracks) != 1:
+            return
+        track = tracks[0]
+
+        # Find index in _store
+        n = self._store.get_n_items()
+        pos = -1
+        for i in range(n):
+            if self._store.get_item(i) == track:
+                pos = i
+                break
+
+        if pos > 0:
+            self._store.remove(pos)
+            self._store.insert(pos - 1, track)
+            self._selection.select_item(pos - 1, True)
+
+    def _on_move_down(self, _action: Gio.SimpleAction, _param: Any) -> None:
+        # Clear sorting to allow manual reordering
+        self._sort_model.set_sorter(None)
+
+        tracks = self.get_selected_tracks()
+        if len(tracks) != 1:
+            return
+        track = tracks[0]
+
+        # Find index in _store
+        n = self._store.get_n_items()
+        pos = -1
+        for i in range(n):
+            if self._store.get_item(i) == track:
+                pos = i
+                break
+
+        if pos >= 0 and pos < self._store.get_n_items() - 1:
+            self._store.remove(pos)
+            self._store.insert(pos + 1, track)
+            self._selection.select_item(pos + 1, True)
 
     def _on_right_click(
         self,

@@ -329,7 +329,8 @@ class TestClusterByFeatures:
 
         for r in results:
             assert r.feature_means is not None
-            assert set(r.feature_means.keys()) == set(FEATURE_NAMES)
+            expected_keys = set(FEATURE_NAMES) | {"hardness"}
+            assert set(r.feature_means.keys()) == expected_keys
             for val in r.feature_means.values():
                 assert isinstance(val, float)
 

@@ -93,8 +93,12 @@ def bare_window() -> PlaychitectWindow:
     w._previewer = MagicMock()
     w._preview_chip = MagicMock()
     w._spinner = MagicMock()
+    w._cluster_btn = MagicMock()
     w.track_list = MagicMock()
     w.cluster_panel = MagicMock()
+    w._metadata_map = {}
+    w._intensity_map = {}
+    w._clusters = []
     return w
 
 
@@ -307,11 +311,23 @@ class TestClusterSelected:
     def test_title_includes_cluster_id(self, bare_window: PlaychitectWindow) -> None:
         spy = MagicMock()
         bare_window.set_title = spy
+        # Mock a cluster result so lookup succeeds
+        mock_cluster = MagicMock()
+        mock_cluster.cluster_id = 3
+        mock_cluster.tracks = []
+        bare_window._clusters = [mock_cluster]
+
         bare_window._on_cluster_selected(MagicMock(), cluster_id=3)
         title = spy.call_args[0][0]
         assert "3" in title
 
     def test_clears_search_entry(self, bare_window: PlaychitectWindow) -> None:
         bare_window.set_title = MagicMock()
+        # Mock a cluster result so lookup succeeds
+        mock_cluster = MagicMock()
+        mock_cluster.cluster_id = 2
+        mock_cluster.tracks = []
+        bare_window._clusters = [mock_cluster]
+
         bare_window._on_cluster_selected(MagicMock(), cluster_id=2)
         bare_window.track_list._search_entry.set_text.assert_called_once_with("")

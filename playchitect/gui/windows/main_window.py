@@ -12,8 +12,12 @@ gi.require_version("Gtk", "4.0")
 from gi.repository import Adw, GLib, Gtk  # type: ignore[unresolved-import]  # noqa: E402
 
 from playchitect.core.audio_scanner import AudioScanner  # noqa: E402
-from playchitect.core.metadata_extractor import MetadataExtractor  # noqa: E402
+from playchitect.core.clustering import ClusterResult, PlaylistClusterer  # noqa: E402
+from playchitect.core.intensity_analyzer import IntensityAnalyzer, IntensityFeatures  # noqa: E402
+from playchitect.core.metadata_extractor import MetadataExtractor, TrackMetadata  # noqa: E402
+from playchitect.core.sequencer import Sequencer  # noqa: E402
 from playchitect.core.track_previewer import TrackPreviewer  # noqa: E402
+from playchitect.gui.widgets.cluster_stats import ClusterStats  # noqa: E402
 from playchitect.gui.widgets.cluster_view import ClusterViewPanel  # noqa: E402
 from playchitect.gui.widgets.track_list import TrackListWidget, TrackModel  # noqa: E402
 from playchitect.utils.config import get_config  # noqa: E402
@@ -46,8 +50,20 @@ class PlaychitectWindow(Adw.ApplicationWindow):
         self._update_preview_chip()
         header.pack_start(self._preview_chip)
 
+        # Cluster button
+        self._cluster_btn = Gtk.Button(label="Cluster")
+        self._cluster_btn.add_css_class("suggested-action")
+        self._cluster_btn.connect("clicked", self._on_cluster_clicked)
+        self._cluster_btn.set_sensitive(False)
+        header.pack_start(self._cluster_btn)
+
         toolbar_view = Adw.ToolbarView()
         toolbar_view.add_top_bar(header)
+
+        # ── State ─────────────────────────────────────────────────────────────
+        self._metadata_map: dict[Path, TrackMetadata] = {}
+        self._intensity_map: dict[Path, IntensityFeatures] = {}
+        self._clusters: list[ClusterResult] = []
 
         # ── Split pane: cluster panel (left) + track list (right) ────────────
         paned = Gtk.Paned(orientation=Gtk.Orientation.HORIZONTAL)
@@ -123,7 +139,11 @@ class PlaychitectWindow(Adw.ApplicationWindow):
             logger.info("Found %d audio files in %s", len(audio_files), music_path)
 
             extractor = MetadataExtractor()
-            metadata_map = extractor.extract_batch(audio_files)
+            self._metadata_map = extractor.extract_batch(audio_files)
+
+            config = get_config()
+            int_analyzer = IntensityAnalyzer(cache_dir=config.get_cache_dir() / "intensity")
+            self._intensity_map = int_analyzer.analyze_batch(audio_files)
 
             tracks = [
                 TrackModel(
@@ -131,10 +151,16 @@ class PlaychitectWindow(Adw.ApplicationWindow):
                     title=meta.title or "",
                     artist=meta.artist or "",
                     bpm=meta.bpm or 0.0,
+                    intensity=self._intensity_map[meta.filepath].rms_energy
+                    if meta.filepath in self._intensity_map
+                    else 0.0,
+                    hardness=self._intensity_map[meta.filepath].hardness
+                    if meta.filepath in self._intensity_map
+                    else 0.0,
                     duration=meta.duration or 0.0,
                     audio_format=meta.filepath.suffix,
                 )
-                for meta in metadata_map.values()
+                for meta in self._metadata_map.values()
                 if meta is not None
             ]
             tracks.sort(key=lambda t: t.title.lower() or t.filepath)
@@ -147,6 +173,7 @@ class PlaychitectWindow(Adw.ApplicationWindow):
     def _on_scan_complete(self, tracks: list[TrackModel]) -> bool:
         self.track_list.load_tracks(tracks)
         self._spinner.stop()
+        self._cluster_btn.set_sensitive(True)
         self._track_title = f"Playchitect — {len(tracks)} tracks"
         self.set_title(self._track_title)
         return False
@@ -157,7 +184,84 @@ class PlaychitectWindow(Adw.ApplicationWindow):
         self.set_title(self._track_title)
         return False
 
+    def _on_cluster_clicked(self, _btn: Gtk.Button) -> None:
+        """Perform clustering and sequencing on the scanned tracks."""
+        if not self._metadata_map:
+            return
+
+        self._spinner.start()
+        self._cluster_btn.set_sensitive(False)
+        self.set_title("Playchitect — clustering…")
+
+        # Perform in a thread to keep UI responsive
+        threading.Thread(target=self._cluster_worker, daemon=True).start()
+
+    def _cluster_worker(self) -> None:
+        """Background worker for clustering."""
+        try:
+            clusterer = PlaylistClusterer(target_tracks_per_playlist=20)
+            self._clusters = clusterer.cluster_by_features(self._metadata_map, self._intensity_map)
+
+            # Sequence each cluster (default: ramp)
+            sequencer = Sequencer()
+            for cluster in self._clusters:
+                cluster.tracks = sequencer.sequence(
+                    cluster, self._metadata_map, self._intensity_map, mode="ramp"
+                )
+
+            GLib.idle_add(self._on_cluster_complete)
+        except Exception:
+            logger.exception("Error during clustering")
+            GLib.idle_add(self._on_cluster_error)
+
+    def _on_cluster_complete(self) -> bool:
+        """Update UI with clustering results."""
+        self._spinner.stop()
+        self._cluster_btn.set_sensitive(True)
+
+        stats = ClusterStats.from_results(self._clusters)
+        self.cluster_panel.load_clusters(stats)
+
+        self._track_title = f"Playchitect — {len(self._clusters)} clusters"
+        self.set_title(self._track_title)
+        return False
+
+    def _on_cluster_error(self) -> bool:
+        self._spinner.stop()
+        self._cluster_btn.set_sensitive(True)
+        self.set_title("Playchitect — clustering failed")
+        return False
+
     def _on_cluster_selected(self, _panel: ClusterViewPanel, cluster_id: object) -> None:
-        """Filter the track list to show only tracks in the selected cluster."""
+        """Filter the track list to show only tracks in the selected cluster, in sequenced order."""
+        # Find the cluster result
+        cluster = next((c for c in self._clusters if str(c.cluster_id) == str(cluster_id)), None)
+        if not cluster:
+            return
+
+        # Map paths to TrackModel objects
+        # We'll re-extract from the original full list if needed, or maintain a lookup.
+        # For MVP, we'll just rebuild models for the cluster tracks in sequence.
+        cluster_tracks = []
+        for path in cluster.tracks:
+            meta = self._metadata_map.get(path)
+            if not meta:
+                continue
+
+            intensity = self._intensity_map.get(path)
+            model = TrackModel(
+                filepath=str(path),
+                title=meta.title or "",
+                artist=meta.artist or "",
+                bpm=meta.bpm or 0.0,
+                intensity=intensity.rms_energy if intensity else 0.0,
+                hardness=intensity.hardness if intensity else 0.0,
+                cluster=cluster.cluster_id if isinstance(cluster.cluster_id, int) else -1,
+                duration=meta.duration or 0.0,
+                audio_format=path.suffix,
+            )
+            cluster_tracks.append(model)
+
+        self.track_list.load_tracks(cluster_tracks)
         self.track_list._search_entry.set_text("")
         self.set_title(f"Playchitect — Cluster {cluster_id}")
