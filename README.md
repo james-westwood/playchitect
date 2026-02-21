@@ -44,9 +44,17 @@ uv tool install playchitect   # recommended
 > **GUI note**: the GTK4 interface requires `python3-gobject` from your OS package manager
 > and cannot be installed via pip. See [From source](#from-source-development) below.
 
-### Flatpak (coming soon)
+### Flatpak (bundle)
 
-A Flatpak release is planned for Milestone 6. Until then, install from source.
+Download `playchitect.flatpak` from the [latest GitHub Release](https://github.com/james-westwood/playchitect/releases) and install:
+
+```bash
+flatpak install playchitect.flatpak
+flatpak run com.github.jameswestwood.Playchitect
+```
+
+> Requires the [GNOME Platform runtime](https://flathub.org/apps/org.gnome.Platform) (version 49).
+> Install it via: `flatpak install flathub org.gnome.Platform//49`
 
 ### From source (development)
 
