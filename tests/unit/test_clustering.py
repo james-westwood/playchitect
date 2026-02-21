@@ -14,7 +14,7 @@ from playchitect.core.metadata_extractor import TrackMetadata
 # ── Helpers ────────────────────────────────────────────────────────────────────
 
 
-def make_metadata(name: str, bpm: float = 128.0, duration: float = 360.0) -> TrackMetadata:
+def make_metadata(name: str, bpm: float | None = 128.0, duration: float = 360.0) -> TrackMetadata:
     return TrackMetadata(filepath=Path(name), bpm=bpm, duration=duration)
 
 
@@ -539,3 +539,87 @@ class TestGenreAwareClustering:
             genre="techno",
         )
         assert r.genre == "techno"
+
+
+class TestClusteringEdgeCases:
+    """Test edge cases and more advanced logic in PlaylistClusterer."""
+
+    def test_valid_paths_empty_returns_empty(self) -> None:
+        """If no tracks have both BPM and intensity, return empty list."""
+        clusterer = PlaylistClusterer(target_tracks_per_playlist=5)
+        meta = {Path("a.mp3"): make_metadata("a.mp3", bpm=None)}
+        intensity = {Path("a.mp3"): make_intensity("a.mp3")}
+        assert clusterer.cluster_by_features(meta, intensity) == []
+
+    def test_cluster_with_embeddings(self) -> None:
+        """Test clustering logic with block-weighted embeddings (PCA)."""
+
+        class MockEmbedding:
+            def __init__(self, n: int = 128):
+                self.embedding = np.random.randn(n)
+
+        paths = [Path(f"t{i}.mp3") for i in range(15)]
+        meta = {p: make_metadata(str(p)) for p in paths}
+        intensity = {p: make_intensity(str(p)) for p in paths}
+        embeddings = {p: MockEmbedding() for p in paths}
+
+        clusterer = PlaylistClusterer(target_tracks_per_playlist=5, min_clusters=2)
+        results = clusterer.cluster_by_features(meta, intensity, embedding_dict=embeddings)
+
+        assert len(results) >= 2
+        assert sum(r.track_count for r in results) == 15
+
+    def test_cluster_with_ewkm(self) -> None:
+        """Test EWKM per-cluster weight refinement."""
+        # Need at least 12 tracks (MIN_TRACKS_EWKM)
+        paths = [Path(f"t{i}.mp3") for i in range(16)]
+        meta = {p: make_metadata(str(p)) for p in paths}
+        intensity = {p: make_intensity(str(p)) for p in paths}
+
+        clusterer = PlaylistClusterer(target_tracks_per_playlist=5, min_clusters=2)
+        results = clusterer.cluster_by_features(meta, intensity, use_ewkm=True)
+
+        assert len(results) >= 1
+        for r in results:
+            if r.feature_importance:
+                # EWKM should provide per-cluster importance that sums to 1.0
+                total = sum(r.feature_importance.values())
+                assert abs(total - 1.0) < 1e-6
+
+    def test_per_genre_no_tracks_found(self) -> None:
+        """Test per-genre mode with non-empty genre_dict but all tracks as 'unknown'."""
+        meta, intensity = TestClusterByFeatures()._make_hard_techno(5)
+        # We need a non-empty genre_dict to trigger the per-genre branch in cluster_by_features
+        # but the tracks can be missing from it (falling back to 'unknown')
+        genre_dict = {Path("other.mp3"): "techno"}
+        clusterer = PlaylistClusterer(target_tracks_per_playlist=5, min_clusters=1)
+
+        results = clusterer.cluster_by_features(
+            meta, intensity, cluster_mode="per-genre", genre_dict=genre_dict
+        )
+        assert len(results) >= 1
+        assert results[0].genre == "unknown"
+        assert str(results[0].cluster_id).startswith("unknown_")
+
+    def test_mixed_genre_no_valid_paths(self) -> None:
+        """Test mixed-genre mode with empty input paths."""
+        clusterer = PlaylistClusterer(target_tracks_per_playlist=5)
+        # Pass empty metadata, but non-empty intensity to bypass earlier checks
+        results = clusterer._cluster_mixed_genre({}, {}, None, [], {}, use_ewkm=False)
+        assert results == []
+
+    def test_split_cluster_by_duration(self) -> None:
+        """Test splitting a cluster by target duration."""
+        clusterer = PlaylistClusterer(target_duration_per_playlist=30)  # 30 mins
+        cluster = ClusterResult(
+            cluster_id=0,
+            tracks=[Path(f"t{i}.mp3") for i in range(20)],
+            bpm_mean=120,
+            bpm_std=0,
+            track_count=20,
+            total_duration=7200,  # 120 minutes
+        )
+        # 120 / 30 = 4 sub-clusters
+        results = clusterer.split_cluster(cluster, target_size=5)
+        assert len(results) == 4
+        assert sum(r.track_count for r in results) == 20

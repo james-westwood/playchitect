@@ -3,6 +3,7 @@ Unit tests for sequencer module.
 """
 
 from pathlib import Path
+from unittest.mock import MagicMock
 
 import pytest
 
@@ -112,3 +113,101 @@ class TestSequencer:
         feat.brightness = 1.0
         # score = 0.4*1.0 + 0.6*0.5 = 0.4 + 0.3 = 0.7
         assert feat.hardness == pytest.approx(0.7)
+
+    def test_sequence_ramp_same_first_last_fallback(self):
+        """Test fallback when top opener and closer are the same track."""
+        paths = [Path(f"t{i}.flac") for i in range(3)]
+        cluster = ClusterResult(
+            cluster_id=0, tracks=paths, bpm_mean=120, bpm_std=0, track_count=3, total_duration=900
+        )
+        metadata = {p: TrackMetadata(filepath=p, bpm=120, duration=300) for p in paths}
+
+        # Setup intensities so t0 is both best opener and best closer?
+        # Actually, let's just mock the TrackSelector to force this condition.
+        sequencer = Sequencer()
+        mock_selector = MagicMock()
+
+        from playchitect.core.track_selector import TrackScore, TrackSelection
+
+        # t0 is best for both
+        selection = TrackSelection(
+            cluster_id=0,
+            first_tracks=[
+                TrackScore(path=paths[0], score=0.9, reason=""),
+                TrackScore(path=paths[1], score=0.8, reason=""),
+            ],
+            last_tracks=[
+                TrackScore(path=paths[0], score=0.9, reason=""),
+                TrackScore(path=paths[2], score=0.8, reason=""),
+            ],
+        )
+        mock_selector.select.return_value = selection
+        sequencer.selector = mock_selector
+
+        intensity = {
+            p: IntensityFeatures(
+                filepath=p,
+                file_hash="h",
+                rms_energy=0.5,
+                brightness=0.5,
+                sub_bass_energy=0.5,
+                kick_energy=0.5,
+                bass_harmonics=0.5,
+                percussiveness=0.5,
+                onset_strength=0.5,
+            )
+            for p in paths
+        }
+
+        result = sequencer.sequence(cluster, metadata, intensity, mode="ramp")
+
+        assert result[0] == paths[0]
+        assert result[-1] == paths[2]  # Fallback to second best closer
+        assert result[1] == paths[1]
+
+    def test_sequence_ramp_same_first_last_fallback_opener(self):
+        """Test fallback to second best opener when top closer is only choice."""
+        paths = [Path(f"t{i}.flac") for i in range(3)]
+        cluster = ClusterResult(
+            cluster_id=0, tracks=paths, bpm_mean=120, bpm_std=0, track_count=3, total_duration=900
+        )
+        metadata = {p: TrackMetadata(filepath=p, bpm=120, duration=300) for p in paths}
+
+        sequencer = Sequencer()
+        mock_selector = MagicMock()
+
+        from playchitect.core.track_selector import TrackScore, TrackSelection
+
+        # t0 is best for both, but only one closer candidate provided
+        selection = TrackSelection(
+            cluster_id=0,
+            first_tracks=[
+                TrackScore(path=paths[0], score=0.9, reason=""),
+                TrackScore(path=paths[1], score=0.8, reason=""),
+            ],
+            last_tracks=[
+                TrackScore(path=paths[0], score=0.9, reason=""),
+            ],
+        )
+        mock_selector.select.return_value = selection
+        sequencer.selector = mock_selector
+
+        intensity = {
+            p: IntensityFeatures(
+                filepath=p,
+                file_hash="h",
+                rms_energy=0.5,
+                brightness=0.5,
+                sub_bass_energy=0.5,
+                kick_energy=0.5,
+                bass_harmonics=0.5,
+                percussiveness=0.5,
+                onset_strength=0.5,
+            )
+            for p in paths
+        }
+
+        result = sequencer.sequence(cluster, metadata, intensity, mode="ramp")
+
+        assert result[0] == paths[1]  # Fallback to second best opener
+        assert result[-1] == paths[0]  # Top choice remains closer

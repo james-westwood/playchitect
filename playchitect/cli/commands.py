@@ -42,7 +42,7 @@ def cli() -> None:
     help="Output directory for playlists (default: same as music_path)",
 )
 @click.option("--target-tracks", "-t", type=int, help="Target number of tracks per playlist")
-@click.option("--target-duration", "-d", type=int, help="Target duration per playlist in minutes")
+@click.option("--target-duration", "-d", type=float, help="Target duration per playlist in minutes")
 @click.option(
     "--playlist-name",
     "-n",
@@ -112,8 +112,8 @@ def cli() -> None:
 @click.option(
     "--sequence-mode",
     type=click.Choice(["ramp", "fixed"]),
-    default="ramp",
-    help="Track sequencing mode: ramp (intensity build, default) or fixed (no change).",
+    default="fixed",
+    help="Track sequencing mode: ramp (intensity build) or fixed (no change, default).",
 )
 def scan(
     music_path: Path | None,
