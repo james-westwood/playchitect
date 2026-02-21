@@ -29,6 +29,8 @@ def _make_stats(
     intensity_mean: float = 0.6,
     total_duration: float = 5400.0,
     feature_importance: list[tuple[str, float]] | None = None,
+    opener_name: str | None = None,
+    closer_name: str | None = None,
 ) -> ClusterStats:
     return ClusterStats(
         cluster_id=cluster_id,
@@ -37,7 +39,10 @@ def _make_stats(
         bpm_max=bpm_max,
         bpm_mean=bpm_mean,
         intensity_mean=intensity_mean,
+        hardness_mean=intensity_mean,
         total_duration=total_duration,
+        opener_name=opener_name,
+        closer_name=closer_name,
         feature_importance=feature_importance or [],
     )
 
@@ -78,6 +83,29 @@ class TestClusterCardProperties:
     def test_cluster_id_string(self):
         card = _make_card(_make_stats(cluster_id="2a"))  # type: ignore[arg-type]
         assert card.cluster_id == "2a"
+
+
+class TestClusterCardBuild:
+    """Test the _build method of ClusterCard (mocking GTK calls)."""
+
+    def test_build_with_recommendations(self):
+        stats = _make_stats(opener_name="Start Track", closer_name="End Track")
+        card = _make_card(stats)
+        card.set_child = MagicMock()
+
+        # Mock GTK classes used in _build
+        with (
+            patch("playchitect.gui.widgets.cluster_view.Gtk.Box"),
+            patch("playchitect.gui.widgets.cluster_view.Gtk.Label") as mock_label,
+            patch("playchitect.gui.widgets.cluster_view.Gtk.Button"),
+        ):
+            card._build()
+
+            # Verify that some labels were created with the track names (Finding the exact
+            # call is hard with many widgets, but we can check if the names were used)
+            label_texts = [call.kwargs.get("label") for call in mock_label.call_args_list]
+            assert any("Start: Start Track" in str(t) for t in label_texts)
+            assert any("End: End Track" in str(t) for t in label_texts)
 
 
 # ── TestClusterCardViewTracksSignal ───────────────────────────────────────────

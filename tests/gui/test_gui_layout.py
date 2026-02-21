@@ -14,8 +14,9 @@ Approach
 
 from __future__ import annotations
 
+from pathlib import Path
 from typing import TYPE_CHECKING, Any
-from unittest.mock import MagicMock
+from unittest.mock import MagicMock, patch
 
 import pytest
 
@@ -93,8 +94,12 @@ def bare_window() -> PlaychitectWindow:
     w._previewer = MagicMock()
     w._preview_chip = MagicMock()
     w._spinner = MagicMock()
+    w._cluster_btn = MagicMock()
     w.track_list = MagicMock()
     w.cluster_panel = MagicMock()
+    w._metadata_map = {}
+    w._intensity_map = {}
+    w._clusters = []
     return w
 
 
@@ -307,11 +312,70 @@ class TestClusterSelected:
     def test_title_includes_cluster_id(self, bare_window: PlaychitectWindow) -> None:
         spy = MagicMock()
         bare_window.set_title = spy
+        # Mock a cluster result so lookup succeeds
+        mock_cluster = MagicMock()
+        mock_cluster.cluster_id = 3
+        mock_cluster.tracks = []
+        bare_window._clusters = [mock_cluster]
+
         bare_window._on_cluster_selected(MagicMock(), cluster_id=3)
         title = spy.call_args[0][0]
         assert "3" in title
 
     def test_clears_search_entry(self, bare_window: PlaychitectWindow) -> None:
         bare_window.set_title = MagicMock()
+        # Mock a cluster result so lookup succeeds
+        mock_cluster = MagicMock()
+        mock_cluster.cluster_id = 2
+        mock_cluster.tracks = []
+        bare_window._clusters = [mock_cluster]
+
         bare_window._on_cluster_selected(MagicMock(), cluster_id=2)
         bare_window.track_list._search_entry.set_text.assert_called_once_with("")
+
+
+class TestClusterHandlers:
+    """Test clustering signal handlers and workers."""
+
+    def test_on_cluster_clicked_starts_spinner(self, bare_window: PlaychitectWindow) -> None:
+        bare_window._metadata_map = {Path("t1.flac"): MagicMock()}
+        bare_window.set_title = MagicMock()
+
+        with patch("threading.Thread") as mock_thread:
+            bare_window._on_cluster_clicked(MagicMock())
+
+            bare_window._spinner.start.assert_called_once()
+            bare_window._cluster_btn.set_sensitive.assert_called_with(False)
+            mock_thread.assert_called_once()
+
+    def test_on_cluster_complete_updates_ui(self, bare_window: PlaychitectWindow) -> None:
+        mock_cluster = MagicMock()
+        mock_cluster.cluster_id = 1
+        mock_cluster.bpm_mean = 120.0
+        mock_cluster.bpm_std = 2.0
+        mock_cluster.track_count = 10
+        mock_cluster.total_duration = 1800.0
+        mock_cluster.feature_means = {}
+        mock_cluster.feature_importance = {}
+        mock_cluster.opener = None
+        mock_cluster.closer = None
+
+        bare_window._clusters = [mock_cluster]
+        bare_window.set_title = MagicMock()
+
+        bare_window._on_cluster_complete()
+
+        bare_window._spinner.stop.assert_called_once()
+        bare_window._cluster_btn.set_sensitive.assert_called_with(True)
+        bare_window.cluster_panel.load_clusters.assert_called_once()
+
+    def test_on_cluster_error_resets_ui(self, bare_window: PlaychitectWindow) -> None:
+        bare_window.set_title = MagicMock()
+
+        bare_window._on_cluster_error()
+
+        bare_window._spinner.stop.assert_called_once()
+        bare_window._cluster_btn.set_sensitive.assert_called_with(True)
+        # Check if set_title was called with something containing "failed"
+        title_call = bare_window.set_title.call_args[0][0]
+        assert "failed" in title_call.lower()

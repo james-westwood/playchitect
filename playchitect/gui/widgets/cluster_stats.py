@@ -36,7 +36,10 @@ class ClusterStats:
     bpm_max: float
     bpm_mean: float
     intensity_mean: float  # normalised [0, 1]; 0 if no feature data
+    hardness_mean: float  # combined hardness score [0, 1]
     total_duration: float  # seconds
+    opener_name: str | None = None
+    closer_name: str | None = None
     feature_importance: list[tuple[str, float]] = field(default_factory=list)
     # Sorted descending by importance; empty when clustering was BPM-only.
 
@@ -53,8 +56,13 @@ class ClusterStats:
 
         # Intensity: prefer RMS energy from feature_means, fall back to 0.
         intensity_mean = 0.0
+        hardness_mean = 0.0
         if result.feature_means:
             intensity_mean = result.feature_means.get("rms_energy", 0.0)
+            hardness_mean = result.feature_means.get("hardness", intensity_mean)
+
+        opener_name = result.opener.name if result.opener else None
+        closer_name = result.closer.name if result.closer else None
 
         # Feature importance: sort descending, exclude zero-weight entries.
         importance: list[tuple[str, float]] = []
@@ -72,7 +80,10 @@ class ClusterStats:
             bpm_max=bpm_max,
             bpm_mean=result.bpm_mean,
             intensity_mean=intensity_mean,
+            hardness_mean=hardness_mean,
             total_duration=result.total_duration,
+            opener_name=opener_name,
+            closer_name=closer_name,
             feature_importance=importance,
         )
 
@@ -103,6 +114,12 @@ class ClusterStats:
     def intensity_bars(self) -> str:
         """Ten-character unicode bar proportional to intensity, e.g. ``'███░░░░░░░'``."""
         filled = round(max(0.0, min(1.0, self.intensity_mean)) * _BAR_WIDTH)
+        return _BAR_FULL * filled + _BAR_EMPTY * (_BAR_WIDTH - filled)
+
+    @property
+    def hardness_bars(self) -> str:
+        """Ten-character unicode bar proportional to hardness, e.g. ``'███░░░░░░░'``."""
+        filled = round(max(0.0, min(1.0, self.hardness_mean)) * _BAR_WIDTH)
         return _BAR_FULL * filled + _BAR_EMPTY * (_BAR_WIDTH - filled)
 
     @property

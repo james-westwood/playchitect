@@ -118,6 +118,28 @@ class TestClusterStatsFromResult:
 
         assert stats.cluster_id == "1a"
 
+    def test_opener_and_closer_populated(self):
+        from pathlib import Path
+
+        opener = Path("/music/opener.flac")
+        closer = Path("/music/closer.flac")
+        result = _make_result()
+        result.opener = opener
+        result.closer = closer
+        stats = ClusterStats.from_result(result)
+
+        assert stats.opener_name == "opener.flac"
+        assert stats.closer_name == "closer.flac"
+
+    def test_opener_and_closer_none_by_default(self):
+        result = _make_result()
+        result.opener = None
+        result.closer = None
+        stats = ClusterStats.from_result(result)
+
+        assert stats.opener_name is None
+        assert stats.closer_name is None
+
 
 # ── TestBpmRangeStr ───────────────────────────────────────────────────────────
 
@@ -131,6 +153,7 @@ class TestBpmRangeStr:
             bpm_max=125.0,
             bpm_mean=122.5,
             intensity_mean=0.5,
+            hardness_mean=0.5,
             total_duration=3600.0,
         )
         assert stats.bpm_range_str == "120–125 BPM"
@@ -143,6 +166,7 @@ class TestBpmRangeStr:
             bpm_max=125.4,
             bpm_mean=122.0,
             intensity_mean=0.4,
+            hardness_mean=0.4,
             total_duration=1800.0,
         )
         assert stats.bpm_range_str == "120–125 BPM"
@@ -155,6 +179,7 @@ class TestBpmRangeStr:
             bpm_max=125.0,
             bpm_mean=122.7,
             intensity_mean=0.4,
+            hardness_mean=0.4,
             total_duration=1800.0,
         )
         assert stats.bpm_mean_str == "123"
@@ -172,6 +197,7 @@ class TestIntensityLabel:
             bpm_max=125.0,
             bpm_mean=122.5,
             intensity_mean=intensity,
+            hardness_mean=intensity,
             total_duration=1800.0,
         )
 
@@ -204,6 +230,7 @@ class TestIntensityBars:
             bpm_max=125.0,
             bpm_mean=122.5,
             intensity_mean=intensity,
+            hardness_mean=intensity,
             total_duration=1800.0,
         )
 
@@ -241,6 +268,7 @@ class TestDurationStr:
             bpm_max=125.0,
             bpm_mean=122.5,
             intensity_mean=0.5,
+            hardness_mean=0.5,
             total_duration=duration,
         )
 
@@ -273,6 +301,7 @@ class TestTrackCountStr:
             bpm_max=125.0,
             bpm_mean=122.5,
             intensity_mean=0.5,
+            hardness_mean=0.5,
             total_duration=1800.0,
         )
 
@@ -298,6 +327,7 @@ class TestClusterLabel:
             bpm_max=130.0,
             bpm_mean=125.0,
             intensity_mean=0.5,
+            hardness_mean=0.5,
             total_duration=3600.0,
         )
         assert stats.cluster_label == "Cluster 2"
@@ -310,6 +340,7 @@ class TestClusterLabel:
             bpm_max=125.0,
             bpm_mean=122.5,
             intensity_mean=0.3,
+            hardness_mean=0.3,
             total_duration=1800.0,
         )
         assert stats.cluster_label == "Cluster 1a"
@@ -327,6 +358,7 @@ class TestTopFeatures:
             bpm_max=130.0,
             bpm_mean=125.0,
             intensity_mean=0.5,
+            hardness_mean=0.5,
             total_duration=3600.0,
             feature_importance=[
                 ("rms_energy", 0.5),
@@ -346,6 +378,7 @@ class TestTopFeatures:
             bpm_max=130.0,
             bpm_mean=125.0,
             intensity_mean=0.5,
+            hardness_mean=0.5,
             total_duration=3600.0,
             feature_importance=[("rms_energy", 0.5)],
         )
@@ -359,6 +392,7 @@ class TestTopFeatures:
             bpm_max=130.0,
             bpm_mean=125.0,
             intensity_mean=0.5,
+            hardness_mean=0.5,
             total_duration=3600.0,
         )
         assert stats.top_features == []
@@ -376,6 +410,7 @@ class TestBpmRangeFraction:
             bpm_max=bpm_mean + 2,
             bpm_mean=bpm_mean,
             intensity_mean=0.5,
+            hardness_mean=0.5,
             total_duration=1800.0,
         )
 
@@ -410,6 +445,7 @@ class TestGlobalBpmRange:
             bpm_max=bpm_max,
             bpm_mean=(bpm_min + bpm_max) / 2,
             intensity_mean=0.5,
+            hardness_mean=0.5,
             total_duration=1800.0,
         )
 
@@ -461,6 +497,7 @@ class TestBpmFillBars:
             bpm_max=bpm_mean + 2,
             bpm_mean=bpm_mean,
             intensity_mean=0.5,
+            hardness_mean=0.5,
             total_duration=1800.0,
         )
 
@@ -488,6 +525,7 @@ class TestIntensityFraction:
             bpm_max=125.0,
             bpm_mean=122.5,
             intensity_mean=intensity,
+            hardness_mean=intensity,
             total_duration=1800.0,
         )
 
@@ -510,6 +548,7 @@ class TestStr:
             bpm_max=128.0,
             bpm_mean=124.0,
             intensity_mean=0.6,
+            hardness_mean=0.6,
             total_duration=5400.0,
         )
         result = str(stats)

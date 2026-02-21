@@ -13,7 +13,7 @@ from __future__ import annotations
 
 import sys
 from typing import TYPE_CHECKING, Any
-from unittest.mock import MagicMock
+from unittest.mock import MagicMock, patch
 
 import pytest
 
@@ -41,6 +41,7 @@ class _SimpleTrack:
         artist: str = "",
         bpm: float = 0.0,
         intensity: float = 0.0,
+        hardness: float = 0.0,
         cluster: int = -1,
         duration: float = 0.0,
         audio_format: str = ".flac",
@@ -50,6 +51,7 @@ class _SimpleTrack:
         self.artist = artist
         self.bpm = bpm
         self.intensity = intensity
+        self.hardness = hardness
         self.cluster = cluster
         self.duration = duration
         self.audio_format = audio_format
@@ -64,7 +66,8 @@ class _SimpleTrack:
 
     @property
     def intensity_bars(self) -> str:
-        filled = round(max(0.0, min(1.0, self.intensity)) * 5)
+        # Using hardness for the visual bars as it's the more robust metric
+        filled = round(max(0.0, min(1.0, self.hardness)) * 5)
         return "█" * filled + "░" * (5 - filled)
 
     @property
@@ -97,27 +100,27 @@ class TestDurationStr:
 
 class TestIntensityBars:
     def test_zero(self) -> None:
-        assert _SimpleTrack(intensity=0.0).intensity_bars == "░░░░░"
+        assert _SimpleTrack(hardness=0.0).intensity_bars == "░░░░░"
 
     def test_full(self) -> None:
-        assert _SimpleTrack(intensity=1.0).intensity_bars == "█████"
+        assert _SimpleTrack(hardness=1.0).intensity_bars == "█████"
 
     def test_half(self) -> None:
         assert (
-            _SimpleTrack(intensity=0.5).intensity_bars == "██░░░"
-            or _SimpleTrack(intensity=0.5).intensity_bars == "███░░"
+            _SimpleTrack(hardness=0.5).intensity_bars == "██░░░"
+            or _SimpleTrack(hardness=0.5).intensity_bars == "███░░"
         )  # rounding edge
 
     def test_always_five_chars(self) -> None:
         for v in [0.0, 0.2, 0.5, 0.8, 1.0]:
-            bars = _SimpleTrack(intensity=v).intensity_bars
+            bars = _SimpleTrack(hardness=v).intensity_bars
             assert len(bars) == 5
 
     def test_clamped_above_one(self) -> None:
-        assert _SimpleTrack(intensity=2.0).intensity_bars == "█████"
+        assert _SimpleTrack(hardness=2.0).intensity_bars == "█████"
 
     def test_clamped_below_zero(self) -> None:
-        assert _SimpleTrack(intensity=-1.0).intensity_bars == "░░░░░"
+        assert _SimpleTrack(hardness=-1.0).intensity_bars == "░░░░░"
 
 
 class TestDisplayTitle:
@@ -164,6 +167,12 @@ class _FakeListStore:
 
     def remove_all(self) -> None:
         self._items.clear()
+
+    def remove(self, index: int) -> None:
+        del self._items[index]
+
+    def insert(self, index: int, item: Any) -> None:
+        self._items.insert(index, item)
 
 
 class _FakeFilterModel:
@@ -213,6 +222,22 @@ class _FakeSelection:
     def is_selected(self, index: int) -> bool:
         return index in self._selected
 
+    def select_item(self, index: int, _exclusive: bool) -> None:
+        self._selected = {index}
+
+    def get_selection(self) -> Any:
+        class _Selection:
+            def __init__(self, selected: set[int]):
+                self._items = sorted(list(selected))
+
+            def get_n_items(self) -> int:
+                return len(self._items)
+
+            def get_item(self, index: int) -> int:
+                return self._items[index]
+
+        return _Selection(self._selected)
+
 
 class _FakeFilter:
     """CustomFilter stub storing the match function."""
@@ -256,6 +281,7 @@ def _make_track(title: str = "Track", bpm: float = 128.0, duration: float = 360.
     t.artist = "Artist"
     t.bpm = bpm
     t.intensity = 0.5
+    t.hardness = 0.5
     t.cluster = 1
     t.duration = duration
     t.audio_format = ".flac"
@@ -397,3 +423,85 @@ class TestKeyPressed:
         result = widget._on_key_pressed(MagicMock(), 65, 0, MagicMock())  # 'A' key
         widget.emit.assert_not_called()
         assert result is False
+
+
+class TestManualReordering:
+    def test_move_up(self, widget: TrackListWidget) -> None:
+        tracks = [_make_track(f"T{i}") for i in range(3)]
+        widget.load_tracks(tracks)
+        # Select second track (index 1)
+        widget._selection._selected = {1}
+
+        widget._on_move_up(MagicMock(), None)
+
+        assert widget._store.get_item(0).title == "T1"
+        assert widget._store.get_item(1).title == "T0"
+        assert widget._selection.is_selected(0)
+
+    def test_move_down(self, widget: TrackListWidget) -> None:
+        tracks = [_make_track(f"T{i}") for i in range(3)]
+        widget.load_tracks(tracks)
+        # Select first track (index 0)
+        widget._selection._selected = {0}
+
+        widget._on_move_down(MagicMock(), None)
+
+        assert widget._store.get_item(0).title == "T1"
+        assert widget._store.get_item(1).title == "T0"
+        assert widget._selection.is_selected(1)
+
+    def test_move_up_top_track_does_nothing(self, widget: TrackListWidget) -> None:
+        tracks = [_make_track(f"T{i}") for i in range(3)]
+        widget.load_tracks(tracks)
+        widget._selection._selected = {0}
+
+        widget._on_move_up(MagicMock(), None)
+
+        assert widget._store.get_item(0).title == "T0"
+
+    def test_move_down_bottom_track_does_nothing(self, widget: TrackListWidget) -> None:
+        tracks = [_make_track(f"T{i}") for i in range(3)]
+        widget.load_tracks(tracks)
+        widget._selection._selected = {2}
+
+        widget._on_move_down(MagicMock(), None)
+
+        assert widget._store.get_item(2).title == "T2"
+
+
+class TestTrackListHandlers:
+    def test_search_changed_updates_filter(self, widget: TrackListWidget) -> None:
+        widget._filter.changed = MagicMock()
+        with patch.object(widget, "_update_footer") as mock_update:
+            entry = MagicMock()
+            entry.get_text.return_value = "Techno"
+
+            widget._on_search_changed(entry)
+
+            assert widget._search_text == "techno"
+            widget._filter.changed.assert_called_once()
+            mock_update.assert_called_once()
+
+    def test_selection_changed_emits_signal(self, widget: TrackListWidget) -> None:
+        with patch.object(widget, "emit") as mock_emit:
+            widget.load_tracks([_make_track("A"), _make_track("B")])
+            widget._selection._selected = {0}
+
+            widget._on_selection_changed(MagicMock(), 0, 1)
+
+            mock_emit.assert_called_once_with("selection-changed", 1)
+
+    def test_row_activated_emits_signal(self, widget: TrackListWidget) -> None:
+        track = _make_track("A")
+        widget.load_tracks([track])
+        with patch.object(widget, "emit") as mock_emit:
+            widget._on_row_activated(MagicMock(), 0)
+
+            mock_emit.assert_called_once_with("track-activated", track)
+
+    def test_right_click_popups_menu(self, widget: TrackListWidget) -> None:
+        widget._context_menu = MagicMock()
+        # Mock Gdk.Rectangle
+        with patch("gi.repository.Gdk.Rectangle", return_value=MagicMock()):
+            widget._on_right_click(MagicMock(), 1, 100.0, 200.0)
+            widget._context_menu.popup.assert_called_once()

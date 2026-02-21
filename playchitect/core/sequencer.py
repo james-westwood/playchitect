@@ -66,6 +66,10 @@ class Sequencer:
         first = selection.selected_first
         last = selection.selected_last
 
+        # Set them on the cluster object for UI use
+        cluster.opener = first
+        cluster.closer = last
+
         # In case the top opener and closer are the same track (rare but possible in small clusters)
         # fallback to second best closer.
         if first == last and len(cluster.tracks) > 1:
