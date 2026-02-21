@@ -43,7 +43,9 @@ jobs:
 
   publish-to-pypi:
     name: Publish to PyPI
-    needs: publish-to-testpypi
+    # Depends only on build, not testpypi — TestPyPI outages or duplicate-version
+    # rejections should not block the production release.
+    needs: build
     runs-on: ubuntu-latest
     environment:
       name: pypi

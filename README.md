@@ -34,9 +34,19 @@ Playchitect transforms DJ playlist creation from rigid BPM-based grouping to int
 
 ## Installation
 
+### PyPI (CLI)
+
+```bash
+uv tool install playchitect   # recommended
+# or: pip install playchitect
+```
+
+> **GUI note**: the GTK4 interface requires `python3-gobject` from your OS package manager
+> and cannot be installed via pip. See [From source](#from-source-development) below.
+
 ### Flatpak (coming soon)
 
-A Flatpak release targeting Flathub is planned for Milestone 6. Until then, install from source.
+A Flatpak release is planned for Milestone 6. Until then, install from source.
 
 ### From source (development)
 

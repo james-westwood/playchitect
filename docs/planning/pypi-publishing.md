@@ -2,7 +2,14 @@
 
 This guide explains how to publish Playchitect to PyPI using the automated GitHub Actions workflow.
 
-## 1. Configure Trusted Publishers
+## 1. Create GitHub Environments
+
+The workflow requires two GitHub Environments to exist in the repository settings before it can run. Go to **Settings → Environments** in the GitHub repo and create:
+
+- `pypi` (production — optionally add a required reviewer for extra safety)
+- `testpypi`
+
+## 2. Configure Trusted Publishers
 
 Playchitect uses OIDC-based trusted publishing, which means no long-lived API tokens are needed. You must configure this once on PyPI and TestPyPI.
 
@@ -43,13 +50,8 @@ Users can install Playchitect as a tool using `uv`:
 uv tool install playchitect
 ```
 
-To include the GUI:
-```bash
-uv tool install "playchitect[gui]"
-```
-
 ### GTK4 System Dependency
-The GUI requires GTK4 and PyGObject. These must be installed via the OS package manager, as they cannot be reliably built from PyPI.
+The GUI requires GTK4 and PyGObject. These must be installed via the OS package manager, as they cannot be reliably built from PyPI. The `[gui]` extra is intentionally empty — installing it does not install GTK4.
 
 - **Fedora**: `sudo dnf install python3-gobject gtk4`
 - **Ubuntu**: `sudo apt install python3-gi python3-gi-cairo gir1.2-gtk-4.0`
