@@ -8,12 +8,15 @@ spectral brightness, bass energy (3-way split), percussiveness, and onset streng
 import hashlib
 import json
 import logging
+import os
 from dataclasses import asdict, dataclass
 from pathlib import Path
 from typing import Any, Literal, overload
 
 import librosa
 import numpy as np
+
+from playchitect.utils.config import get_config
 
 logger = logging.getLogger(__name__)
 
@@ -122,7 +125,11 @@ class IntensityAnalyzer:
         self.cache_enabled = cache_enabled
 
         if cache_dir is None:
-            cache_dir = Path.home() / ".cache" / "playchitect" / "intensity"
+            env_cache_dir = os.environ.get("PLAYCHITECT_CACHE_DIR")
+            if env_cache_dir:
+                cache_dir = Path(env_cache_dir) / "intensity"
+            else:
+                cache_dir = get_config().get_cache_dir() / "intensity"
         self.cache_dir = Path(cache_dir)
 
         if self.cache_enabled:
