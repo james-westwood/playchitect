@@ -30,10 +30,11 @@ Secondary: Any Linux user comfortable with a terminal.
 - `pyproject.toml` is already well-formed
 - Entry points already defined: `playchitect`, `playchitect-gui`, `playchitect-install-desktop`
 - GTK4 / PyGObject cannot ship via PyPI (system dependency) — document this clearly
-- Publish with `uv build && uv publish`
-- Version: tag `v1.0.0` on `main`, then `uv publish --token $PYPI_TOKEN`
+- Publishing is now automated via GitHub Actions (`publish.yml`) triggered by a GitHub Release.
+- Uses OIDC trusted publishing (no long-lived tokens needed).
+- See [docs/planning/pypi-publishing.md](pypi-publishing.md) for setup and release steps.
 
-**Effort**: Low — `pyproject.toml` is ready
+**Effort**: Low — automated publishing workflow implemented.
 
 ---
 
@@ -148,7 +149,7 @@ reach the same Fedora/GNOME audience without gatekeeping.
 ### PyPI
 - [ ] `uv build` produces clean `.whl` and `.tar.gz`
 - [ ] Test install in a fresh venv: `pip install dist/playchitect-1.0.0-py3-none-any.whl`
-- [ ] `uv publish` to TestPyPI first, then PyPI
+- [ ] Publishing to TestPyPI and PyPI is handled automatically by the `Publish to PyPI` GitHub workflow when a GitHub release is created.
 
 ### COPR
 - [ ] RPM `.spec` file written and tested with `rpmbuild`
