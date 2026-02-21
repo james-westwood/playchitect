@@ -9,6 +9,8 @@ import hashlib
 import json
 import logging
 import os
+from collections.abc import Callable
+from concurrent.futures import ProcessPoolExecutor, as_completed
 from dataclasses import asdict, dataclass
 from pathlib import Path
 from typing import Any, Literal, overload
@@ -33,6 +35,28 @@ _FREQ_BASS_HARMONICS_HIGH: int = 250
 # Energy gating threshold — frames below this RMS percentile are excluded from
 # brightness calculation to avoid silence skewing the spectral centroid.
 _ENERGY_GATE_PERCENTILE: int = 25
+
+
+def _analyze_worker(args: tuple[str, str]) -> tuple[str, dict[str, Any]]:
+    """
+    Module-level worker for ProcessPoolExecutor.
+
+    Must be at module level (not a bound method) so it can be pickled
+    across process boundaries.
+
+    Args:
+        args: (filepath_str, cache_dir_str)
+
+    Returns:
+        (filepath_str, features_dict) — plain dict avoids cross-process pickling issues
+
+    Raises:
+        Exception propagated to the future on error
+    """
+    filepath_str, cache_dir_str = args
+    analyzer = IntensityAnalyzer(cache_dir=Path(cache_dir_str))
+    features = analyzer.analyze(Path(filepath_str))
+    return (filepath_str, features.to_dict())
 
 
 @dataclass
@@ -375,6 +399,80 @@ class IntensityAnalyzer:
         except Exception as e:
             logger.warning(f"Failed to load cached analysis: {e}")
             return None
+
+    @staticmethod
+    def estimate_batch_seconds(n_uncached: int) -> float:
+        """
+        Rough wall-clock estimate for user-facing warnings.
+
+        Based on ~2 s/track with default parallel workers on a modern 8-core machine.
+        """
+        return n_uncached * 2.0
+
+    def analyze_batch(
+        self,
+        filepaths: list[Path],
+        max_workers: int | None = None,
+        progress_callback: Callable[[int, int], None] | None = None,
+    ) -> dict[Path, "IntensityFeatures"]:
+        """
+        Analyse multiple audio files in parallel using ProcessPoolExecutor.
+
+        Cache pre-flight: files already cached are resolved immediately without
+        spawning workers. Only uncached files are sent to the pool.
+
+        Args:
+            filepaths:          Files to analyse.
+            max_workers:        Worker processes. Defaults to min(cpu_count()//2, 6).
+            progress_callback:  Called as callback(n_done, n_total) after each
+                                file completes (cached or computed). Optional.
+
+        Returns:
+            Mapping of Path -> IntensityFeatures. Files that fail are omitted
+            and logged at ERROR level — no exception is raised.
+        """
+        if max_workers is None:
+            max_workers = max(1, min((os.cpu_count() or 1) // 2, 6))
+
+        n_total = len(filepaths)
+        n_done = 0
+        results: dict[Path, IntensityFeatures] = {}
+        uncached: list[Path] = []
+
+        # Cache pre-flight — resolve hits without touching the pool
+        for filepath in filepaths:
+            file_hash = self._compute_file_hash(filepath)
+            cached = self._load_from_cache(file_hash)
+            if cached is not None:
+                cached.filepath = filepath
+                results[filepath] = cached
+                n_done += 1
+                if progress_callback is not None:
+                    progress_callback(n_done, n_total)
+            else:
+                uncached.append(filepath)
+
+        if not uncached:
+            return results
+
+        # Submit uncached files to the process pool
+        with ProcessPoolExecutor(max_workers=max_workers) as executor:
+            future_to_path = {
+                executor.submit(_analyze_worker, (str(p), str(self.cache_dir))): p for p in uncached
+            }
+            for future in as_completed(future_to_path):
+                original_path = future_to_path[future]
+                try:
+                    _filepath_str, features_dict = future.result()
+                    results[original_path] = IntensityFeatures.from_dict(features_dict)
+                except Exception as exc:
+                    logger.error("Failed to analyse %s: %s", original_path, exc)
+                finally:
+                    n_done += 1
+                    if progress_callback is not None:
+                        progress_callback(n_done, n_total)
+
+        return results
 
     def clear_cache(self) -> None:
         """Clear all cached analysis results."""
