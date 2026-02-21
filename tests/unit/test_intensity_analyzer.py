@@ -136,10 +136,6 @@ class TestIntensityAnalyzer:
         config_path = Path("/config/path")
 
         with patch.dict(os.environ, {}, clear=True):
-            # Ensure PLAYCHITECT_CACHE_DIR is not in env
-            if "PLAYCHITECT_CACHE_DIR" in os.environ:
-                del os.environ["PLAYCHITECT_CACHE_DIR"]
-
             with patch("playchitect.core.intensity_analyzer.get_config") as mock_get_config:
                 mock_get_config.return_value.get_cache_dir.return_value = config_path
 
