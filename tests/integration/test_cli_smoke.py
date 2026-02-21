@@ -140,8 +140,22 @@ class TestCliDryRun:
 
     # --- sequencing ---
 
-    def test_sequence_mode_ramp(self, flac_music_dir: Path) -> None:
+    def test_sequence_mode_ramp(
+        self, flac_music_dir: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
         """Verify that --sequence-mode ramp runs without error."""
+        from playchitect.core.metadata_extractor import MetadataExtractor
+
+        # Mock extract to avoid metadata extraction errors on tiny files
+        original_extract = MetadataExtractor.extract
+
+        def mock_extract(self, filepath):
+            meta = original_extract(self, filepath)
+            meta.bpm = 128.0
+            return meta
+
+        monkeypatch.setattr(MetadataExtractor, "extract", mock_extract)
+
         runner = CliRunner()
         args = [
             str(flac_music_dir),
@@ -154,3 +168,67 @@ class TestCliDryRun:
         result = runner.invoke(scan, args)
         assert result.exit_code == 0
         assert "Sequencing tracks (mode: ramp)..." in result.output
+
+    def test_target_duration_splitting(
+        self, flac_music_dir: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        """Verify that --target-duration triggers cluster splitting."""
+        from playchitect.core.metadata_extractor import MetadataExtractor
+
+        # Mock extract to return fixed duration so splitting is predictable
+        original_extract = MetadataExtractor.extract
+
+        def mock_extract(self, filepath):
+            meta = original_extract(self, filepath)
+            meta.duration = 10.0  # 10s per track
+            return meta
+
+        monkeypatch.setattr(MetadataExtractor, "extract", mock_extract)
+
+        runner = CliRunner()
+        # 20 tracks, total 200s (3.33 min). Target 1 min should split each 10-track cluster into 2.
+        args = [str(flac_music_dir), "--dry-run", "--target-duration", "1"]
+        result = runner.invoke(scan, args)
+        assert result.exit_code == 0
+        assert "to meet target size" in result.output
+        assert "Created 4 playlists" in result.output
+
+    def test_bpm_only_clustering_no_intensity(
+        self, flac_music_dir: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        """Verify clustering works when intensity analysis is skipped (default mode)."""
+        from playchitect.core.metadata_extractor import MetadataExtractor
+
+        # Mock extract to avoid metadata extraction errors on tiny files
+        original_extract = MetadataExtractor.extract
+
+        def mock_extract(self, filepath):
+            meta = original_extract(self, filepath)
+            meta.bpm = 128.0
+            return meta
+
+        monkeypatch.setattr(MetadataExtractor, "extract", mock_extract)
+
+        runner = CliRunner()
+        # Default sequence-mode is now 'fixed', which skips intensity analysis
+        args = [str(flac_music_dir), "--dry-run", "--target-tracks", "20"]
+        result = runner.invoke(scan, args)
+        assert result.exit_code == 0
+        assert "Extracted BPM from 20/20 tracks" in result.output
+        assert "Clustering tracks..." in result.output
+        # Verify intensity analysis was NOT mentioned
+        assert "Extracting audio intensity features..." not in result.output
+
+    def test_clustering_failed_error(
+        self, flac_music_dir: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        """Verify CLI error message when clustering returns no results."""
+        from playchitect.core.clustering import PlaylistClusterer
+
+        monkeypatch.setattr(PlaylistClusterer, "cluster_by_bpm", lambda *args, **kwargs: [])
+
+        runner = CliRunner()
+        args = [str(flac_music_dir), "--dry-run", "--target-tracks", "20"]
+        result = runner.invoke(scan, args)
+        assert result.exit_code != 0
+        assert "Error: Clustering failed" in result.output

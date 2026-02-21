@@ -42,7 +42,7 @@ def cli() -> None:
     help="Output directory for playlists (default: same as music_path)",
 )
 @click.option("--target-tracks", "-t", type=int, help="Target number of tracks per playlist")
-@click.option("--target-duration", "-d", type=int, help="Target duration per playlist in minutes")
+@click.option("--target-duration", "-d", type=float, help="Target duration per playlist in minutes")
 @click.option(
     "--playlist-name",
     "-n",
