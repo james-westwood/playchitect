@@ -8,6 +8,11 @@
 **Location**: `/home/james/audio/playchitect/`
 **Status**: Milestone 1 Complete (2026-02-19)
 
+
+# Gemini — As a code developer
+
+Claude is the senior developer of the Playchitect project. You are responsible for writing most of the code, which will be sent to Gemini for review via the `./scripts/review_pr.sh` script. However, sometimes, you can spawn a Gemini CLI instance on to carry out some tasks for you and create code, using git worktrees. Look up the details in the "Parallel Development with Git Worktree + Background Gemini" section below.
+
 ## What is Playchitect?
 
 Playchitect transforms DJ playlist creation from rigid BPM-based grouping to intelligent multi-dimensional clustering. Instead of grouping tracks solely by tempo (e.g., "all 125 BPM tracks together"), it uses K-means analysis on BPM + 4 audio intensity features to create playlists that feel coherent—not just mathematically similar.
@@ -264,77 +269,48 @@ git push origin --delete feature/11-cue-timing
 
 ## Milestone Status
 
-### ✅ Milestone 1: Foundation & Core Refactoring (Complete)
-**Date Completed**: 2026-02-19
-**Deliverables**:
-- [x] GitHub repository with project structure
-- [x] Extracted audio_scanner module (92% coverage, 13 tests)
-- [x] Extracted metadata_extractor module (61% coverage, 14 tests)
-- [x] Basic CLI interface (scan, info commands)
-- [x] Pre-commit hooks configured and working
-- [x] Documentation (README, CONTRIBUTING)
-- [x] Package management with uv
+### ✅ Milestone 1: Foundation & Core Refactoring (Complete — 2026-02-19)
+- GitHub repo, audio_scanner (92% cov), metadata_extractor (61% cov), CLI, pre-commit, uv
 
-**Key Files Created**:
-- `playchitect/core/audio_scanner.py` - Recursive audio file discovery
-- `playchitect/core/metadata_extractor.py` - BPM and metadata extraction with caching
-- `playchitect/cli/commands.py` - Click-based CLI
-- `tests/unit/test_audio_scanner.py` - 13 tests
-- `tests/unit/test_metadata_extractor.py` - 14 tests
+### ✅ Milestone 2: Intelligent Analysis Engine (Complete — 2026-02-19)
+- `intensity_analyzer.py` — librosa spectral analysis, 7-feature vector, JSON caching
+- `clustering.py` — K-means on 8D space, elbow method, genre-aware multi-clustering, EWKM
+- `track_selector.py` — smart first/last track scoring with user overrides
+- `weighting.py` — genre-specific PCA + EWKM feature weighting
+- `embedding_extractor.py` — MusiCNN Block PCA semantic embedding integration (#5)
 
-**Commits**: 2 commits on main branch, all pre-commit hooks passing
+### ✅ Milestone 3: GTK4 GUI (Complete — 2026-02-20)
+- Main application window (`playchitect/gui/app.py`, `windows/main_window.py`)
+- Track list widget with `Gtk.ColumnView` sorting/filtering
+- Cluster visualization panel with split-pane layout
+- GNOME Sushi / xdg-open spacebar track preview
+- GUI smoke tests (32 tests, conftest.py mock harness)
 
-### 🚧 Milestone 2: Intelligent Analysis Engine (Next)
-**Timeline**: 2 weeks
-**Priority Tasks**:
-1. **intensity_analyzer.py** - Most technically complex
-   - Implement librosa spectral analysis
-   - Calculate brightness, HF energy, RMS, percussiveness
-   - Create hardness score: `0.4*brightness + 0.3*hf + 0.2*rms + 0.1*perc`
-   - Add JSON caching system
+### ✅ Milestone 4: Export & Integration (Complete — 2026-02-20)
+- CUE sheet generator with frame-accurate timing
+- Desktop file, AppStream metainfo, 9 PNG icon sizes + .ico
+- `playchitect-install-desktop` entry point
 
-2. **clustering.py** - K-means implementation
-   - Create 5D feature vectors: [bpm, brightness, hf, rms, perc]
-   - Implement elbow method for optimal K
-   - Add cluster splitting for target playlist length
+### ✅ Milestone 5: Testing & QA (Complete — 2026-02-21)
+- GitHub Actions CI/CD (lint, unit, integration, Fedora 41 container)
+- GUI smoke tests (Milestone 3 above)
+- Performance benchmark suite: `tests/benchmarks/` with synthetic_library fixture,
+  component-level benchmarks (AudioScanner, MetadataExtractor, IntensityAnalyzer,
+  PlaylistClusterer), regression alerts via `--benchmark-compare`
+- `scripts/review_pr.sh` Gemini code review workflow (default: gemini-2.5-pro)
 
-3. **track_selector.py** - First/last track intelligence
-   - Intro detection (onset analysis)
-   - Score tracks: low intensity + long intro (>30s) + no kick
-   - Recommend top 5 first/last tracks per cluster
+### 🚧 Milestone 6: Packaging & Distribution (Next)
+- [ ] **#16** — Flatpak manifest for Flathub submission ⚠️ see Flathub note below
+- [ ] **#17** — PyPI package publishing
 
-4. **playlist_generator.py** - Refactor from original script
-   - Integrate clustering results
-   - Generate M3U playlists
-   - Smart track ordering within playlists
-
-**Key Algorithms**:
-- Hardness score: `0.4 * spectral_centroid + 0.3 * hf_energy + 0.2 * rms + 0.1 * percussiveness`
-- Feature vector: `[normalized_bpm, brightness, hf_energy, rms, percussiveness]`
-- Elbow method: Find optimal K by analyzing inertia vs. K curve
-
-### 📋 Milestone 3: GTK4 GUI (Future)
-- Main application window
-- Track list widget
-- Cluster visualization
-- GNOME Sushi integration
-- Preferences dialog
-
-### 📋 Milestone 4: Export & Integration (Future)
-- M3U playlist exporter
-- CUE sheet generator
-- Desktop file and icon
-- File manager integration
-
-### 📋 Milestone 5: Testing & QA (Future)
-- Integration tests
-- GUI smoke tests
-- Performance benchmarking
-- Pre-commit GUI checks
-
-### 📋 Milestone 6: Packaging & Distribution (Future)
-- Flatpak manifest for Flathub
-- PyPI package publishing
+### 📋 Post-Milestone 6: Enhancement Backlog (no milestone assigned)
+- **#19** — Wire intensity cache dir through central config
+- **#21** — Boost `metadata_extractor` test coverage to >85%
+- **#22** — Parallel batch analysis with `ProcessPoolExecutor`
+- **#23** — Silhouette score for auto-K cluster selection
+- **#26/#27** — User-configurable weight overrides (YAML config + CLI flags)
+- **#36–43** — Key/Harmonic Mixing, Energy Flow, Timbre/Texture, Structural features + GUI
+- **#51** — "5 Rhythms" intensity sequencing mode
 
 ## Origin Story
 
@@ -361,6 +337,20 @@ Playchitect originated from `/home/james/audio-management/scripts/create_random_
 - **Coverage Target**: >85% for core modules
 - **No AI attribution**: Never mention Claude, AI, or any AI tool in commit messages, PR titles, PR bodies, issue comments, or any other Git/GitHub content. Write all such content as the developer.
 
+## ⚠️ Flathub AI Policy (relevant to Milestone 6)
+
+Flathub's [submission requirements](https://docs.flathub.org/docs/for-app-authors/requirements) include:
+
+> "Submissions or changes where most of the code is written by or using AI without any meaningful human input, review, justification or moderation of the code are not allowed."
+> "Submission pull requests must not be generated, opened, or automated using AI tools or agents."
+
+**Implications for Playchitect:**
+- The Flathub submission PR (#16) **must be opened manually by James**, not by Claude or Gemini
+- The review request in that PR must not be delegated to an AI tool
+- The key qualifier is "without any meaningful human input" — James has reviewed and approved all PRs, provided requirements, and made architectural decisions. Whether this constitutes sufficient human oversight is a judgement call that Flathub makes on a case-by-case basis
+- PyPI (#17) has no equivalent policy and is straightforward
+- **Alternative distribution**: COPR (Fedora), OBS (openSUSE), or a direct `.flatpak` download are all viable if Flathub declines
+
 ## Related Documentation
 
 - **General Audio System**: `/home/james/audio-management/claude.md`
@@ -375,5 +365,5 @@ Playchitect originated from `/home/james/audio-management/scripts/create_random_
 
 ---
 
-**Last Updated**: 2026-02-20
-**Current Milestone**: Milestones 1–4 largely complete (400 tests passing)
+**Last Updated**: 2026-02-21
+**Current Milestone**: Milestone 6 — Packaging & Distribution (Milestones 1–5 complete)

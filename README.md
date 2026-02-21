@@ -19,11 +19,13 @@ Playchitect transforms DJ playlist creation from rigid BPM-based grouping to int
 ## Key Features
 
 - **Intelligent Clustering**: K-means analysis on BPM + 7 audio intensity features
+- **Semantic Embeddings**: Optional MusiCNN neural embeddings for genre-aware clustering
 - **Smart Track Selection**: Recommends ideal first tracks (long intros, ambient) and closers (high energy or smooth outros)
 - **Audio Intensity Analysis**: Librosa-powered spectral analysis for track "hardness" scoring
 - **Adaptive Playlist Splitting**: Automatically divides clusters to meet target playlist lengths
-- **Native GNOME GUI**: GTK4 + libadwaita interface (in development)
-- **Flexible Export**: M3U playlist generation
+- **Native GNOME GUI**: GTK4 + libadwaita interface with cluster visualisation and track preview
+- **CUE Sheet Export**: Frame-accurate CUE sheets alongside M3U playlists
+- **Desktop Integration**: `.desktop` file, AppStream metainfo, hicolor icon theme
 
 ## Requirements
 
@@ -32,10 +34,9 @@ Playchitect transforms DJ playlist creation from rigid BPM-based grouping to int
 
 ## Installation
 
-### Flatpak (Recommended for end users)
-```bash
-flatpak install flathub com.github.jameswestwood.Playchitect
-```
+### Flatpak (coming soon)
+
+A Flatpak release targeting Flathub is planned for Milestone 6. Until then, install from source.
 
 ### From source (development)
 
@@ -189,10 +190,16 @@ The native GNOME desktop interface (Milestone 3) uses GTK4 + libadwaita. The int
 
 ## Development Status
 
-**Current Phase**: Milestone 2 - Intelligent Analysis Engine
-**Timeline**: 10-week MVP development
+| Milestone | Description | Status |
+|---|---|---|
+| 1 | Foundation & Core Refactoring | ✅ Complete |
+| 2 | Intelligent Analysis Engine | ✅ Complete |
+| 3 | GTK4 GUI | ✅ Complete |
+| 4 | Export & Integration | ✅ Complete |
+| 5 | Testing & Quality Assurance | ✅ Complete |
+| 6 | Packaging & Distribution | 🚧 In progress |
 
-See [ROADMAP.md](docs/ROADMAP.md) for detailed milestones.
+**Current phase**: Milestone 6 — Flatpak and PyPI packaging.
 
 ## Technology Stack
 
