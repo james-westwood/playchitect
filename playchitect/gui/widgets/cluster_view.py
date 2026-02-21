@@ -29,7 +29,13 @@ gi.require_version("Adw", "1")
 
 logger = logging.getLogger(__name__)
 
-from gi.repository import Adw, GLib, GObject, Gtk  # type: ignore[unresolved-import]  # noqa: E402
+from gi.repository import (  # type: ignore[unresolved-import]  # noqa: E402
+    Adw,
+    GLib,
+    GObject,
+    Gtk,
+    Pango,
+)
 
 from playchitect.gui.widgets.cluster_stats import ClusterStats  # noqa: E402
 
@@ -165,14 +171,14 @@ class ClusterCard(Gtk.Frame):
                 op_label = Gtk.Label(label=f"Start: {s.opener_name}")
                 op_label.set_xalign(0.0)
                 op_label.add_css_class("caption")
-                op_label.set_ellipsize(3)  # Pango.EllipsizeMode.END
+                op_label.set_ellipsize(Pango.EllipsizeMode.END)  # Pango.EllipsizeMode.END
                 rec_box.append(op_label)
 
             if s.closer_name:
                 cl_label = Gtk.Label(label=f"End: {s.closer_name}")
                 cl_label.set_xalign(0.0)
                 cl_label.add_css_class("caption")
-                cl_label.set_ellipsize(3)  # Pango.EllipsizeMode.END
+                cl_label.set_ellipsize(Pango.EllipsizeMode.END)  # Pango.EllipsizeMode.END
                 rec_box.append(cl_label)
 
             outer.append(rec_box)
@@ -185,7 +191,7 @@ class ClusterCard(Gtk.Frame):
             feat_label.set_xalign(0.0)
             feat_label.add_css_class("caption")
             feat_label.add_css_class("dim-label")
-            feat_label.set_ellipsize(3)  # Pango.EllipsizeMode.END
+            feat_label.set_ellipsize(Pango.EllipsizeMode.END)  # Pango.EllipsizeMode.END
             outer.append(feat_label)
 
         # ── View Tracks button ────────────────────────────────────────────────
