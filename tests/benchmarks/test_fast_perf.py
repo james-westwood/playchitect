@@ -20,6 +20,16 @@ from playchitect.core.metadata_extractor import MetadataExtractor, TrackMetadata
 CLI_COMMAND = "uv run playchitect"
 TRACK_SUBSET_SIZE = 100
 
+# Performance thresholds (in seconds)
+# These are used to fail CI if a regression is detected.
+# Values are set to roughly 3-5x the local baseline to allow for CI runner variability.
+THRESHOLD_AUDIO_SCANNER = 0.050  # 50ms for 50 tracks
+THRESHOLD_METADATA_EXTRACTOR = 0.100  # 100ms for 50 tracks
+THRESHOLD_INTENSITY_ANALYZER = 0.200  # 200ms for one 0.5s file
+THRESHOLD_CLUSTERING = 1.0  # 1s for 1000 tracks
+THRESHOLD_CLI_INFO = 10.0  # 10s for 10 tracks (uv run overhead in CI)
+THRESHOLD_CLI_SCAN = 12.0  # 12s for 10 tracks
+
 
 @pytest.fixture(scope="module")
 def benchmark_target_library(
@@ -80,12 +90,15 @@ class TestFastPerformanceChecks:
     ):
         """Benchmark playchitect info command."""
         benchmark(run_cli_command, ["info", str(benchmark_target_library)])
+        # Use type: ignore because ty doesn't know benchmark.stats structure
+        assert benchmark.stats.stats.mean < THRESHOLD_CLI_INFO  # type: ignore
 
     def test_playchitect_scan_dry_run_cli(
         self, benchmark: BenchmarkFixture, benchmark_target_library: Path
     ):
         """Benchmark playchitect scan --dry-run command."""
         benchmark(run_cli_command, ["scan", str(benchmark_target_library), "--dry-run"])
+        assert benchmark.stats.stats.mean < THRESHOLD_CLI_SCAN  # type: ignore
 
     def test_playchitect_scan_with_embeddings_dry_run_cli(
         self, benchmark: BenchmarkFixture, benchmark_target_library: Path
@@ -103,6 +116,7 @@ class TestFastPerformanceChecks:
             run_cli_command,
             ["scan", str(benchmark_target_library), "--use-embeddings", "--dry-run"],
         )
+        # No threshold for embeddings yet as it's environment dependent
 
     def test_audio_scanner_scan(
         self,
@@ -113,6 +127,7 @@ class TestFastPerformanceChecks:
         library_path = synthetic_library(50)
         scanner = AudioScanner()
         benchmark(scanner.scan, library_path)
+        assert benchmark.stats.stats.mean < THRESHOLD_AUDIO_SCANNER  # type: ignore
 
     def test_metadata_extractor_extract_batch(
         self, benchmark: BenchmarkFixture, synthetic_library: Callable[[int], Path]
@@ -121,8 +136,10 @@ class TestFastPerformanceChecks:
         library_path = synthetic_library(50)
         scanner = AudioScanner()
         all_files = scanner.scan(library_path)
-        extractor = MetadataExtractor()
+        # Disable cache to measure actual extraction performance
+        extractor = MetadataExtractor(cache_enabled=False)
         benchmark(extractor.extract_batch, all_files)
+        assert benchmark.stats.stats.mean < THRESHOLD_METADATA_EXTRACTOR  # type: ignore
 
     def test_intensity_analyzer_analyze(
         self, benchmark: BenchmarkFixture, synthetic_library: Callable[[int], Path]
@@ -131,8 +148,10 @@ class TestFastPerformanceChecks:
         library_path = synthetic_library(1)
         audio_files = list(library_path.rglob("*.flac"))
         assert audio_files, "synthetic_library must produce at least one FLAC file"
-        analyzer = IntensityAnalyzer()
+        # Disable cache to measure actual analysis performance
+        analyzer = IntensityAnalyzer(cache_enabled=False)
         benchmark(analyzer.analyze, audio_files[0])
+        assert benchmark.stats.stats.mean < THRESHOLD_INTENSITY_ANALYZER  # type: ignore
 
     def test_clustering_cluster_by_features(self, benchmark: BenchmarkFixture):
         """Benchmark PlaylistClusterer.cluster_by_features with real data class instances."""
@@ -161,3 +180,4 @@ class TestFastPerformanceChecks:
             embedding_dict=None,
             use_ewkm=False,
         )
+        assert benchmark.stats.stats.mean < THRESHOLD_CLUSTERING  # type: ignore
