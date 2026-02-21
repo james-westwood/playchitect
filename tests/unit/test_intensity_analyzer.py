@@ -2,7 +2,9 @@
 Unit tests for intensity_analyzer module.
 """
 
+import os
 from pathlib import Path
+from unittest.mock import patch
 
 import numpy as np
 import pytest
@@ -106,6 +108,39 @@ class TestIntensityAnalyzer:
 
         assert analyzer.sample_rate == 22050
         assert analyzer.cache_enabled is False
+
+    def test_cache_dir_priority_arg(self, tmp_path: Path) -> None:
+        """Test that explicit cache_dir argument takes highest priority."""
+        arg_path = tmp_path / "arg_cache"
+
+        with patch.dict(os.environ, {"PLAYCHITECT_CACHE_DIR": "/env/path"}):
+            with patch("playchitect.core.intensity_analyzer.get_config") as mock_get_config:
+                mock_get_config.return_value.get_cache_dir.return_value = Path("/config/path")
+
+                analyzer = IntensityAnalyzer(cache_dir=arg_path, cache_enabled=False)
+                assert analyzer.cache_dir == arg_path
+
+    def test_cache_dir_priority_env(self, tmp_path: Path) -> None:
+        """Test that PLAYCHITECT_CACHE_DIR env var takes priority over config."""
+        env_path = tmp_path / "env_cache"
+
+        with patch.dict(os.environ, {"PLAYCHITECT_CACHE_DIR": str(env_path)}):
+            with patch("playchitect.core.intensity_analyzer.get_config") as mock_get_config:
+                mock_get_config.return_value.get_cache_dir.return_value = Path("/config/path")
+
+                analyzer = IntensityAnalyzer(cache_dir=None, cache_enabled=False)
+                assert analyzer.cache_dir == env_path / "intensity"
+
+    def test_cache_dir_priority_config(self) -> None:
+        """Test that config is used when no arg or env var is set."""
+        config_path = Path("/config/path")
+
+        with patch.dict(os.environ, {}, clear=True):
+            with patch("playchitect.core.intensity_analyzer.get_config") as mock_get_config:
+                mock_get_config.return_value.get_cache_dir.return_value = config_path
+
+                analyzer = IntensityAnalyzer(cache_dir=None, cache_enabled=False)
+                assert analyzer.cache_dir == config_path / "intensity"
 
     def test_analyze_nonexistent_file(self) -> None:
         """Test analyzing nonexistent file raises error."""
