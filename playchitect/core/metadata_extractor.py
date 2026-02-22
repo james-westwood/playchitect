@@ -4,12 +4,16 @@ Metadata extraction from audio files using mutagen.
 Extracts BPM, artist, title, album, duration, and other metadata.
 """
 
+from __future__ import annotations
+
 import logging
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
 
 import numpy as np
+
+from playchitect.utils.warnings import suppress_librosa_warnings
 
 try:
     from mutagen import File as MutagenFile
@@ -216,32 +220,34 @@ class MetadataExtractor:
         if not filepath.exists():
             return None
 
-        try:
-            import librosa  # noqa: PLC0415
+        with suppress_librosa_warnings():
+            try:
+                import librosa  # noqa: PLC0415
 
-            # Only load first 60s for speed, enough for tempo estimation
-            # Use duration=60 but also check file size/duration if possible
-            y, sr = librosa.load(filepath, sr=22050, duration=60)
+                # Only load first 60s for speed, enough for tempo estimation
+                # Use duration=60 but also check file size/duration if possible
+                y, sr = librosa.load(filepath, sr=22050, duration=60)
 
-            # Defensive check for empty or near-empty audio
-            if y is None or len(y) < 100:
+                # Defensive check for empty or near-empty audio
+                if y is None or len(y) < 100:
+                    return None
+
+                # Onset strength requires some signal
+                if np.max(np.abs(y)) < 1e-4:
+                    return None
+
+                tempo_result = librosa.beat.beat_track(y=y, sr=sr)
+
+                # tempo_result is usually (tempo, beats)
+                tempo = np.atleast_1d(tempo_result[0])[0]
+                bpm = float(tempo)
+
+                # Round to nearest whole number as per user preference
+                bpm = float(round(bpm))
+                return bpm if bpm > 0 else None
+            except Exception as e:
+                logger.error("Error calculating BPM for %s: %s", filepath, e)
                 return None
-
-            # Onset strength requires some signal
-            if np.max(np.abs(y)) < 1e-4:
-                return None
-
-            tempo_result = librosa.beat.beat_track(y=y, sr=sr)
-            # tempo_result is usually (tempo, beats)
-            tempo = np.atleast_1d(tempo_result[0])[0]
-            bpm = float(tempo)
-
-            # Round to nearest whole number as per user preference
-            bpm = float(round(bpm))
-            return bpm if bpm > 0 else None
-        except Exception as e:
-            logger.error("Error calculating BPM for %s: %s", filepath, e)
-            return None
 
     def _extract_bpm(self, audio: Any) -> float | None:
         """

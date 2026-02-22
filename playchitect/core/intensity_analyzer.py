@@ -24,8 +24,12 @@ import librosa
 import numpy as np
 
 from playchitect.utils.config import get_config
+from playchitect.utils.warnings import suppress_librosa_warnings
 
 logger = logging.getLogger(__name__)
+
+# Default timeout for individual file analysis in batch mode (seconds)
+_WORKER_TIMEOUT_SECS: int = 30
 
 # Normalization constants
 _RMS_NORM_FACTOR: float = 0.3  # Typical peak RMS for normalized audio
@@ -227,20 +231,31 @@ class IntensityAnalyzer:
         logger.debug(f"Analyzing: {filepath.name}")
 
         # Load audio
-        try:
-            y, _ = librosa.load(filepath, sr=self.sample_rate, mono=True)
-        except Exception as e:
-            raise ValueError(f"Error loading audio file {filepath}: {e}")
+        with suppress_librosa_warnings():
+            try:
+                # Use duration=300 limit to avoid OOM on huge files, enough for intensity
+                y, _ = librosa.load(filepath, sr=self.sample_rate, mono=True, duration=300)
 
-        # Compute STFT once — all feature methods reuse this to avoid
-        # redundant transform computation across the 5 feature extractors.
-        S = np.abs(librosa.stft(y))
+                # Defensive check for empty or near-empty audio
+                if y is None or len(y) < 100:
+                    raise ValueError("Audio file is empty or too short")
 
-        rms = self._calculate_rms_energy(S)
-        brightness = self._calculate_brightness(S, self.sample_rate)
-        sub_bass, kick, harmonics = self._calculate_bass_energy(S, self.sample_rate)
-        percussiveness = self._calculate_percussiveness(S)
-        onset = self._calculate_onset_strength(S, self.sample_rate)
+                # Compute STFT once
+                S = np.abs(librosa.stft(y))
+
+                # Ensure S has content
+                if S.size == 0 or np.max(S) < 1e-7:
+                    raise ValueError("No signal detected in audio")
+
+                rms = self._calculate_rms_energy(S)
+                brightness = self._calculate_brightness(S, self.sample_rate)
+                sub_bass, kick, harmonics = self._calculate_bass_energy(S, self.sample_rate)
+                percussiveness = self._calculate_percussiveness(S)
+                onset = self._calculate_onset_strength(S, self.sample_rate)
+
+            except Exception as e:
+                # Re-raise as ValueError with context for analyze_batch to catch
+                raise ValueError(f"Failed to analyze {filepath.name}: {e}") from e
 
         features = IntensityFeatures(
             filepath=filepath,
@@ -518,7 +533,8 @@ class IntensityAnalyzer:
             for future in as_completed(future_to_path):
                 original_path = future_to_path[future]
                 try:
-                    _filepath_str, features_dict = future.result()
+                    # Timeout protects against individual file analysis hanging (Issue #95)
+                    _filepath_str, features_dict = future.result(timeout=_WORKER_TIMEOUT_SECS)
                     features = IntensityFeatures.from_dict(features_dict)
                     results[original_path] = features
                     if self.cache_db is not None:
