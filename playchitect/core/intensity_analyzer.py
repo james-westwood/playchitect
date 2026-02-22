@@ -41,6 +41,9 @@ _FREQ_BASS_HARMONICS_HIGH: int = 250
 # brightness calculation to avoid silence skewing the spectral centroid.
 _ENERGY_GATE_PERCENTILE: int = 25
 
+# Default sample rate for librosa audio loading (Hz)
+_DEFAULT_SAMPLE_RATE: int = 22050
+
 
 def _analyze_worker(args: tuple[str, str]) -> tuple[str, dict[str, Any]]:
     """
@@ -152,7 +155,7 @@ class IntensityAnalyzer:
 
     def __init__(
         self,
-        sample_rate: int = 22050,
+        sample_rate: int = _DEFAULT_SAMPLE_RATE,
         cache_dir: Path | None = None,
         cache_enabled: bool = True,
         cache_db: CacheDB | None = None,
