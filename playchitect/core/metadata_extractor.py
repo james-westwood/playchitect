@@ -22,6 +22,15 @@ logger = logging.getLogger(__name__)
 
 
 @dataclass
+class CuePoint:
+    """A saved cue point or loop."""
+
+    position: float  # In seconds
+    label: str = ""
+    hotcue: int | None = None  # 0-based index if it's a hotcue
+
+
+@dataclass
 class TrackMetadata:
     """Container for track metadata."""
 
@@ -33,6 +42,10 @@ class TrackMetadata:
     duration: float | None = None  # Duration in seconds
     year: int | None = None
     genre: str | None = None
+    rating: int | None = None  # 0-5 stars
+    play_count: int | None = None
+    last_played: str | None = None  # ISO format string
+    cues: list[CuePoint] | None = None
 
     def to_dict(self) -> dict[str, Any]:
         """Convert metadata to dictionary."""
@@ -45,6 +58,14 @@ class TrackMetadata:
             "duration": self.duration,
             "year": self.year,
             "genre": self.genre,
+            "rating": self.rating,
+            "play_count": self.play_count,
+            "last_played": self.last_played,
+            "cues": (
+                [{"position": c.position, "label": c.label, "hotcue": c.hotcue} for c in self.cues]
+                if self.cues
+                else None
+            ),
         }
 
 
