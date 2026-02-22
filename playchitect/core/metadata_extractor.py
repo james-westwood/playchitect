@@ -5,11 +5,18 @@ Extracts BPM, artist, title, album, duration, and other metadata.
 """
 
 import logging
+import warnings
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
 
 import numpy as np
+
+# Suppress noisy librosa backend warnings (Issue #94)
+warnings.filterwarnings("ignore", category=UserWarning, module="librosa")
+warnings.filterwarnings("ignore", category=FutureWarning, module="librosa")
+warnings.filterwarnings("ignore", category=UserWarning, module="audioread")
+warnings.filterwarnings("ignore", message="PySoundFile failed. Trying audioread instead.")
 
 try:
     from mutagen import File as MutagenFile
