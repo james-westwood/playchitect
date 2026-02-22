@@ -8,6 +8,16 @@ Claude is the senior developer of the Playchitect project. You can't review code
 
 However, if you have developed the code then Claude should perform the review instead. Do not review code that you have written yourself, as this is marking your own homework. You need a partner to review your code, and that's claude. **Claude must verify before merging a PR.**
 
+## Gemini as Developer — Workflow Rules
+
+Before writing any code:
+1. **Create a GitHub issue** with `gh issue create` — include title, body, and labels
+2. **Create a feature branch** off main: `git checkout -b feature/<issue-number>-<slug>`
+3. **Never commit directly to main**
+4. After completing work, open a PR with `gh pr create` targeting main
+
+Note: Claude reviews PRs that Gemini authors, and vice versa. Do not review your own code.
+
 ---
 
 ## Project Context

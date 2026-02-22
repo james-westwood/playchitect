@@ -116,6 +116,14 @@ uv run ty check
 | Docs | `docs/<slug>` | `docs/update-readme` |
 | Chore | `chore/<slug>` | `chore/chore/bump-librosa` |
 
+### Before Writing Any Code (Claude's checklist)
+
+1. Create a GitHub issue (`gh issue create`) to track the work
+2. Discuss the plan with James before implementing — enter plan mode,
+   write the plan, and wait for approval via ExitPlanMode
+3. Only then create a feature branch and start coding
+4. Never commit or edit files directly on `main`
+
 ### Claude's Git Workflow
 
 ```bash
