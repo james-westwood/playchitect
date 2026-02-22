@@ -31,12 +31,6 @@ def test_intensity_analyzer_empty_file(tmp_path):
         analyzer.analyze(empty_file)
 
 
-def test_intensity_analyzer_batch_robustness(tmp_path, monkeypatch):
-    """Test that analyze_batch continues even if some files are corrupt."""
-    # This is a placeholder for a more complex test if needed
-    pass
-
-
 def test_intensity_analyzer_batch_exception_handling(tmp_path):
     """Test that analyze_batch handles exceptions from workers."""
     from concurrent.futures import Future

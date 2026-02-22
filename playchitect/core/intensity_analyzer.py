@@ -28,11 +28,8 @@ from playchitect.utils.config import get_config
 
 logger = logging.getLogger(__name__)
 
-# Suppress noisy librosa backend warnings (Issue #94)
-warnings.filterwarnings("ignore", category=UserWarning, module="librosa")
-warnings.filterwarnings("ignore", category=FutureWarning, module="librosa")
-warnings.filterwarnings("ignore", category=UserWarning, module="audioread")
-warnings.filterwarnings("ignore", message="PySoundFile failed. Trying audioread instead.")
+# Default timeout for individual file analysis in batch mode (seconds)
+_WORKER_TIMEOUT_SECS: int = 30
 
 # Normalization constants
 _RMS_NORM_FACTOR: float = 0.3  # Typical peak RMS for normalized audio
@@ -235,8 +232,15 @@ class IntensityAnalyzer:
 
         # Load audio
         try:
-            # Use duration=300 limit to avoid OOM on huge files, enough for intensity
-            y, _ = librosa.load(filepath, sr=self.sample_rate, mono=True, duration=300)
+            # Suppress noisy librosa backend warnings locally (Issue #94)
+            with warnings.catch_warnings():
+                warnings.filterwarnings("ignore", category=UserWarning, module="librosa")
+                warnings.filterwarnings("ignore", category=FutureWarning, module="librosa")
+                warnings.filterwarnings("ignore", category=UserWarning, module="audioread")
+                warnings.filterwarnings("ignore", message="PySoundFile failed.*")
+
+                # Use duration=300 limit to avoid OOM on huge files, enough for intensity
+                y, _ = librosa.load(filepath, sr=self.sample_rate, mono=True, duration=300)
 
             # Defensive check for empty or near-empty audio
             if y is None or len(y) < 100:
@@ -536,7 +540,7 @@ class IntensityAnalyzer:
                 original_path = future_to_path[future]
                 try:
                     # Timeout protects against individual file analysis hanging (Issue #95)
-                    _filepath_str, features_dict = future.result(timeout=30)
+                    _filepath_str, features_dict = future.result(timeout=_WORKER_TIMEOUT_SECS)
                     features = IntensityFeatures.from_dict(features_dict)
                     results[original_path] = features
                     if self.cache_db is not None:

@@ -12,12 +12,6 @@ from typing import Any
 
 import numpy as np
 
-# Suppress noisy librosa backend warnings (Issue #94)
-warnings.filterwarnings("ignore", category=UserWarning, module="librosa")
-warnings.filterwarnings("ignore", category=FutureWarning, module="librosa")
-warnings.filterwarnings("ignore", category=UserWarning, module="audioread")
-warnings.filterwarnings("ignore", message="PySoundFile failed. Trying audioread instead.")
-
 try:
     from mutagen import File as MutagenFile
 
@@ -226,19 +220,27 @@ class MetadataExtractor:
         try:
             import librosa  # noqa: PLC0415
 
-            # Only load first 60s for speed, enough for tempo estimation
-            # Use duration=60 but also check file size/duration if possible
-            y, sr = librosa.load(filepath, sr=22050, duration=60)
+            # Suppress noisy librosa backend warnings locally (Issue #94)
+            with warnings.catch_warnings():
+                warnings.filterwarnings("ignore", category=UserWarning, module="librosa")
+                warnings.filterwarnings("ignore", category=FutureWarning, module="librosa")
+                warnings.filterwarnings("ignore", category=UserWarning, module="audioread")
+                warnings.filterwarnings("ignore", message="PySoundFile failed.*")
 
-            # Defensive check for empty or near-empty audio
-            if y is None or len(y) < 100:
-                return None
+                # Only load first 60s for speed, enough for tempo estimation
+                # Use duration=60 but also check file size/duration if possible
+                y, sr = librosa.load(filepath, sr=22050, duration=60)
 
-            # Onset strength requires some signal
-            if np.max(np.abs(y)) < 1e-4:
-                return None
+                # Defensive check for empty or near-empty audio
+                if y is None or len(y) < 100:
+                    return None
 
-            tempo_result = librosa.beat.beat_track(y=y, sr=sr)
+                # Onset strength requires some signal
+                if np.max(np.abs(y)) < 1e-4:
+                    return None
+
+                tempo_result = librosa.beat.beat_track(y=y, sr=sr)
+
             # tempo_result is usually (tempo, beats)
             tempo = np.atleast_1d(tempo_result[0])[0]
             bpm = float(tempo)
