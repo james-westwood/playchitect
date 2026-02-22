@@ -9,6 +9,7 @@ from pathlib import Path
 import click
 
 from playchitect.core.audio_scanner import AudioScanner
+from playchitect.core.cache_db import CacheDB
 from playchitect.core.clustering import PlaylistClusterer
 from playchitect.core.export import CUEExporter, M3UExporter
 from playchitect.core.metadata_extractor import MetadataExtractor
@@ -191,9 +192,12 @@ def scan(
 
     click.echo(f"Found {len(audio_files)} audio files")
 
+    # Initialize persistent cache
+    db = CacheDB(config.get_db_path())
+
     # Extract metadata
     click.echo("\nExtracting metadata...")
-    extractor = MetadataExtractor()
+    extractor = MetadataExtractor(cache_db=db)
 
     with click.progressbar(audio_files, label="Processing files", show_pos=True) as files:
         metadata_dict = {}
@@ -228,7 +232,9 @@ def scan(
         )  # noqa: PLC0415
 
         click.echo("\nExtracting audio intensity features...")
-        int_analyzer = IntensityAnalyzer(cache_dir=config.get_cache_dir() / "intensity")
+        int_analyzer = IntensityAnalyzer(
+            cache_dir=config.get_cache_dir() / "intensity", cache_db=db
+        )
         with click.progressbar(audio_files, label="Intensity analysis", show_pos=True) as files:
             for file_path in files:
                 try:
@@ -343,6 +349,9 @@ def scan(
             f" to meet target size)"
         )
     clusters = split_clusters
+
+    # Persist results
+    db.put_clusters(clusters)
 
     # Perform sequencing
     from playchitect.core.sequencer import Sequencer  # noqa: PLC0415

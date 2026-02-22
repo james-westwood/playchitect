@@ -203,3 +203,87 @@ class TestMigrateJsonCache:
         assert count == 3
         for h in hashes:
             assert db.get_intensity(h) is not None
+
+
+class TestMetadataCache:
+    def test_put_get_metadata(self, tmp_path: Path) -> None:
+        from playchitect.core.metadata_extractor import CuePoint, TrackMetadata
+
+        db = CacheDB(tmp_path / "cache.db")
+        path = Path("/music/track.mp3")
+        meta = TrackMetadata(
+            filepath=path,
+            bpm=124.0,
+            artist="Artist",
+            title="Title",
+            rating=5,
+            cues=[CuePoint(position=10.5, label="Drop", hotcue=0)],
+        )
+        db.put_metadata(meta)
+
+        result = db.get_metadata(path)
+        assert result is not None
+        assert result.filepath == path
+        assert result.bpm == 124.0
+        assert result.artist == "Artist"
+        assert result.rating == 5
+        assert result.cues is not None
+        assert len(result.cues) == 1
+        assert result.cues[0].label == "Drop"
+        assert result.cues[0].position == 10.5
+        assert result.cues[0].hotcue == 0
+
+    def test_load_all_metadata(self, tmp_path: Path) -> None:
+        from playchitect.core.metadata_extractor import TrackMetadata
+
+        db = CacheDB(tmp_path / "cache.db")
+        meta1 = TrackMetadata(filepath=Path("t1.mp3"), bpm=120.0)
+        meta2 = TrackMetadata(filepath=Path("t2.mp3"), bpm=130.0)
+        db.put_metadata(meta1)
+        db.put_metadata(meta2)
+
+        all_meta = db.load_all_metadata()
+        assert len(all_meta) == 2
+        assert all_meta[Path("t1.mp3")].bpm == 120.0
+
+
+class TestClusterCache:
+    def test_put_load_clusters(self, tmp_path: Path) -> None:
+        from playchitect.core.clustering import ClusterResult
+
+        db = CacheDB(tmp_path / "cache.db")
+        c1 = ClusterResult(
+            cluster_id=1,
+            tracks=[Path("a.mp3"), Path("b.mp3")],
+            bpm_mean=120.0,
+            bpm_std=1.0,
+            track_count=2,
+            total_duration=600.0,
+            feature_means={"bpm": 120.0, "rms": 0.5},
+        )
+        db.put_clusters([c1])
+
+        loaded = db.load_latest_clusters()
+        assert len(loaded) == 1
+        assert loaded[0].cluster_id == 1
+        assert loaded[0].tracks == [Path("a.mp3"), Path("b.mp3")]
+        assert loaded[0].feature_means is not None
+        assert loaded[0].feature_means["rms"] == 0.5
+
+    def test_put_clusters_replaces_existing(self, tmp_path: Path) -> None:
+        from playchitect.core.clustering import ClusterResult
+
+        db = CacheDB(tmp_path / "cache.db")
+        c1 = ClusterResult(
+            cluster_id=1, tracks=[], bpm_mean=0, bpm_std=0, track_count=0, total_duration=0
+        )
+        db.put_clusters([c1])
+
+        c2 = ClusterResult(
+            cluster_id=2, tracks=[], bpm_mean=0, bpm_std=0, track_count=0, total_duration=0
+        )
+        db.put_clusters([c2])
+
+        loaded = db.load_latest_clusters()
+        assert len(loaded) == 1
+        assert loaded[0].cluster_id == 2
