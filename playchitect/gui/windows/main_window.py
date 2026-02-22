@@ -141,22 +141,14 @@ class PlaychitectWindow(Adw.ApplicationWindow):
             extractor = MetadataExtractor()
             self._metadata_map = extractor.extract_batch(audio_files)
 
-            config = get_config()
-            int_analyzer = IntensityAnalyzer(cache_dir=config.get_cache_dir() / "intensity")
-            self._intensity_map = int_analyzer.analyze_batch(audio_files)
-
             tracks = [
                 TrackModel(
                     filepath=str(meta.filepath),
                     title=meta.title or "",
                     artist=meta.artist or "",
                     bpm=meta.bpm or 0.0,
-                    intensity=self._intensity_map[meta.filepath].rms_energy
-                    if meta.filepath in self._intensity_map
-                    else 0.0,
-                    hardness=self._intensity_map[meta.filepath].hardness
-                    if meta.filepath in self._intensity_map
-                    else 0.0,
+                    intensity=0.0,
+                    hardness=0.0,
                     duration=meta.duration or 0.0,
                     audio_format=meta.filepath.suffix,
                 )
@@ -191,7 +183,7 @@ class PlaychitectWindow(Adw.ApplicationWindow):
 
         self._spinner.start()
         self._cluster_btn.set_sensitive(False)
-        self.set_title("Playchitect — clustering…")
+        self.set_title("Playchitect — analysing & clustering…")
 
         # Perform in a thread to keep UI responsive
         threading.Thread(target=self._cluster_worker, daemon=True).start()
@@ -199,6 +191,10 @@ class PlaychitectWindow(Adw.ApplicationWindow):
     def _cluster_worker(self) -> None:
         """Background worker for clustering."""
         try:
+            config = get_config()
+            int_analyzer = IntensityAnalyzer(cache_dir=config.get_cache_dir() / "intensity")
+            self._intensity_map = int_analyzer.analyze_batch(list(self._metadata_map.keys()))
+
             clusterer = PlaylistClusterer(target_tracks_per_playlist=20)
             self._clusters = clusterer.cluster_by_features(self._metadata_map, self._intensity_map)
 

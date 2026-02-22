@@ -6,7 +6,7 @@
 **Purpose**: Smart DJ Playlist Manager with Intelligent BPM Clustering
 **Repository**: https://github.com/james-westwood/playchitect
 **Location**: `/home/james/audio/playchitect/`
-**Status**: Milestone 1 Complete (2026-02-19)
+**Status**: Milestones 1–5 Complete; Milestone 6 (Packaging & Distribution) in progress
 
 
 # Gemini — As a code developer
@@ -33,16 +33,17 @@ Playchitect transforms DJ playlist creation from rigid BPM-based grouping to int
 - scikit-learn (K-means clustering)
 - numpy, scipy
 
-**Frontend** (Milestone 3):
+**Frontend**:
 - GTK4 + libadwaita (native GNOME)
 - PyGObject bindings (system package — cannot be pip-installed)
 - GNOME Sushi integration (spacebar preview)
 
 **Development**:
 - Package management: uv
-- Testing: pytest with 218 tests (unit + integration)
-- Pre-commit hooks: ruff, ty, pytest-unit, cli-smoke-test
+- Testing: pytest with 487+ tests (unit, integration, GUI, benchmarks)
+- Pre-commit hooks: ruff, ty, pytest-unit, cli-smoke-test, gui-smoke-test
 - CI/CD: GitHub Actions (.github/workflows/ci.yml)
+- Docs: VitePress site deployed to GitHub Pages (`docs/`)
 
 ## Project Structure
 
@@ -51,23 +52,55 @@ playchitect/
 ├── playchitect/                    # Main package
 │   ├── core/                       # Core business logic
 │   │   ├── audio_scanner.py        # File discovery (92% coverage)
-│   │   ├── metadata_extractor.py   # BPM extraction (61% coverage)
-│   │   ├── intensity_analyzer.py   # TODO: Milestone 2
-│   │   ├── clustering.py           # TODO: Milestone 2
-│   │   ├── track_selector.py       # TODO: Milestone 2
-│   │   ├── playlist_generator.py   # TODO: Milestone 2
-│   │   └── export.py               # TODO: Milestone 4
+│   │   ├── metadata_extractor.py   # BPM + tag extraction (99% coverage)
+│   │   ├── intensity_analyzer.py   # librosa 7-feature analysis + JSON cache
+│   │   ├── clustering.py           # K-means / EWKM on 8D feature space
+│   │   ├── track_selector.py       # Smart first/last track scoring
+│   │   ├── sequencer.py            # Energy-ramp sequencing within clusters
+│   │   ├── weighting.py            # Genre-specific PCA + EWKM weights
+│   │   ├── embedding_extractor.py  # MusiCNN Block PCA semantic embeddings
+│   │   ├── genre_resolver.py       # Tag → genre normalisation
+│   │   ├── cue_generator.py        # CUE sheet export
+│   │   ├── cue_timing.py           # Frame-accurate CUE timing utilities
+│   │   ├── track_previewer.py      # GNOME Sushi / xdg-open preview
+│   │   └── export.py               # Playlist export (M3U etc.)
 │   ├── cli/                        # CLI interface
-│   │   └── commands.py             # scan, info commands
-│   ├── gui/                        # GTK4 interface (Milestone 3)
-│   └── utils/                      # Config, logging
+│   │   └── commands.py             # scan, info, cluster, export commands
+│   ├── gui/                        # GTK4 + libadwaita interface
+│   │   ├── app.py                  # GtkApplication entry point
+│   │   ├── widgets/
+│   │   │   ├── track_list.py       # ColumnView track browser
+│   │   │   ├── cluster_view.py     # Cluster sidebar panel
+│   │   │   └── cluster_stats.py    # Per-cluster stat summaries
+│   │   └── windows/
+│   │       └── main_window.py      # Main application window
+│   └── utils/                      # Config, logging, desktop install
+│       ├── config.py
+│       └── desktop_install.py
 ├── tests/
-│   ├── unit/                       # 27 tests passing
-│   ├── integration/                # TODO
-│   └── gui/                        # TODO: Milestone 3
+│   ├── unit/                       # 17 test modules, ~380 tests
+│   ├── integration/                # CLI integration tests
+│   ├── gui/                        # GTK4 smoke tests (mock harness)
+│   └── benchmarks/                 # Performance regression suite
 ├── docs/
-│   └── MILESTONE1_COMPLETE.md      # Milestone 1 summary
-├── pyproject.toml                  # Project metadata
+│   ├── .vitepress/config.ts        # VitePress sidebar / nav config
+│   ├── guide/                      # User-facing docs (VitePress)
+│   ├── contributing/               # Developer docs (VitePress)
+│   ├── planning/                   # Internal planning notes (excluded from build)
+│   └── research/                   # Research notes (excluded from build)
+├── data/
+│   ├── icons/hicolor/              # 9 PNG icon sizes
+│   ├── icons/playchitect.ico       # Windows icon
+│   ├── playchitect.desktop         # Desktop entry file
+│   └── com.github.jameswestwood.Playchitect.appdata.xml
+├── scripts/
+│   ├── review_pr.sh                # Gemini PR review runner
+│   ├── generate_icons.py           # Icon generation helper
+│   ├── generate_flatpak_sources.py # Flatpak source manifest helper
+│   └── generate_perf_report.py     # Benchmark report generator
+├── UPDATING_DOCS.md                # How to add pages to VitePress
+├── GEMINI.md                       # Gemini reviewer instructions
+├── pyproject.toml                  # Project metadata + entry points
 ├── uv.lock                         # Locked dependencies
 └── CLAUDE.md                       # This file
 ```
@@ -116,6 +149,14 @@ uv run ty check
 | Docs | `docs/<slug>` | `docs/update-readme` |
 | Chore | `chore/<slug>` | `chore/chore/bump-librosa` |
 
+### Before Writing Any Code (Claude's checklist)
+
+1. Create a GitHub issue (`gh issue create`) to track the work
+2. Discuss the plan with James before implementing — enter plan mode,
+   write the plan, and wait for approval via ExitPlanMode
+3. Only then create a feature branch and start coding
+4. Never commit or edit files directly on `main`
+
 ### Claude's Git Workflow
 
 ```bash
@@ -153,6 +194,12 @@ gh pr create --title "feat(analysis): implement librosa intensity analyzer" \
 - [ ] Type hints complete and ty clean
 - [ ] No magic numbers — use named constants
 - [ ] No direct commits to `main`
+
+### Documentation
+
+- If modifying a function, update its docstring.
+- If new features have been made that affect user experience, add a note to the docstring.
+- If new features affect how the user must interact with the app, either by the CLI or GUI, then follow the instructions in `UPDATING_DOCS.md`.
 
 ### Gemini Review Workflow
 
@@ -365,5 +412,5 @@ Flathub's [submission requirements](https://docs.flathub.org/docs/for-app-author
 
 ---
 
-**Last Updated**: 2026-02-21
+**Last Updated**: 2026-02-22
 **Current Milestone**: Milestone 6 — Packaging & Distribution (Milestones 1–5 complete)

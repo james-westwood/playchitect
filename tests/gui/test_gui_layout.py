@@ -379,3 +379,67 @@ class TestClusterHandlers:
         # Check if set_title was called with something containing "failed"
         title_call = bare_window.set_title.call_args[0][0]
         assert "failed" in title_call.lower()
+
+
+class TestClusterWorkerIntensity:
+    """Test _cluster_worker intensity analysis integration."""
+
+    def test_intensity_analyzer_constructed_with_cache_dir(
+        self, bare_window: PlaychitectWindow, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        mock_config = MagicMock()
+        mock_config.get_cache_dir.return_value = Path("/fake/cache")
+        monkeypatch.setattr("playchitect.gui.windows.main_window.get_config", lambda: mock_config)
+
+        mock_analyzer_cls = MagicMock()
+        monkeypatch.setattr(
+            "playchitect.gui.windows.main_window.IntensityAnalyzer", mock_analyzer_cls
+        )
+        monkeypatch.setattr("playchitect.gui.windows.main_window.PlaylistClusterer", MagicMock())
+        monkeypatch.setattr("playchitect.gui.windows.main_window.Sequencer", MagicMock())
+        monkeypatch.setattr("playchitect.gui.windows.main_window.GLib.idle_add", MagicMock())
+
+        bare_window._cluster_worker()
+
+        mock_analyzer_cls.assert_called_once_with(cache_dir=Path("/fake/cache/intensity"))
+
+    def test_analyze_batch_called_with_metadata_keys(
+        self, bare_window: PlaychitectWindow, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        mock_config = MagicMock()
+        monkeypatch.setattr("playchitect.gui.windows.main_window.get_config", lambda: mock_config)
+
+        mock_analyzer = MagicMock()
+        mock_analyzer_cls = MagicMock(return_value=mock_analyzer)
+        monkeypatch.setattr(
+            "playchitect.gui.windows.main_window.IntensityAnalyzer", mock_analyzer_cls
+        )
+        monkeypatch.setattr("playchitect.gui.windows.main_window.PlaylistClusterer", MagicMock())
+        monkeypatch.setattr("playchitect.gui.windows.main_window.Sequencer", MagicMock())
+        monkeypatch.setattr("playchitect.gui.windows.main_window.GLib.idle_add", MagicMock())
+
+        bare_window._metadata_map = {Path("a.flac"): MagicMock(), Path("b.flac"): MagicMock()}
+
+        bare_window._cluster_worker()
+
+        mock_analyzer.analyze_batch.assert_called_once_with(list(bare_window._metadata_map.keys()))
+
+    def test_intensity_map_set_from_analyze_batch(
+        self, bare_window: PlaychitectWindow, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        mock_config = MagicMock()
+        monkeypatch.setattr("playchitect.gui.windows.main_window.get_config", lambda: mock_config)
+
+        mock_analyzer = MagicMock()
+        mock_analyzer.analyze_batch.return_value = {"path": "features"}
+        mock_analyzer_cls = MagicMock(return_value=mock_analyzer)
+        monkeypatch.setattr(
+            "playchitect.gui.windows.main_window.IntensityAnalyzer", mock_analyzer_cls
+        )
+        monkeypatch.setattr("playchitect.gui.windows.main_window.PlaylistClusterer", MagicMock())
+        monkeypatch.setattr("playchitect.gui.windows.main_window.Sequencer", MagicMock())
+        monkeypatch.setattr("playchitect.gui.windows.main_window.GLib.idle_add", MagicMock())
+
+        bare_window._cluster_worker()
+
+        assert bare_window._intensity_map == {"path": "features"}
