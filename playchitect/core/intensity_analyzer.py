@@ -5,6 +5,8 @@ Analyzes tracks to extract intensity features including RMS energy,
 spectral brightness, bass energy (3-way split), percussiveness, and onset strength.
 """
 
+from __future__ import annotations
+
 import hashlib
 import json
 import logging
@@ -13,7 +15,10 @@ from collections.abc import Callable
 from concurrent.futures import ProcessPoolExecutor, as_completed
 from dataclasses import asdict, dataclass
 from pathlib import Path
-from typing import Any, Literal, overload
+from typing import TYPE_CHECKING, Any, Literal, overload
+
+if TYPE_CHECKING:
+    from playchitect.core.cache_db import CacheDB
 
 import librosa
 import numpy as np
@@ -35,6 +40,9 @@ _FREQ_BASS_HARMONICS_HIGH: int = 250
 # Energy gating threshold — frames below this RMS percentile are excluded from
 # brightness calculation to avoid silence skewing the spectral centroid.
 _ENERGY_GATE_PERCENTILE: int = 25
+
+# Default sample rate for librosa audio loading (Hz)
+_DEFAULT_SAMPLE_RATE: int = 22050
 
 
 def _analyze_worker(args: tuple[str, str]) -> tuple[str, dict[str, Any]]:
@@ -136,7 +144,7 @@ class IntensityFeatures:
         return vector
 
     @classmethod
-    def from_dict(cls, data: dict[str, Any]) -> "IntensityFeatures":
+    def from_dict(cls, data: dict[str, Any]) -> IntensityFeatures:
         """Create from dictionary."""
         data["filepath"] = Path(data["filepath"])
         return cls(**data)
@@ -147,20 +155,29 @@ class IntensityAnalyzer:
 
     def __init__(
         self,
-        sample_rate: int = 22050,
+        sample_rate: int = _DEFAULT_SAMPLE_RATE,
         cache_dir: Path | None = None,
         cache_enabled: bool = True,
+        cache_db: CacheDB | None = None,
     ):
         """
         Initialize intensity analyzer.
 
         Args:
-            sample_rate: Target sample rate for analysis
-            cache_dir: Directory for caching analysis results
-            cache_enabled: Whether to use caching
+            sample_rate:  Target sample rate for analysis.
+            cache_dir:    Directory for the legacy JSON cache. Still used by
+                          subprocess workers regardless of ``cache_db``.
+            cache_enabled: Whether to use any caching at all.
+            cache_db:     Optional SQLite-backed cache.  When provided,
+                          ``analyze_batch`` loads the full cache in a single
+                          query instead of N individual JSON reads, and new
+                          results are stored in the DB after analysis.
+                          Falls back to JSON cache when ``None``.
         """
         self.sample_rate = sample_rate
         self.cache_enabled = cache_enabled
+        self.cache_db = cache_db
+        self._db_migrated: bool = False
 
         if cache_dir is None:
             env_cache_dir = os.environ.get("PLAYCHITECT_CACHE_DIR")
@@ -193,7 +210,13 @@ class IntensityAnalyzer:
         # Check cache first
         file_hash = self._compute_file_hash(filepath)
 
-        if self.cache_enabled:
+        if self.cache_db is not None:
+            cached = self.cache_db.get_intensity(file_hash)
+            if cached is not None:
+                logger.debug(f"Using cached analysis for: {filepath.name}")
+                cached.filepath = filepath
+                return cached
+        elif self.cache_enabled:
             cached = self._load_from_cache(file_hash)
             if cached is not None:
                 logger.debug(f"Using cached analysis for: {filepath.name}")
@@ -232,7 +255,9 @@ class IntensityAnalyzer:
         )
 
         # Cache results
-        if self.cache_enabled:
+        if self.cache_db is not None:
+            self.cache_db.put_intensity(file_hash, features)
+        elif self.cache_enabled:
             self._save_to_cache(file_hash, features)
 
         return features
@@ -428,7 +453,7 @@ class IntensityAnalyzer:
         filepaths: list[Path],
         max_workers: int | None = None,
         progress_callback: Callable[[int, int], None] | None = None,
-    ) -> dict[Path, "IntensityFeatures"]:
+    ) -> dict[Path, IntensityFeatures]:
         """
         Analyse multiple audio files in parallel using ProcessPoolExecutor.
 
@@ -448,15 +473,31 @@ class IntensityAnalyzer:
         if max_workers is None:
             max_workers = max(1, min((os.cpu_count() or 1) // 2, 6))
 
+        # One-time migration from JSON on first DB-backed batch
+        if self.cache_db is not None and not self._db_migrated:
+            from playchitect.core.cache_db import migrate_json_cache
+
+            migrate_json_cache(self.cache_dir, self.cache_db)
+            self._db_migrated = True
+
         n_total = len(filepaths)
         n_done = 0
         results: dict[Path, IntensityFeatures] = {}
         uncached: list[Path] = []
 
+        # Bulk-load DB cache in one query (replaces N individual JSON reads)
+        db_cache: dict[str, IntensityFeatures] = {}
+        if self.cache_db is not None:
+            db_cache = self.cache_db.load_all_intensity()
+
         # Cache pre-flight — resolve hits without touching the pool
         for filepath in filepaths:
             file_hash = self._compute_file_hash(filepath)
-            cached = self._load_from_cache(file_hash)
+            cached: IntensityFeatures | None
+            if self.cache_db is not None:
+                cached = db_cache.get(file_hash)
+            else:
+                cached = self._load_from_cache(file_hash)  # always check, same as original
             if cached is not None:
                 cached.filepath = filepath
                 results[filepath] = cached
@@ -478,7 +519,10 @@ class IntensityAnalyzer:
                 original_path = future_to_path[future]
                 try:
                     _filepath_str, features_dict = future.result()
-                    results[original_path] = IntensityFeatures.from_dict(features_dict)
+                    features = IntensityFeatures.from_dict(features_dict)
+                    results[original_path] = features
+                    if self.cache_db is not None:
+                        self.cache_db.put_intensity(features.file_hash, features)
                 except Exception as exc:
                     logger.error("Failed to analyse %s: %s", original_path, exc)
                 finally:
