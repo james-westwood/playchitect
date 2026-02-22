@@ -10,6 +10,9 @@
 | 4 | Export & Integration | ✅ Complete | 2026-02-20 |
 | 5 | Testing & Quality Assurance | ✅ Complete | 2026-02-21 |
 | 6 | Packaging & Distribution | 🚧 In progress | — |
+| 7 | Advanced Set Architecture | 📅 Planned | — |
+| 8 | DJ Ecosystem Integration | 📅 Planned | — |
+| 9 | Library Management & Stability | 📅 Planned | — |
 
 ---
 
@@ -107,21 +110,36 @@ See [`milestones/milestone-2-complete.md`](milestones/milestone-2-complete.md) f
 
 ---
 
-## Enhancement Backlog (Post Milestone 6, no milestone assigned)
+## 📅 Milestone 7 — Advanced Set Architecture
 
-**Housekeeping**:
-- #19 — Wire intensity cache dir through central config
-- #21 — Boost `metadata_extractor` test coverage to >85%
-- #22 — Parallel batch analysis with `ProcessPoolExecutor`
-- #23 — Silhouette score for auto-K cluster selection
-- #26/#27 — User-configurable weight overrides (YAML config + CLI flags)
+**Goal**: Deepen musical intelligence and provide advanced creative sequencing.
 
-**Feature additions**:
-- #36/#37 — Key / Harmonic Mixing (Camelot wheel) — core + GUI
-- #38/#39 — Energy Flow features — core + GUI
-- #40/#41 — Timbre / Texture features — core + GUI
-- #42/#43 — Structural features (vocal presence) — core + GUI
-- #51 — "5 Rhythms" intensity sequencing mode
+- **Harmonic Mixing**: #36 (Core), #37 (GUI) — Camelot wheel and key compatibility
+- **Energy & Dynamics**: #38 (Core), #39 (GUI) — Dynamic range and onset density
+- **Timbre & Texture**: #40 (Core), #41 (GUI) — MFCCs and spectral analysis
+- **Structural Awareness**: #42 (Core), #43 (GUI) — Vocal presence; #82 — Interactive cue injection
+- **Creative Sequencing**: #51 — "5 Rhythms" mode; #84 — Real-time Next Track sidecar; #85 — Energy arc visualisation
+
+---
+
+## 📅 Milestone 8 — DJ Ecosystem Integration
+
+**Goal**: Seamless connectivity with professional DJ software and workflows.
+
+- **Software Sync**: #81 — Mixxx bidirectional sync (crates & metadata); #86 — Rekordbox XML import
+- **Extended Export**: #78 — Specialised export formats (Traktor, Serato, etc.)
+- **Context Awareness**: #83 — History-aware sequencing (Mixxx "Fresh Tracks" mode)
+
+---
+
+## 📅 Milestone 9 — Library Management & Stability
+
+**Goal**: Robustness, performance, and manual curation tools.
+
+- **Analysis Robustness**: #94 — Suppress librosa warnings; #95 — Corrupt file handling
+- **Search & Clustering**: #23 — Silhouette score for auto-K selection; #26/#27 — User-configurable weight overrides
+- **Manual Curation**: #87 — User-defined vibe tags
+- **Housekeeping**: #21 — `metadata_extractor` coverage >85%; #22 — Parallel batch analysis
 
 ---
 
@@ -138,4 +156,4 @@ See [`milestones/milestone-2-complete.md`](milestones/milestone-2-complete.md) f
 
 ---
 
-*Last updated: 2026-02-22*
+*Last updated: 2026-02-23*
