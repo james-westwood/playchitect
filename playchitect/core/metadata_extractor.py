@@ -4,13 +4,16 @@ Metadata extraction from audio files using mutagen.
 Extracts BPM, artist, title, album, duration, and other metadata.
 """
 
+from __future__ import annotations
+
 import logging
-import warnings
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
 
 import numpy as np
+
+from playchitect.utils.warnings import suppress_librosa_warnings
 
 try:
     from mutagen import File as MutagenFile
@@ -84,17 +87,19 @@ class MetadataExtractor:
         "fBPM",  # Some MP3 tag formats
     ]
 
-    def __init__(self, cache_enabled: bool = True):
+    def __init__(self, cache_enabled: bool = True, cache_db: Any | None = None):
         """
         Initialize metadata extractor.
 
         Args:
-            cache_enabled: Whether to enable metadata caching (future feature)
+            cache_enabled: Whether to enable metadata caching
+            cache_db:      Optional SQLite CacheDB instance for persistence
         """
         if not MUTAGEN_AVAILABLE:
             logger.warning("Mutagen library not available. Metadata extraction will be limited.")
 
         self.cache_enabled = cache_enabled
+        self.cache_db = cache_db
         self._cache: dict[Path, TrackMetadata] = {}
 
     def extract(self, filepath: Path) -> TrackMetadata:
@@ -107,10 +112,18 @@ class MetadataExtractor:
         Returns:
             TrackMetadata object with extracted information
         """
-        # Check cache first
+        # 1. Check in-memory cache
         if self.cache_enabled and filepath in self._cache:
-            logger.debug(f"Using cached metadata for: {filepath}")
+            logger.debug(f"Using in-memory metadata for: {filepath}")
             return self._cache[filepath]
+
+        # 2. Check persistent cache (SQLite)
+        if self.cache_enabled and self.cache_db:
+            cached = self.cache_db.get_metadata(filepath)
+            if cached:
+                logger.debug(f"Using persistent metadata for: {filepath}")
+                self._cache[filepath] = cached
+                return cached
 
         metadata = TrackMetadata(filepath=filepath)
 
@@ -169,6 +182,8 @@ class MetadataExtractor:
         # Cache the result
         if self.cache_enabled:
             self._cache[filepath] = metadata
+            if self.cache_db:
+                self.cache_db.put_metadata(metadata)
 
         return metadata
 
@@ -217,15 +232,9 @@ class MetadataExtractor:
         if not filepath.exists():
             return None
 
-        try:
-            import librosa  # noqa: PLC0415
-
-            # Suppress noisy librosa backend warnings locally (Issue #94)
-            with warnings.catch_warnings():
-                warnings.filterwarnings("ignore", category=UserWarning, module="librosa")
-                warnings.filterwarnings("ignore", category=FutureWarning, module="librosa")
-                warnings.filterwarnings("ignore", category=UserWarning, module="audioread")
-                warnings.filterwarnings("ignore", message="PySoundFile failed.*")
+        with suppress_librosa_warnings():
+            try:
+                import librosa  # noqa: PLC0415
 
                 # Only load first 60s for speed, enough for tempo estimation
                 # Use duration=60 but also check file size/duration if possible
@@ -241,16 +250,16 @@ class MetadataExtractor:
 
                 tempo_result = librosa.beat.beat_track(y=y, sr=sr)
 
-            # tempo_result is usually (tempo, beats)
-            tempo = np.atleast_1d(tempo_result[0])[0]
-            bpm = float(tempo)
+                # tempo_result is usually (tempo, beats)
+                tempo = np.atleast_1d(tempo_result[0])[0]
+                bpm = float(tempo)
 
-            # Round to nearest whole number as per user preference
-            bpm = float(round(bpm))
-            return bpm if bpm > 0 else None
-        except Exception as e:
-            logger.error("Error calculating BPM for %s: %s", filepath, e)
-            return None
+                # Round to nearest whole number as per user preference
+                bpm = float(round(bpm))
+                return bpm if bpm > 0 else None
+            except Exception as e:
+                logger.error("Error calculating BPM for %s: %s", filepath, e)
+                return None
 
     def _extract_bpm(self, audio: Any) -> float | None:
         """

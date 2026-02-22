@@ -11,7 +11,6 @@ import hashlib
 import json
 import logging
 import os
-import warnings
 from collections.abc import Callable
 from concurrent.futures import ProcessPoolExecutor, as_completed
 from dataclasses import asdict, dataclass
@@ -25,6 +24,7 @@ import librosa
 import numpy as np
 
 from playchitect.utils.config import get_config
+from playchitect.utils.warnings import suppress_librosa_warnings
 
 logger = logging.getLogger(__name__)
 
@@ -231,37 +231,31 @@ class IntensityAnalyzer:
         logger.debug(f"Analyzing: {filepath.name}")
 
         # Load audio
-        try:
-            # Suppress noisy librosa backend warnings locally (Issue #94)
-            with warnings.catch_warnings():
-                warnings.filterwarnings("ignore", category=UserWarning, module="librosa")
-                warnings.filterwarnings("ignore", category=FutureWarning, module="librosa")
-                warnings.filterwarnings("ignore", category=UserWarning, module="audioread")
-                warnings.filterwarnings("ignore", message="PySoundFile failed.*")
-
+        with suppress_librosa_warnings():
+            try:
                 # Use duration=300 limit to avoid OOM on huge files, enough for intensity
                 y, _ = librosa.load(filepath, sr=self.sample_rate, mono=True, duration=300)
 
-            # Defensive check for empty or near-empty audio
-            if y is None or len(y) < 100:
-                raise ValueError("Audio file is empty or too short")
+                # Defensive check for empty or near-empty audio
+                if y is None or len(y) < 100:
+                    raise ValueError("Audio file is empty or too short")
 
-            # Compute STFT once
-            S = np.abs(librosa.stft(y))
+                # Compute STFT once
+                S = np.abs(librosa.stft(y))
 
-            # Ensure S has content
-            if S.size == 0 or np.max(S) < 1e-7:
-                raise ValueError("No signal detected in audio")
+                # Ensure S has content
+                if S.size == 0 or np.max(S) < 1e-7:
+                    raise ValueError("No signal detected in audio")
 
-            rms = self._calculate_rms_energy(S)
-            brightness = self._calculate_brightness(S, self.sample_rate)
-            sub_bass, kick, harmonics = self._calculate_bass_energy(S, self.sample_rate)
-            percussiveness = self._calculate_percussiveness(S)
-            onset = self._calculate_onset_strength(S, self.sample_rate)
+                rms = self._calculate_rms_energy(S)
+                brightness = self._calculate_brightness(S, self.sample_rate)
+                sub_bass, kick, harmonics = self._calculate_bass_energy(S, self.sample_rate)
+                percussiveness = self._calculate_percussiveness(S)
+                onset = self._calculate_onset_strength(S, self.sample_rate)
 
-        except Exception as e:
-            # Re-raise as ValueError with context for analyze_batch to catch
-            raise ValueError(f"Failed to analyze {filepath.name}: {e}") from e
+            except Exception as e:
+                # Re-raise as ValueError with context for analyze_batch to catch
+                raise ValueError(f"Failed to analyze {filepath.name}: {e}") from e
 
         features = IntensityFeatures(
             filepath=filepath,
