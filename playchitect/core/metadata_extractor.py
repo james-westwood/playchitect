@@ -87,19 +87,17 @@ class MetadataExtractor:
         "fBPM",  # Some MP3 tag formats
     ]
 
-    def __init__(self, cache_enabled: bool = True, cache_db: Any | None = None):
+    def __init__(self, cache_enabled: bool = True):
         """
         Initialize metadata extractor.
 
         Args:
-            cache_enabled: Whether to enable metadata caching
-            cache_db:      Optional SQLite CacheDB instance for persistence
+            cache_enabled: Whether to enable metadata caching (future feature)
         """
         if not MUTAGEN_AVAILABLE:
             logger.warning("Mutagen library not available. Metadata extraction will be limited.")
 
         self.cache_enabled = cache_enabled
-        self.cache_db = cache_db
         self._cache: dict[Path, TrackMetadata] = {}
 
     def extract(self, filepath: Path) -> TrackMetadata:
@@ -112,18 +110,10 @@ class MetadataExtractor:
         Returns:
             TrackMetadata object with extracted information
         """
-        # 1. Check in-memory cache
+        # Check cache first
         if self.cache_enabled and filepath in self._cache:
-            logger.debug(f"Using in-memory metadata for: {filepath}")
+            logger.debug(f"Using cached metadata for: {filepath}")
             return self._cache[filepath]
-
-        # 2. Check persistent cache (SQLite)
-        if self.cache_enabled and self.cache_db:
-            cached = self.cache_db.get_metadata(filepath)
-            if cached:
-                logger.debug(f"Using persistent metadata for: {filepath}")
-                self._cache[filepath] = cached
-                return cached
 
         metadata = TrackMetadata(filepath=filepath)
 
@@ -182,8 +172,6 @@ class MetadataExtractor:
         # Cache the result
         if self.cache_enabled:
             self._cache[filepath] = metadata
-            if self.cache_db:
-                self.cache_db.put_metadata(metadata)
 
         return metadata
 
