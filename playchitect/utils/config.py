@@ -113,6 +113,16 @@ class Config:
         cache_path.mkdir(parents=True, exist_ok=True)
         return cache_path
 
+    def get_db_path(self) -> Path:
+        """
+        Return the path to the centralised SQLite cache database.
+
+        Returns:
+            Path to ``~/.cache/playchitect/playchitect.db`` (or the
+            env-var-configured cache directory).
+        """
+        return self.get_cache_dir() / "playchitect.db"
+
     def get_track_override(self, music_dir: Path) -> dict[str, Path | None]:
         """
         Return saved opener/closer overrides for a music directory.
