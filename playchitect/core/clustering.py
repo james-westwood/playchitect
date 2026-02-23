@@ -69,6 +69,9 @@ class ClusterResult:
     # Populated in per-genre mode; None otherwise.
     genre: str | None = field(default=None)
 
+    # Populated when moods are available; None otherwise.
+    mood: str | None = field(default=None)
+
     # Populated by sequencer / track selector
     opener: Path | None = field(default=None)
     closer: Path | None = field(default=None)
@@ -308,17 +311,32 @@ class PlaylistClusterer:
                 for i, p in enumerate(valid_paths):
                     features_normalized[i, 0] *= bpm_scaling.get(p, 1.0)
 
-            # PCA-compress 128-dim embeddings → 12 semantic components
+            # PCA-compress 128-dim embeddings → up to 12 semantic components
+            n_comp = min(len(valid_paths), _EMBEDDING_PCA_COMPONENTS)
             emb_matrix = np.array([embedding_dict[p].embedding for p in valid_paths])  # (N', 128)
-            pca = PCA(n_components=_EMBEDDING_PCA_COMPONENTS, random_state=self.random_state)
-            emb_pca = pca.fit_transform(emb_matrix)  # (N', 12)
+            pca = PCA(n_components=n_comp, random_state=self.random_state)
+            emb_pca = pca.fit_transform(emb_matrix)  # (N', n_comp)
             emb_scaler = StandardScaler()
-            emb_scaled = emb_scaler.fit_transform(emb_pca)  # (N', 12)
+            emb_scaled = emb_scaler.fit_transform(emb_pca)  # (N', n_comp)
+
+            # Mood features (5 clusters from MIREX)
+            # EmbeddingFeatures.moods is a list of (label, prob) tuples sorted descending.
+            # We need a stable vector order.
+            mood_labels = sorted(list({m[0] for p in valid_paths for m in embedding_dict[p].moods}))
+            mood_matrix = []
+            for p in valid_paths:
+                mood_dict = dict(embedding_dict[p].moods)
+                mood_matrix.append([mood_dict.get(label, 0.0) for label in mood_labels])
+            mood_matrix_np = np.array(mood_matrix)  # (N', 5)
+            mood_scaled = emb_scaler.fit_transform(
+                mood_matrix_np
+            )  # reuse scaler or new one? new is safer
 
             # Block-weighted concatenation: intensity 70% + semantic 30%
+            # We treat mood as part of the semantic block.
             X_intensity = features_normalized * _INTENSITY_BLOCK_WEIGHT  # (N', 8)
-            X_semantic = emb_scaled * _SEMANTIC_BLOCK_WEIGHT  # (N', 12)
-            features_for_kmeans = np.hstack([X_intensity, X_semantic])  # (N', 20)
+            X_semantic = np.hstack([emb_scaled, mood_scaled]) * _SEMANTIC_BLOCK_WEIGHT  # (N', 17)
+            features_for_kmeans = np.hstack([X_intensity, X_semantic])  # (N', 25)
 
             embedding_pca_variance = float(pca.explained_variance_ratio_.sum())
             logger.info(
@@ -369,6 +387,7 @@ class PlaylistClusterer:
             optimal_k,
             valid_meta,
             intensity_dict=intensity_dict,
+            embedding_dict=embedding_dict,
             raw_features=features,
             per_cluster_importance=per_cluster_importance,
             weight_source=weight_source,
@@ -502,6 +521,7 @@ class PlaylistClusterer:
         n_clusters: int,
         metadata_dict: dict[Path, TrackMetadata],
         intensity_dict: dict[Path, IntensityFeatures] | None = None,
+        embedding_dict: dict[Path, Any] | None = None,
         raw_features: np.ndarray | None = None,
         per_cluster_importance: list[dict[str, float]] | None = None,
         feature_importance: dict[str, float] | None = None,
@@ -547,6 +567,16 @@ class PlaylistClusterer:
                 else feature_importance
             )
 
+            # Determine dominant mood for cluster
+            dominant_mood: str | None = None
+            if embedding_dict:
+                mood_counts: dict[str, float] = {}
+                for t in cluster_tracks:
+                    if t in embedding_dict and (m := embedding_dict[t].primary_mood):
+                        mood_counts[m] = mood_counts.get(m, 0.0) + 1.0
+                if mood_counts:
+                    dominant_mood = max(mood_counts, key=mood_counts.get)  # type: ignore[arg-type]
+
             results.append(
                 ClusterResult(
                     cluster_id=cid,
@@ -558,6 +588,7 @@ class PlaylistClusterer:
                     feature_means=f_means,
                     feature_importance=f_importance,
                     weight_source=weight_source,
+                    mood=dominant_mood,
                 )
             )
 

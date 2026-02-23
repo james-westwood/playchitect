@@ -222,13 +222,16 @@ def scan(
     )
 
     if need_intensity:
-        # Intensity analysis is required by cluster_by_features
-        from playchitect.core.intensity_analyzer import (
-            IntensityAnalyzer,
-        )  # noqa: PLC0415
+        from playchitect.core.cache_db import CacheDB  # noqa: PLC0415
+        from playchitect.core.intensity_analyzer import IntensityAnalyzer  # noqa: PLC0415
+
+        db_path = config.get_cache_dir() / "playchitect.db"
+        cache_db = CacheDB(db_path)
 
         click.echo("\nExtracting audio intensity features...")
-        int_analyzer = IntensityAnalyzer(cache_dir=config.get_cache_dir() / "intensity")
+        int_analyzer = IntensityAnalyzer(
+            cache_dir=config.get_cache_dir() / "intensity", cache_db=cache_db
+        )
         with click.progressbar(audio_files, label="Intensity analysis", show_pos=True) as files:
             for file_path in files:
                 try:
@@ -252,10 +255,9 @@ def scan(
                         else None
                     )
                 )
-                emb_extractor = EmbeddingExtractor(model_path=resolved_model)  # Store the instance
-                click.echo(
-                    "\nExtracting MusiCNN embeddings (may download ~50 MB model on first run)..."
-                )
+                # Pass cache_db to EmbeddingExtractor
+                emb_extractor = EmbeddingExtractor(model_path=resolved_model, cache_db=cache_db)
+                click.echo("\nExtracting MusiCNN embeddings (may download models on first run)...")
                 with click.progressbar(
                     audio_files, label="Embedding files", show_pos=True
                 ) as files:
@@ -363,8 +365,9 @@ def scan(
     for i, cluster in enumerate(clusters):
         duration_min = cluster.total_duration / 60 if cluster.total_duration else 0
         genre_label = f" [{cluster.genre}]" if cluster.genre else ""
+        mood_label = f" ({cluster.mood})" if cluster.mood else ""
         click.echo(
-            f"  Cluster {i + 1}{genre_label}: {cluster.track_count} tracks, "
+            f"  Cluster {i + 1}{genre_label}{mood_label}: {cluster.track_count} tracks, "
             f"BPM: {cluster.bpm_mean:.1f} ± {cluster.bpm_std:.1f}, "
             f"Duration: {duration_min:.1f} min"
         )

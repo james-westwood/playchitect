@@ -21,6 +21,7 @@ logger = logging.getLogger(__name__)
 
 # ── Table / column name constants ─────────────────────────────────────────────
 _TABLE = "intensity_features"
+_TABLE_MOODS = "track_moods"
 _COL_FILE_HASH = "file_hash"
 _COL_RMS_ENERGY = "rms_energy"
 _COL_BRIGHTNESS = "brightness"
@@ -29,6 +30,9 @@ _COL_KICK_ENERGY = "kick_energy"
 _COL_BASS_HARMONICS = "bass_harmonics"
 _COL_PERCUSSIVENESS = "percussiveness"
 _COL_ONSET_STRENGTH = "onset_strength"
+
+_COL_MOODS_JSON = "moods_json"
+_COL_PRIMARY_MOOD = "primary_mood"
 
 # Ordered tuple used for INSERT / SELECT column lists
 _DATA_COLS = (
@@ -53,10 +57,17 @@ CREATE TABLE IF NOT EXISTS {_TABLE} (
     {_COL_PERCUSSIVENESS}  REAL NOT NULL,
     {_COL_ONSET_STRENGTH}  REAL NOT NULL
 );
+CREATE TABLE IF NOT EXISTS {_TABLE_MOODS} (
+    {_COL_FILE_HASH}    TEXT PRIMARY KEY,
+    {_COL_MOODS_JSON}   TEXT NOT NULL,
+    {_COL_PRIMARY_MOOD} TEXT NOT NULL
+);
 CREATE INDEX IF NOT EXISTS idx_intensity_brightness
     ON {_TABLE} ({_COL_BRIGHTNESS});
 CREATE INDEX IF NOT EXISTS idx_intensity_percussiveness
     ON {_TABLE} ({_COL_PERCUSSIVENESS});
+CREATE INDEX IF NOT EXISTS idx_moods_primary
+    ON {_TABLE_MOODS} ({_COL_PRIMARY_MOOD});
 """
 
 _INSERT_SQL = (
@@ -65,12 +76,26 @@ _INSERT_SQL = (
     f"VALUES ({', '.join('?' * len(_DATA_COLS))})"
 )
 
+_INSERT_MOODS_SQL = (
+    f"INSERT OR REPLACE INTO {_TABLE_MOODS} "
+    f"({_COL_FILE_HASH}, {_COL_MOODS_JSON}, {_COL_PRIMARY_MOOD}) "
+    f"VALUES (?, ?, ?)"
+)
+
 _SELECT_ONE_SQL = (
     f"SELECT {', '.join(_DATA_COLS[1:])} "  # all except file_hash (passed as arg)
     f"FROM {_TABLE} WHERE {_COL_FILE_HASH} = ?"
 )
 
+_SELECT_MOODS_SQL = (
+    f"SELECT {_COL_MOODS_JSON}, {_COL_PRIMARY_MOOD} FROM {_TABLE_MOODS} WHERE {_COL_FILE_HASH} = ?"
+)
+
 _SELECT_ALL_SQL = f"SELECT {', '.join(_DATA_COLS)} FROM {_TABLE}"
+
+_SELECT_ALL_MOODS_SQL = (
+    f"SELECT {_COL_FILE_HASH}, {_COL_MOODS_JSON}, {_COL_PRIMARY_MOOD} FROM {_TABLE_MOODS}"
+)
 
 
 def _row_to_features(file_hash: str, row: tuple) -> IntensityFeatures:
@@ -163,6 +188,28 @@ class CacheDB:
         )
         self._conn.commit()
 
+    def get_moods(self, file_hash: str) -> tuple[list[tuple[str, float]], str] | None:
+        """
+        Return cached moods for file_hash, or None if not found.
+
+        Returns:
+            Tuple of (moods_list, primary_mood), or None.
+        """
+        row = self._conn.execute(_SELECT_MOODS_SQL, (file_hash,)).fetchone()
+        if row is None:
+            return None
+        moods_json, primary_mood = row
+        moods = [(str(m[0]), float(m[1])) for m in json.loads(moods_json)]
+        return moods, primary_mood
+
+    def put_moods(self, file_hash: str, moods: list[tuple[str, float]], primary_mood: str) -> None:
+        """Insert or replace mood data for file_hash."""
+        self._conn.execute(
+            _INSERT_MOODS_SQL,
+            (file_hash, json.dumps(moods), primary_mood),
+        )
+        self._conn.commit()
+
     def load_all_intensity(self) -> dict[str, IntensityFeatures]:
         """
         Load the entire intensity cache in a single query.
@@ -179,6 +226,15 @@ class CacheDB:
         result: dict[str, IntensityFeatures] = {}
         for file_hash, *rest in rows:
             result[file_hash] = _row_to_features(file_hash, tuple(rest))
+        return result
+
+    def load_all_moods(self) -> dict[str, tuple[list[tuple[str, float]], str]]:
+        """Load the entire moods cache."""
+        rows = self._conn.execute(_SELECT_ALL_MOODS_SQL).fetchall()
+        result: dict[str, tuple[list[tuple[str, float]], str]] = {}
+        for file_hash, moods_json, primary_mood in rows:
+            moods = [(str(m[0]), float(m[1])) for m in json.loads(moods_json)]
+            result[file_hash] = (moods, primary_mood)
         return result
 
     def close(self) -> None:
