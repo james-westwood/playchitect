@@ -75,11 +75,68 @@ class _FakeGtkBase:
     def emit(self, *_args: object, **_kwargs: object) -> None:
         pass
 
+    def set_margin_top(self, _margin: int) -> None:
+        pass
+
+    def set_margin_bottom(self, _margin: int) -> None:
+        pass
+
+    def set_margin_start(self, _margin: int) -> None:
+        pass
+
+    def set_margin_end(self, _margin: int) -> None:
+        pass
+
+    def append(self, _child: object) -> None:
+        pass
+
+    def add(self, _child: object) -> None:
+        pass
+
+    def add_suffix(self, _child: object) -> None:
+        pass
+
+    def set_child(self, _child: object) -> None:
+        pass
+
+    def set_popover(self, _popover: object) -> None:
+        pass
+
+    def set_tooltip_text(self, _text: str) -> None:
+        pass
+
+    def get_value(self) -> float:
+        return 0.0
+
+    def get_selected(self) -> int:
+        return 0
+
+    def set_value(self, _value: float) -> None:
+        pass
+
+    def set_selected(self, _index: int) -> None:
+        pass
+
+    def set_range(self, _min: float, _max: float) -> None:
+        pass
+
+    @classmethod
+    def new_with_range(cls, _min: float, _max: float, _step: float) -> _FakeGtkBase:
+        return cls()
+
+    @classmethod
+    def new_from_strings(cls, _strings: list[str]) -> _FakeGtkBase:
+        return cls()
+
 
 _gtk_mock = MagicMock()
 _gtk_mock.Box = _FakeGtkBase
 _gtk_mock.ColumnView = _FakeGtkBase
 _gtk_mock.Frame = _FakeGtkBase  # ClusterCard base class
+_gtk_mock.MenuButton = _FakeGtkBase
+_gtk_mock.Popover = _FakeGtkBase
+_gtk_mock.SpinButton = _FakeGtkBase
+_gtk_mock.DropDown = _FakeGtkBase
 
 _adw_mock = MagicMock()
 _adw_mock.Application = _FakeGtkBase
@@ -87,6 +144,8 @@ _adw_mock.ApplicationWindow = _FakeGtkBase
 _adw_mock.HeaderBar = _FakeGtkBase
 _adw_mock.ToolbarView = _FakeGtkBase
 _adw_mock.AlertDialog = _FakeGtkBase
+_adw_mock.PreferencesGroup = _FakeGtkBase
+_adw_mock.ActionRow = _FakeGtkBase
 
 _pango_mock = MagicMock()
 _pango_mock.EllipsizeMode = MagicMock()
