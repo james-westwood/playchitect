@@ -16,6 +16,7 @@ from typing import Any
 import numpy as np
 from sklearn.cluster import KMeans
 from sklearn.decomposition import PCA
+from sklearn.metrics import silhouette_score
 from sklearn.preprocessing import StandardScaler
 
 from playchitect.core.intensity_analyzer import IntensityFeatures
@@ -31,6 +32,10 @@ logger = logging.getLogger(__name__)
 
 # Minimum tracks to activate EWKM per-cluster weight refinement.
 _MIN_TRACKS_EWKM = 80
+
+# Silhouette score thresholds for auto-K selection.
+_SIL_STRONG: float = 0.5  # silhouette max above this → silhouette is primary signal
+_SIL_WEAK: float = 0.3  # silhouette max below this → fall back to elbow method
 
 # Block PCA constants for optional MusiCNN embedding integration.
 _EMBEDDING_PCA_COMPONENTS: int = 12
@@ -624,13 +629,18 @@ class PlaylistClusterer:
         else:
             constraint_k = None
 
-        # Elbow method
+        # Elbow method + Silhouette Score
         k_range = range(self.min_clusters, min(self.max_clusters + 1, total_tracks))
-        inertias = []
+        inertias: list[float] = []
+        sil_scores: list[float] = []
         for k in k_range:
             km = KMeans(n_clusters=k, random_state=self.random_state, n_init=10)
-            km.fit(features)
-            inertias.append(km.inertia_)
+            labels = km.fit_predict(features)
+            inertias.append(float(km.inertia_))  # type: ignore[arg-type]
+            if k > 1 and len(np.unique(labels)) > 1:
+                sil_scores.append(float(silhouette_score(features, labels)))
+            else:
+                sil_scores.append(-1.0)  # silhouette undefined for k=1 or single-cluster results
 
         if len(inertias) <= 1:
             elbow_k = self.min_clusters
@@ -638,11 +648,25 @@ class PlaylistClusterer:
             inertia_diffs = np.diff(inertias)
             elbow_k = self.min_clusters + int(np.argmax(np.abs(inertia_diffs)))
 
-        logger.debug(f"Elbow method suggests K={elbow_k}, constraint K={constraint_k}")
+        max_sil = max(sil_scores) if sil_scores else 0.0
+        best_sil_k = list(k_range)[int(np.argmax(sil_scores))]
 
-        if constraint_k and abs(constraint_k - elbow_k) <= 2:
+        logger.debug(
+            f"Silhouette scores: max={max_sil:.3f} at K={best_sil_k}, "
+            f"elbow K={elbow_k}, constraint K={constraint_k}"
+        )
+
+        if max_sil >= _SIL_STRONG:
+            data_k = best_sil_k
+        elif max_sil < _SIL_WEAK:
+            data_k = elbow_k
+        else:
+            # Blend: average of silhouette suggestion and elbow, rounded
+            data_k = round((best_sil_k + elbow_k) / 2)
+
+        if constraint_k and abs(constraint_k - data_k) <= 2:
             return constraint_k
-        return elbow_k
+        return data_k
 
     def _create_single_cluster(
         self, metadata_dict: dict[Path, TrackMetadata]
