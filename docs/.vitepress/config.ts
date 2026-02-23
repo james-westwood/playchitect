@@ -18,6 +18,7 @@ export default withMermaid(defineConfig({
 
     nav: [
       { text: 'User Guide', link: '/guide/' },
+      { text: 'Roadmap', link: '/planning/ROADMAP' },
       { text: 'Contributing', link: '/contributing/' },
       {
         text: 'GitHub',
@@ -34,6 +35,7 @@ export default withMermaid(defineConfig({
             { text: 'Installation', link: '/guide/installation' },
             { text: 'Quick Start', link: '/guide/quick-start' },
             { text: 'CLI Reference', link: '/guide/cli-reference' },
+            { text: 'Development Roadmap', link: '/planning/ROADMAP' },
           ]
         }
       ],
