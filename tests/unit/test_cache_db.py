@@ -70,6 +70,21 @@ class TestCacheDBSchema:
         assert "idx_intensity_brightness" in indexes
         assert "idx_intensity_percussiveness" in indexes
 
+        mood_indexes = {
+            r[0]
+            for r in db._conn.execute(
+                "SELECT name FROM sqlite_master WHERE type='index' AND tbl_name='track_moods'"
+            ).fetchall()
+        }
+        assert "idx_moods_primary" in mood_indexes
+
+    def test_moods_table_exists(self, tmp_path: Path) -> None:
+        db = CacheDB(tmp_path / "cache.db")
+        row = db._conn.execute(
+            "SELECT name FROM sqlite_master WHERE type='table' AND name='track_moods'"
+        ).fetchone()
+        assert row is not None
+
     def test_schema_creation_is_idempotent(self, tmp_path: Path) -> None:
         db_path = tmp_path / "cache.db"
         CacheDB(db_path)
@@ -126,6 +141,36 @@ class TestCacheDBRoundtrip:
         assert result.filepath == Path()
 
 
+class TestMoodRoundtrip:
+    def test_put_then_get_moods(self, tmp_path: Path) -> None:
+        db = CacheDB(tmp_path / "cache.db")
+        file_hash = "hash123"
+        moods = [("Aggressive", 0.9), ("Cheerful", 0.1)]
+        primary = "Aggressive"
+
+        db.put_moods(file_hash, moods, primary)
+        result = db.get_moods(file_hash)
+
+        assert result is not None
+        assert result[0] == moods
+        assert result[1] == primary
+
+    def test_get_nonexistent_moods_returns_none(self, tmp_path: Path) -> None:
+        db = CacheDB(tmp_path / "cache.db")
+        assert db.get_moods("missing") is None
+
+    def test_put_moods_is_idempotent(self, tmp_path: Path) -> None:
+        db = CacheDB(tmp_path / "cache.db")
+        h = "h1"
+        db.put_moods(h, [("a", 1.0)], "a")
+        db.put_moods(h, [("b", 1.0)], "b")
+        result = db.get_moods(h)
+        assert result is not None
+        assert result[1] == "b"
+        rows = db._conn.execute("SELECT COUNT(*) FROM track_moods").fetchone()
+        assert rows[0] == 1
+
+
 class TestLoadAllIntensity:
     def test_empty_db_returns_empty_dict(self, tmp_path: Path) -> None:
         db = CacheDB(tmp_path / "cache.db")
@@ -147,6 +192,18 @@ class TestLoadAllIntensity:
         result = db.load_all_intensity()
         assert result["h1"].rms_energy == pytest.approx(0.42)
         assert result["h1"].brightness == pytest.approx(0.77)
+
+
+class TestLoadAllMoods:
+    def test_load_all_moods(self, tmp_path: Path) -> None:
+        db = CacheDB(tmp_path / "cache.db")
+        db.put_moods("h1", [("m1", 0.8)], "m1")
+        db.put_moods("h2", [("m2", 0.7)], "m2")
+
+        result = db.load_all_moods()
+        assert len(result) == 2
+        assert result["h1"] == ([("m1", 0.8)], "m1")
+        assert result["h2"] == ([("m2", 0.7)], "m2")
 
 
 class TestMigrateJsonCache:

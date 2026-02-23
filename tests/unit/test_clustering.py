@@ -557,6 +557,8 @@ class TestClusteringEdgeCases:
         class MockEmbedding:
             def __init__(self, n: int = 128):
                 self.embedding = np.random.randn(n)
+                self.primary_mood = "Aggressive"
+                self.moods = [("Aggressive", 0.8), ("Cheerful", 0.2)]
 
         paths = [Path(f"t{i}.mp3") for i in range(15)]
         meta = {p: make_metadata(str(p)) for p in paths}
