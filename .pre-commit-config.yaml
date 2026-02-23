@@ -48,6 +48,13 @@ repos:
         pass_filenames: false
         always_run: false
 
+  # Detect accidental secret commits
+  - repo: https://github.com/Yelp/detect-secrets
+    rev: v1.5.0
+    hooks:
+      - id: detect-secrets
+        args: [--baseline, .secrets.baseline]
+
   # Standard file hygiene
   - repo: https://github.com/pre-commit/pre-commit-hooks
     rev: v4.5.0
