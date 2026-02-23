@@ -14,6 +14,23 @@
 | 8 | DJ Ecosystem Integration | 📅 Planned | — |
 | 9 | Library Management & Stability | 📅 Planned | — |
 
+```mermaid
+timeline
+    title Playchitect Development Roadmap
+    section Complete
+        M1 Foundation       : Feb 19
+        M2 Analysis Engine  : Feb 19
+        M3 GTK4 GUI         : Feb 20
+        M4 Export           : Feb 20
+        M5 Testing & QA     : Feb 21
+    section In Progress
+        M6 Packaging        : 2026
+    section Planned
+        M7 Advanced Set Architecture    : TBD
+        M8 DJ Ecosystem Integration     : TBD
+        M9 Library Stability            : TBD
+```
+
 ---
 
 ## ✅ Milestone 1 — Foundation & Core Refactoring (Complete)
