@@ -1,12 +1,13 @@
 import { defineConfig } from 'vitepress'
+import { withMermaid } from 'vitepress-plugin-mermaid'
 
-export default defineConfig({
+export default withMermaid(defineConfig({
   title: 'Playchitect',
   description: 'Smart DJ Playlist Manager with Intelligent BPM Clustering',
   base: '/playchitect/',
 
   // Exclude non-user-facing content from the build
-  srcExclude: ['**/planning/**', '**/research/**', '**/*.html'],
+  srcExclude: ['**/research/**', '**/*.html'],
 
   head: [
     ['link', { rel: 'icon', href: '/playchitect/favicon.ico' }]
@@ -71,4 +72,4 @@ export default defineConfig({
       text: 'Last updated',
     }
   }
-})
+}))
