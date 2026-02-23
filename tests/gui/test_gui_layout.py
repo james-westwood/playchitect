@@ -341,6 +341,12 @@ class TestClusterHandlers:
         bare_window._metadata_map = {Path("t1.flac"): MagicMock()}
         bare_window.set_title = MagicMock()
 
+        # Mock UI elements for target size
+        bare_window._target_spin = MagicMock()
+        bare_window._target_spin.get_value.return_value = 20.0
+        bare_window._target_unit = MagicMock()
+        bare_window._target_unit.get_selected.return_value = 0
+
         with patch("threading.Thread") as mock_thread:
             bare_window._on_cluster_clicked(MagicMock())
 
@@ -399,7 +405,7 @@ class TestClusterWorkerIntensity:
         monkeypatch.setattr("playchitect.gui.windows.main_window.Sequencer", MagicMock())
         monkeypatch.setattr("playchitect.gui.windows.main_window.GLib.idle_add", MagicMock())
 
-        bare_window._cluster_worker()
+        bare_window._cluster_worker(target_val=20, is_minutes=False)
 
         mock_analyzer_cls.assert_called_once_with(cache_dir=Path("/fake/cache/intensity"))
 
@@ -420,7 +426,7 @@ class TestClusterWorkerIntensity:
 
         bare_window._metadata_map = {Path("a.flac"): MagicMock(), Path("b.flac"): MagicMock()}
 
-        bare_window._cluster_worker()
+        bare_window._cluster_worker(target_val=20, is_minutes=False)
 
         mock_analyzer.analyze_batch.assert_called_once_with(list(bare_window._metadata_map.keys()))
 
@@ -440,6 +446,6 @@ class TestClusterWorkerIntensity:
         monkeypatch.setattr("playchitect.gui.windows.main_window.Sequencer", MagicMock())
         monkeypatch.setattr("playchitect.gui.windows.main_window.GLib.idle_add", MagicMock())
 
-        bare_window._cluster_worker()
+        bare_window._cluster_worker(target_val=20, is_minutes=False)
 
         assert bare_window._intensity_map == {"path": "features"}
