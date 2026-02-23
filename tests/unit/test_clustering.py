@@ -9,7 +9,6 @@ import numpy as np
 import pytest
 
 from playchitect.core.clustering import (
-    _SIL_WEAK,
     FEATURE_NAMES,
     ClusterResult,
     PlaylistClusterer,
@@ -650,21 +649,18 @@ class TestDetermineOptimalK:
 
     def test_silhouette_weak_signal_falls_back_to_elbow(self) -> None:
         """Mock silhouette_score to return low values; verify elbow-method K is selected."""
-        features = np.random.rand(40, 5)
+        # Seeding ensures deterministic elbow method
+        rng = np.random.default_rng(0)
+        features = rng.random((40, 5))
         clusterer = PlaylistClusterer(target_tracks_per_playlist=10, min_clusters=2, max_clusters=5)
 
-        # Mock silhouette_score to be flat and low
+        # Mock silhouette_score to be flat and low (< _SIL_WEAK = 0.3)
         with patch("playchitect.core.clustering.silhouette_score", return_value=0.1):
             k = clusterer._determine_optimal_k(features, {}, len(features))
             # With 40 tracks and target 10, constraint_k=4.
-            # Elbow might vary but it won't be sil-driven.
-            # We want to ensure it's not the silhouette peak (which would be k=2
-            # because argmax of [0.1, 0.1, 0.1, 0.1] is 0).
-            # Actually with sil_scores = [0.1, 0.1, 0.1, 0.1], argmax is 0,
-            # best_sil_k = k_range[0] = 2.
-            # But max_sil = 0.1 < _SIL_WEAK (0.3), so it should use elbow_k.
-            # Let's verify it uses elbow or constraint.
-            assert k != 2 or _SIL_WEAK > 0.1
+            # Seeding 0 results in elbow_k=4 for this dataset.
+            # Since 0.1 < 0.3, it uses elbow_k (4).
+            assert k == 4
 
     def test_silhouette_blend_midrange(self) -> None:
         """Mock silhouette_score to return midrange values; verify K is blend of sil and elbow."""
