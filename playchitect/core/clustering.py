@@ -318,20 +318,23 @@ class PlaylistClusterer:
             # EmbeddingFeatures.moods is a list of (label, prob) tuples sorted descending.
             # We need a stable vector order.
             mood_labels = sorted(list({m[0] for p in valid_paths for m in embedding_dict[p].moods}))
-            mood_matrix = []
-            for p in valid_paths:
-                mood_dict = dict(embedding_dict[p].moods)
-                mood_matrix.append([mood_dict.get(label, 0.0) for label in mood_labels])
-            mood_matrix_np = np.array(mood_matrix)  # (N', 5)
-            mood_scaled = emb_scaler.fit_transform(
-                mood_matrix_np
-            )  # reuse scaler or new one? new is safer
+            if mood_labels:
+                mood_matrix = []
+                for p in valid_paths:
+                    mood_dict = dict(embedding_dict[p].moods)
+                    mood_matrix.append([mood_dict.get(label, 0.0) for label in mood_labels])
+                mood_matrix_np = np.array(mood_matrix)  # (N', 5)
+                mood_scaler = StandardScaler()
+                mood_scaled = mood_scaler.fit_transform(mood_matrix_np)
+                semantic_block = np.hstack([emb_scaled, mood_scaled])
+            else:
+                semantic_block = emb_scaled
 
             # Block-weighted concatenation: intensity 70% + semantic 30%
             # We treat mood as part of the semantic block.
             X_intensity = features_normalized * _INTENSITY_BLOCK_WEIGHT  # (N', 8)
-            X_semantic = np.hstack([emb_scaled, mood_scaled]) * _SEMANTIC_BLOCK_WEIGHT  # (N', 17)
-            features_for_kmeans = np.hstack([X_intensity, X_semantic])  # (N', 25)
+            X_semantic = semantic_block * _SEMANTIC_BLOCK_WEIGHT  # (N', 17 or 12)
+            features_for_kmeans = np.hstack([X_intensity, X_semantic])  # (N', 25 or 20)
 
             embedding_pca_variance = float(pca.explained_variance_ratio_.sum())
             logger.info(

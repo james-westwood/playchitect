@@ -115,6 +115,12 @@ def cli() -> None:
     default="fixed",
     help="Track sequencing mode: ramp (intensity build) or fixed (no change, default).",
 )
+@click.option(
+    "--tag-mood",
+    is_flag=True,
+    default=False,
+    help="Write the detected primary mood (Vibe) back to the audio file tags.",
+)
 def scan(
     music_path: Path | None,
     output: Path | None,
@@ -132,6 +138,7 @@ def scan(
     cluster_mode: str,
     genre_map: Path | None,
     sequence_mode: str,
+    tag_mood: bool,
 ) -> None:
     """
     Scan music directory and create intelligent playlists.
@@ -264,7 +271,19 @@ def scan(
                     embedding_dict = {}
                     for file_path in files:
                         try:
-                            embedding_dict[file_path] = emb_extractor.analyze(file_path)
+                            feat = emb_extractor.analyze(file_path)
+                            embedding_dict[file_path] = feat
+
+                            # Auto-tag mood if requested
+                            if tag_mood and feat.primary_mood:
+                                if not dry_run:
+                                    extractor.update_mood(file_path, feat.primary_mood)
+                                else:
+                                    logger.info(
+                                        "[DRY RUN] Would tag %s with mood: %s",
+                                        file_path.name,
+                                        feat.primary_mood,
+                                    )
                         except Exception as exc:
                             logger.warning("Embedding failed for %s: %s", file_path.name, exc)
 

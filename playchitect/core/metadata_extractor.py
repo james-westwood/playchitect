@@ -50,6 +50,7 @@ class TrackMetadata:
     play_count: int | None = None
     last_played: str | None = None  # ISO format string
     cues: list[CuePoint] | None = None
+    mood: str | None = None
 
     def to_dict(self) -> dict[str, Any]:
         """Convert metadata to dictionary."""
@@ -65,6 +66,7 @@ class TrackMetadata:
             "rating": self.rating,
             "play_count": self.play_count,
             "last_played": self.last_played,
+            "mood": self.mood,
             "cues": (
                 [{"position": c.position, "label": c.label, "hotcue": c.hotcue} for c in self.cues]
                 if self.cues
@@ -159,6 +161,9 @@ class MetadataExtractor:
                 # Extract duration
                 if hasattr(audio, "info") and hasattr(audio.info, "length"):
                     metadata.duration = float(audio.info.length)
+
+                # Extract mood
+                metadata.mood = self._extract_text_tag(audio, ["mood", "TMOO", "MOOD", "vibe"])
 
         except Exception as e:
             logger.error("Error extracting metadata from %s: %s", filepath, e)
@@ -368,3 +373,46 @@ class MetadataExtractor:
 
         # Extract will now run from scratch and cache the result
         return self.extract(filepath)
+
+    def update_mood(self, filepath: Path, mood: str) -> bool:
+        """
+        Write mood tag to audio file.
+
+        Args:
+            filepath: Path to audio file
+            mood: Mood string to write
+
+        Returns:
+            True if successful
+        """
+        if not MUTAGEN_AVAILABLE:
+            logger.warning("Mutagen not available, cannot update mood tag.")
+            return False
+
+        try:
+            audio = MutagenFile(filepath)
+            if audio is None:
+                return False
+
+            # Handle ID3 specifically for TMOO
+            from mutagen.id3 import TMOO  # noqa: PLC0415
+            from mutagen.mp3 import MP3  # noqa: PLC0415
+
+            if isinstance(audio, MP3):
+                if audio.tags is None:
+                    audio.add_tags()
+                audio.tags.add(TMOO(encoding=3, text=mood))
+                audio.save()
+            else:
+                # Generic for FLAC, Ogg, MP4 (mutagen handles some mapping)
+                audio["mood"] = mood
+                audio.save()
+
+            # Update cache if present
+            if filepath in self._cache:
+                self._cache[filepath].mood = mood
+
+            return True
+        except Exception as e:
+            logger.error("Error updating mood for %s: %s", filepath, e)
+            return False
