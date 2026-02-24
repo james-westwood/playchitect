@@ -100,6 +100,7 @@ def bare_window() -> PlaychitectWindow:
     w._metadata_map = {}
     w._intensity_map = {}
     w._clusters = []
+    w._active_arc = None
     return w
 
 
@@ -341,6 +342,12 @@ class TestClusterHandlers:
         bare_window._metadata_map = {Path("t1.flac"): MagicMock()}
         bare_window.set_title = MagicMock()
 
+        # Mock UI elements for target size
+        bare_window._target_spin = MagicMock()
+        bare_window._target_spin.get_value.return_value = 20.0
+        bare_window._target_unit = MagicMock()
+        bare_window._target_unit.get_selected.return_value = 0
+
         with patch("threading.Thread") as mock_thread:
             bare_window._on_cluster_clicked(MagicMock())
 
@@ -381,6 +388,74 @@ class TestClusterHandlers:
         assert "failed" in title_call.lower()
 
 
+class TestPlaylistSizeControls:
+    """Test playlist size control logic (Quantity + Unit)."""
+
+    def test_unit_change_updates_spin_range_minutes(self, bare_window: PlaychitectWindow) -> None:
+        """When unit changes to Minutes, range should be 5-300 and value clamped if too small."""
+        bare_window._target_spin = MagicMock()
+        bare_window._target_spin.get_value.return_value = 1.0  # 1 track
+        mock_dropdown = MagicMock()
+        mock_dropdown.get_selected.return_value = 1  # Minutes
+
+        bare_window._on_unit_changed(mock_dropdown, None)
+
+        bare_window._target_spin.set_range.assert_called_once_with(5, 300)
+        bare_window._target_spin.set_value.assert_called_once_with(60)
+
+    def test_unit_change_updates_spin_range_tracks(self, bare_window: PlaychitectWindow) -> None:
+        """When unit changes to Tracks, range should be 1-500."""
+        bare_window._target_spin = MagicMock()
+        bare_window._target_spin.get_value.return_value = 600.0  # above track limit
+        mock_dropdown = MagicMock()
+        mock_dropdown.get_selected.return_value = 0  # Tracks
+
+        bare_window._on_unit_changed(mock_dropdown, None)
+
+        bare_window._target_spin.set_range.assert_called_once_with(1, 500)
+        bare_window._target_spin.set_value.assert_called_once_with(25)
+
+    def test_cluster_clicked_persists_duration(self, bare_window: PlaychitectWindow) -> None:
+        """When clustering in Minutes mode, duration should be persisted to config."""
+        bare_window._metadata_map = {Path("test.mp3"): MagicMock()}
+        bare_window._target_spin = MagicMock()
+        bare_window._target_spin.get_value.return_value = 45.0
+        bare_window._target_unit = MagicMock()
+        bare_window._target_unit.get_selected.return_value = 1  # Minutes
+        bare_window.set_title = MagicMock()
+
+        mock_config = MagicMock()
+        with patch("playchitect.gui.windows.main_window.get_config", return_value=mock_config):
+            with patch("threading.Thread"):
+                bare_window._on_cluster_clicked(MagicMock())
+
+        mock_config.set.assert_any_call("default_target_duration", 45.0)
+        mock_config.set.assert_any_call("default_target_tracks", None)
+        mock_config.save.assert_called_once()
+
+    def test_cluster_worker_configures_duration(
+        self, bare_window: PlaychitectWindow, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        """Verify cluster worker uses target_duration when is_minutes=True."""
+        mock_config = MagicMock()
+        monkeypatch.setattr("playchitect.gui.windows.main_window.get_config", lambda: mock_config)
+        monkeypatch.setattr(
+            "playchitect.gui.windows.main_window.IntensityAnalyzer",
+            MagicMock(return_value=MagicMock()),
+        )
+        mock_clusterer_cls = MagicMock()
+        monkeypatch.setattr(
+            "playchitect.gui.windows.main_window.PlaylistClusterer", mock_clusterer_cls
+        )
+        monkeypatch.setattr("playchitect.gui.windows.main_window.Sequencer", MagicMock())
+        monkeypatch.setattr("playchitect.gui.windows.main_window.GLib.idle_add", MagicMock())
+
+        bare_window._metadata_map = {Path("test.mp3"): MagicMock()}
+        bare_window._cluster_worker(target_val=90.0, is_minutes=True)
+
+        mock_clusterer_cls.assert_called_once_with(target_duration_per_playlist=90.0)
+
+
 class TestClusterWorkerIntensity:
     """Test _cluster_worker intensity analysis integration."""
 
@@ -399,7 +474,7 @@ class TestClusterWorkerIntensity:
         monkeypatch.setattr("playchitect.gui.windows.main_window.Sequencer", MagicMock())
         monkeypatch.setattr("playchitect.gui.windows.main_window.GLib.idle_add", MagicMock())
 
-        bare_window._cluster_worker()
+        bare_window._cluster_worker(target_val=20, is_minutes=False)
 
         mock_analyzer_cls.assert_called_once_with(cache_dir=Path("/fake/cache/intensity"))
 
@@ -420,7 +495,7 @@ class TestClusterWorkerIntensity:
 
         bare_window._metadata_map = {Path("a.flac"): MagicMock(), Path("b.flac"): MagicMock()}
 
-        bare_window._cluster_worker()
+        bare_window._cluster_worker(target_val=20, is_minutes=False)
 
         mock_analyzer.analyze_batch.assert_called_once_with(list(bare_window._metadata_map.keys()))
 
@@ -440,6 +515,6 @@ class TestClusterWorkerIntensity:
         monkeypatch.setattr("playchitect.gui.windows.main_window.Sequencer", MagicMock())
         monkeypatch.setattr("playchitect.gui.windows.main_window.GLib.idle_add", MagicMock())
 
-        bare_window._cluster_worker()
+        bare_window._cluster_worker(target_val=20, is_minutes=False)
 
         assert bare_window._intensity_map == {"path": "features"}
