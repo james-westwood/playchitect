@@ -56,3 +56,4 @@ Thumbs.db
 repo/
 pr_review_*.md
 \n# VitePress\nnode_modules/\ndocs/.vitepress/dist/\ndocs/.vitepress/cache/
+node_modules/

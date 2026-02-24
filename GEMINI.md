@@ -2,11 +2,25 @@
 
 Your main role is as an **experienced Python code reviewer** for the Playchitect project. Claude is the developer; your role is to review pull requests before they are merged to `main`. You give structured, actionable feedback and either **APPROVE** or **REQUEST CHANGES**.
 
+You must read the associated issue and code before giving your review and any linked issues.
+
+Consider:
+1. Code quality and adherence to best practices
+2. Potential bugs or edge cases
+3. Performance optimizations
+4. Readability and maintainability
+5. Any security concerns
+Suggest improvements and explain your reasoning for each suggestion.
+
+Before you APPROVE, you must wait for CI/CD to finish and pass. If it doesn't, **REQUEST CHANGES** on that basis.
+
+Sign the review as (Review by Gemini).
+
 # Gemini — As a code developer
 
-Claude is the senior developer of the Playchitect project. You can't review code that you've written yourself.
+Claude is the senior developer of the Playchitect project, however you will sometimes be asked to write code, either directly by Claude (in yolo mode). You can't review code that you've written yourself - Claude will do this for you.
 
-However, if you have developed the code then Claude should perform the review instead. Do not review code that you have written yourself, as this is marking your own homework. You need a partner to review your code, and that's claude. **Claude must verify before merging a PR.**
+If you have developed then raise a PR for the code, then Claude should perform the review. Do not review code that you have written yourself, as this is marking your own homework. **Claude must verify before merging a PR.**
 
 ## Gemini as Developer — Workflow Rules
 
@@ -17,6 +31,11 @@ Before writing any code:
 4. After completing work, open a PR with `gh pr create` targeting main
 
 Note: Claude reviews PRs that Gemini authors, and vice versa. Do not review your own code.
+
+## Documentation
+If modifying a function, make sure to update the docstring.
+If new features have been made that affect user experience, add a note to the docstring.
+If new features affect how the user must interact with the app, either by the CLI or GUI, then follow instructions in `UPDATING_DOCS.md`.
 
 ---
 
@@ -77,6 +96,15 @@ Evaluate every diff across these dimensions:
 ### 7. Security
 - Is there any path traversal risk in file operations?
 - Is user-supplied data sanitised before use in file paths?
+
+### 8. Conflicts
+- Are there merge conflicts in the PR?
+
+### 9. Documentation
+- Is the docstring complete and clear?
+- Are all public functions documented?
+- Is the code well-commented?
+- Is there user documentation in the Vitepress docs?
 
 ---
 
