@@ -476,6 +476,51 @@ class TestPlaylistSizeControls:
 
         mock_clusterer_cls.assert_called_once_with(target_tracks_per_playlist=30)
 
+    def test_cluster_clicked_persists_tracks(self, bare_window: PlaychitectWindow) -> None:
+        """When clustering in Tracks mode, track count should be persisted to config."""
+        bare_window._metadata_map = {Path("test.mp3"): MagicMock()}
+        bare_window._target_spin = MagicMock()
+        bare_window._target_spin.get_value.return_value = 15.0
+        bare_window._target_unit = MagicMock()
+        bare_window._target_unit.get_selected.return_value = 0  # Tracks
+        bare_window.set_title = MagicMock()
+
+        mock_config = MagicMock()
+        with patch("playchitect.gui.windows.main_window.get_config", return_value=mock_config):
+            with patch("threading.Thread"):
+                bare_window._on_cluster_clicked(MagicMock())
+
+        mock_config.set.assert_any_call("default_target_tracks", 15)
+        mock_config.set.assert_any_call("default_target_duration", None)
+        mock_config.save.assert_called_once()
+
+    def test_init_starts_scan_if_test_path_exists(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        """Verify that a scan is automatically started if a test music path is configured."""
+        from playchitect.gui.windows.main_window import PlaychitectWindow
+
+        _patch_deps(monkeypatch)
+
+        mock_config = MagicMock()
+        test_path = Path("/valid/music/path")
+        mock_config.get_test_music_path.return_value = test_path
+        monkeypatch.setattr("playchitect.gui.windows.main_window.get_config", lambda: mock_config)
+
+                # Mock Path.is_dir to return True
+                monkeypatch.setattr(
+                    "pathlib.Path.is_dir", lambda p: True if str(p) == str(test_path) else False
+                )
+        
+                mock_glib = MagicMock()
+        
+        monkeypatch.setattr("playchitect.gui.windows.main_window.GLib", mock_glib)
+
+        PlaychitectWindow()
+
+        # Should be called with self._start_scan and the path
+        mock_glib.idle_add.assert_called_once()
+        call_args = mock_glib.idle_add.call_args[0]
+        assert call_args[1] == test_path
+
 
 class TestWindowConfigLoading:
     """Test that PlaychitectWindow correctly loads defaults from config."""
