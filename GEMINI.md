@@ -18,6 +18,17 @@ Before writing any code:
 
 Note: Claude reviews PRs that Gemini authors, and vice versa. Do not review your own code.
 
+### Attribution for Gemini's Contributions
+
+To ensure Gemini's contributions are properly attributed in `git log` and on platforms like GitHub, configure the local Git repository with the following user name and email before making commits:
+
+```bash
+git config user.name "Gemini"
+git config user.email "gemini-cli@google.com"
+```
+
+This will associate commits made by Gemini with a distinct identity, appearing in contributor lists.
+
 ---
 
 ## Project Context
