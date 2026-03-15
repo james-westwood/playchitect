@@ -118,6 +118,9 @@ class _FakeGtkBase:
     def add_css_class(self, *_args: object) -> None:
         pass
 
+    def remove_css_class(self, *_args: object) -> None:
+        pass
+
     def set_sensitive(self, *_args: object) -> None:
         pass
 
@@ -217,13 +220,108 @@ class _FakeGtkBase:
     def get_visible(self, *_args: object) -> bool:
         return True
 
+    def get_item(self, *_args: object) -> Any:
+        return None
+
+    def get_first_child(self, *_args: object) -> Any:
+        return None
+
+    def get_next_sibling(self, *_args: object) -> Any:
+        return None
+
+    def remove(self, *_args: object) -> None:
+        pass
+
+    def get_n_items(self, *_args: object) -> int:
+        return 0
+
+    def clear(self, *_args: object) -> None:
+        pass
+
+    def set_text(self, *_args: object) -> None:
+        pass
+
+    def set_markup(self, *_args: object) -> None:
+        pass
+
+    def set_ellipsize(self, *_args: object) -> None:
+        pass
+
+    def set_opacity(self, *_args: object) -> None:
+        pass
+
+    def set_policy(self, *_args: object) -> None:
+        pass
+
+    def set_propagate_natural_width(self, *_args: object) -> None:
+        pass
+
+    def set_model(self, *_args: object) -> None:
+        pass
+
+    def set_fixed_width(self, *_args: object) -> None:
+        pass
+
+    def set_expand(self, *_args: object) -> None:
+        pass
+
+    def set_expanded(self, *_args: object) -> None:
+        pass
+
+    def set_max_width_chars(self, *_args: object) -> None:
+        pass
+
+    def set_width_chars(self, *_args: object) -> None:
+        pass
+
+    def set_range(self, *_args: object) -> None:
+        pass
+
+    def set_draw_value(self, *_args: object) -> None:
+        pass
+
+    def set_value(self, *_args: object) -> None:
+        pass
+
+    def set_content_fit(self, *_args: object) -> None:
+        pass
+
+    @classmethod
+    def new_from_icon_name(cls, *_args: object) -> _FakeGtkBase:
+        return cls()
+
 
 _gtk_mock = MagicMock()
 _gtk_mock.Box = _FakeGtkBase
 _gtk_mock.ColumnView = _FakeGtkBase
+_gtk_mock.ColumnViewColumn = _FakeGtkBase
 _gtk_mock.Frame = _FakeGtkBase  # ClusterCard base class
+_gtk_mock.Frame = _FakeGtkBase  # EnergyBlockCard base class
 _gtk_mock.ListBox = _FakeGtkBase
 _gtk_mock.ListBoxRow = _FakeGtkBase
+_gtk_mock.ListStore = _FakeGtkBase
+_gtk_mock.ScrolledWindow = _FakeGtkBase
+_gtk_mock.Button = _FakeGtkBase
+_gtk_mock.Label = _FakeGtkBase
+_gtk_mock.Picture = _FakeGtkBase
+_gtk_mock.Image = _FakeGtkBase
+_gtk_mock.Scale = _FakeGtkBase
+_gtk_mock.Expander = _FakeGtkBase
+_gtk_mock.SingleSelection = _FakeGtkBase
+_gtk_mock.SignalListItemFactory = _FakeGtkBase
+_gtk_mock.ListItem = _FakeGtkBase
+_gtk_mock.GestureClick = _FakeGtkBase
+_gtk_mock.ProgressBar = _FakeGtkBase
+_gtk_mock.PolicyType = MagicMock()
+_gtk_mock.PolicyType.AUTOMATIC = 0
+_gtk_mock.PolicyType.NEVER = 1
+_gtk_mock.Orientation = MagicMock()
+_gtk_mock.Orientation.HORIZONTAL = 0
+_gtk_mock.Orientation.VERTICAL = 1
+_gtk_mock.SelectionMode = MagicMock()
+_gtk_mock.SelectionMode.SINGLE = 0
+_gtk_mock.ContentFit = MagicMock()
+_gtk_mock.ContentFit.COVER = 0
 
 _adw_mock = MagicMock()
 _adw_mock.Application = _FakeGtkBase
