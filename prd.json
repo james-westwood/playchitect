@@ -112,7 +112,7 @@
       "owner": "ralph",
       "description": "Add rule-based mood detection to IntensityFeatures (does not require essentia/MusiCNN \u2014 use features already computed). (1) Add `mood_label: str` field to `IntensityFeatures` (not in feature vector). (2) Create playchitect/core/mood_classifier.py with `classify_mood(features: IntensityFeatures) -> str`. Use a decision-tree of feature thresholds to return one of 8 mood labels: 'Dark' (low brightness < 0.3, low vocal_presence < 0.3), 'Euphoric' (high energy > 0.7, high brightness > 0.6), 'Melancholic' (low energy < 0.3, high vocal_presence > 0.5), 'Aggressive' (high percussiveness > 0.7, high onset_strength > 0.6), 'Dreamy' (low percussiveness < 0.3, high brightness > 0.5), 'Hypnotic' (mid energy 0.3\u20130.6, low dynamic_range < 0.3), 'Groovy' (mid-high percussiveness > 0.5, mid energy 0.4\u20130.7), 'Ethereal' (catch-all). Handle missing vocal_presence/dynamic_range as 0.0 for backwards compat. (3) In `analyze()`, call `classify_mood(features)` after all feature computation and set `mood_label`. (4) Add 'Mood' column to LibraryView ColumnView and PlaylistsView ColumnView. (5) Add mood to JSON cache. Add unit tests.",
       "acceptance_criteria": "tests/unit/test_mood_classifier.py: synthetic IntensityFeatures with high percussiveness + high onset returns 'Aggressive'. Default low-everything returns 'Ethereal'. Mood column renders in both views. `uv run pytest tests/ -v` passes.",
-      "completed": false,
+      "completed": true,
       "priority": 4,
       "note": "GitHub issue #102"
     },
