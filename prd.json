@@ -376,7 +376,7 @@
       "owner": "ralph",
       "description": "Implement user-defined vibe tags for manual track annotation. (1) Create playchitect/core/vibe_tags.py. Implement `VibeTagStore`: `__init__(store_path: Path = Path.home() / '.local' / 'share' / 'playchitect' / 'vibe_tags.json')`; internally a `dict[str, list[str]]` (path_str \u2192 tags). Methods: `load() -> None`, `save() -> None`, `add_tag(track_path: Path, tag: str) -> None` (normalise to lowercase stripped), `remove_tag(track_path: Path, tag: str) -> None`, `get_tags(track_path: Path) -> list[str]`, `search_by_tag(tag: str) -> list[Path]`, `all_tags() -> list[str]` (unique sorted). (2) In `TrackPreviewPanel` (TASK-07), below the key info row add a tag section: a `Gtk.FlowBox` of `Gtk.Button` chips (each chip = tag text + '\u00d7' to dismiss, connected to `remove_tag`). Below: a `Gtk.Entry` for new tag input with auto-complete via `Gtk.EntryCompletion` backed by `all_tags()`. Enter commits via `add_tag`. (3) In LibraryView (TASK-04), add a 'Tags' column showing `', '.join(get_tags(path))` (truncated to 30 chars). (4) Add a tag filter `Gtk.SearchEntry` labelled 'Filter by tag' in LibraryView toolbar area. Add unit tests for VibeTagStore.",
       "acceptance_criteria": "tests/unit/test_vibe_tags.py: add_tag, remove_tag, search_by_tag, get_tags all work correctly. Tags persist across load/save round-trip. TrackPreviewPanel smoke test shows FlowBox child. `uv run pytest tests/ -v` passes.",
-      "completed": false,
+      "completed": true,
       "priority": 7,
       "note": "GitHub issue #87"
     },
