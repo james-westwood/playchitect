@@ -9,8 +9,8 @@ from __future__ import annotations
 import json
 import logging
 import math
-from dataclasses import asdict, dataclass, field
-from datetime import datetime, timezone
+from dataclasses import dataclass
+from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any
 
@@ -77,7 +77,7 @@ class PlayHistory:
                     self._history[path_str] = TrackHistory()
 
             logger.debug("Loaded history for %d tracks", len(self._history))
-        except (json.JSONDecodeError, IOError) as e:
+        except (OSError, json.JSONDecodeError) as e:
             logger.warning("Failed to load history, starting fresh: %s", e)
             self._history = {}
 
@@ -96,7 +96,7 @@ class PlayHistory:
                 json.dump(data, f, indent=2)
 
             logger.debug("Saved history for %d tracks", len(self._history))
-        except IOError as e:
+        except OSError as e:
             logger.warning("Failed to save history: %s", e)
 
     def record(self, track_path: Path) -> None:
@@ -108,7 +108,7 @@ class PlayHistory:
             track_path: Path to the track that was played.
         """
         path_str = str(track_path)
-        today = datetime.now(timezone.utc).strftime("%Y-%m-%d")
+        today = datetime.now(UTC).strftime("%Y-%m-%d")
 
         if path_str not in self._history:
             self._history[path_str] = TrackHistory()
@@ -161,8 +161,8 @@ class PlayHistory:
         try:
             last_used_date = datetime.fromisoformat(entry.last_used)
             if last_used_date.tzinfo is None:
-                last_used_date = last_used_date.replace(tzinfo=timezone.utc)
-            days_since_use = (datetime.now(timezone.utc) - last_used_date).days
+                last_used_date = last_used_date.replace(tzinfo=UTC)
+            days_since_use = (datetime.now(UTC) - last_used_date).days
         except ValueError:
             # Invalid date format, treat as old
             days_since_use = _FRESHNESS_DAYS_THRESHOLD

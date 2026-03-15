@@ -1,8 +1,8 @@
 """Unit tests for play_history module."""
 
-from datetime import datetime, timedelta, timezone
+from datetime import UTC, datetime, timedelta
 from pathlib import Path
-from unittest.mock import MagicMock, patch
+from unittest.mock import MagicMock
 
 import pytest
 
@@ -71,7 +71,7 @@ class TestPlayHistory:
         entry = history.get_history(track)
         assert entry is not None
         assert entry.times_used == 1
-        assert entry.last_used == datetime.now(timezone.utc).strftime("%Y-%m-%d")
+        assert entry.last_used == datetime.now(UTC).strftime("%Y-%m-%d")
 
     def test_record_existing_track_increments_counter(self, history):
         """Test recording an existing track increments times_used."""
@@ -95,7 +95,7 @@ class TestPlayHistory:
         history.record(track)
 
         # Set the last_used to yesterday so days_decay is non-zero
-        yesterday = (datetime.now(timezone.utc) - timedelta(days=1)).strftime("%Y-%m-%d")
+        yesterday = (datetime.now(UTC) - timedelta(days=1)).strftime("%Y-%m-%d")
         history._history[str(track)].last_used = yesterday
 
         score = history.get_freshness_score(track)
@@ -108,7 +108,7 @@ class TestPlayHistory:
         history.record(track)
 
         # Mock the date to be 30 days ago
-        old_date = (datetime.now(timezone.utc) - timedelta(days=30)).strftime("%Y-%m-%d")
+        old_date = (datetime.now(UTC) - timedelta(days=30)).strftime("%Y-%m-%d")
         history._history[str(track)].last_used = old_date
 
         score = history.get_freshness_score(track)
@@ -122,7 +122,7 @@ class TestPlayHistory:
         history.record(track)
 
         # Set to yesterday so days_decay is not 0
-        yesterday = (datetime.now(timezone.utc) - timedelta(days=1)).strftime("%Y-%m-%d")
+        yesterday = (datetime.now(UTC) - timedelta(days=1)).strftime("%Y-%m-%d")
         history._history[str(track)].last_used = yesterday
 
         score_1 = history.get_freshness_score(track)
@@ -156,7 +156,7 @@ class TestPlayHistory:
 
             # Set date to many days ago so scores aren't all 0
             # Need at least ~4 days for score to be > 0.1 with 1 play
-            days_ago = (datetime.now(timezone.utc) - timedelta(days=10)).strftime("%Y-%m-%d")
+            days_ago = (datetime.now(UTC) - timedelta(days=10)).strftime("%Y-%m-%d")
             history._history[str(track)].last_used = days_ago
 
         # Now import and test sequence_fresh
@@ -190,7 +190,7 @@ class TestPlayHistory:
 
         # Set all to date 15 days ago so all scores > 0.1
         # With 15 days, days_decay = 0.5
-        test_date = (datetime.now(timezone.utc) - timedelta(days=15)).strftime("%Y-%m-%d")
+        test_date = (datetime.now(UTC) - timedelta(days=15)).strftime("%Y-%m-%d")
         for track in tracks:
             history._history[str(track)].last_used = test_date
 
@@ -228,12 +228,12 @@ class TestPlayHistory:
         # Record first track once with a date that gives score > 0.1
         # Need at least ~4 days for score > 0.1
         history.record(tracks[0])
-        good_date = (datetime.now(timezone.utc) - timedelta(days=10)).strftime("%Y-%m-%d")
+        good_date = (datetime.now(UTC) - timedelta(days=10)).strftime("%Y-%m-%d")
         history._history[str(tracks[0])].last_used = good_date
 
         # Record second track once but with yesterday's date (score will be ~0.03 < 0.1)
         history.record(tracks[1])
-        bad_date = (datetime.now(timezone.utc) - timedelta(days=1)).strftime("%Y-%m-%d")
+        bad_date = (datetime.now(UTC) - timedelta(days=1)).strftime("%Y-%m-%d")
         history._history[str(tracks[1])].last_used = bad_date
 
         from playchitect.core.sequencer import sequence_fresh
@@ -332,7 +332,7 @@ class TestPlayHistory:
         days_list = [0, 7, 14, 21, 30, 60]
 
         for days in days_list:
-            date = (datetime.now(timezone.utc) - timedelta(days=days)).strftime("%Y-%m-%d")
+            date = (datetime.now(UTC) - timedelta(days=days)).strftime("%Y-%m-%d")
             history._history[str(track)].last_used = date
             score = history.get_freshness_score(track)
             scores.append(score)
