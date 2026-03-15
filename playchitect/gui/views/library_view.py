@@ -126,6 +126,7 @@ class LibraryView(Gtk.Box):
     __gsignals__ = {
         "scan-complete": (GObject.SignalFlags.RUN_FIRST, None, (Gio.ListStore,)),
         "track-selected": (GObject.SignalFlags.RUN_FIRST, None, (LibraryTrackModel,)),
+        "preview-toggled": (GObject.SignalFlags.RUN_FIRST, None, (bool,)),
     }
 
     # Format chips configuration
@@ -181,6 +182,13 @@ class LibraryView(Gtk.Box):
         self._search_toggle.set_tooltip_text("Toggle Search")
         self._search_toggle.connect("toggled", self._on_search_toggled)
         toolbar.append(self._search_toggle)
+
+        # Preview panel toggle button
+        self._preview_toggle = Gtk.ToggleButton()
+        self._preview_toggle.set_icon_name("sidebar-show-symbolic")
+        self._preview_toggle.set_tooltip_text("Toggle Preview Panel")
+        self._preview_toggle.connect("toggled", self._on_preview_toggled)
+        toolbar.append(self._preview_toggle)
 
         # SearchBar (hidden by default)
         self._search_bar = Gtk.SearchBar()
@@ -321,6 +329,10 @@ class LibraryView(Gtk.Box):
     def _on_search_toggled(self, btn: Gtk.ToggleButton) -> None:
         """Toggle search bar visibility."""
         self._search_bar.set_search_mode_enabled(btn.get_active())
+
+    def _on_preview_toggled(self, btn: Gtk.ToggleButton) -> None:
+        """Emit preview-toggled signal when preview panel toggle changes."""
+        self.emit("preview-toggled", btn.get_active())
 
     def _on_search_changed(self, entry: Gtk.SearchEntry) -> None:
         """Handle search text changes."""

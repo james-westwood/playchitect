@@ -22,7 +22,9 @@ from playchitect.core.sequencer import Sequencer, sequence_fresh  # noqa: E402
 from playchitect.core.track_previewer import TrackPreviewer  # noqa: E402
 from playchitect.gui.preferences_window import PreferencesWindow  # noqa: E402
 from playchitect.gui.views import ExportView, LibraryView, PlaylistsView  # noqa: E402
+from playchitect.gui.views.library_view import LibraryTrackModel  # noqa: E402
 from playchitect.gui.widgets.track_list import TrackModel  # noqa: E402
+from playchitect.gui.widgets.track_preview_panel import TrackPreviewPanel  # noqa: E402
 from playchitect.utils.config import get_config  # noqa: E402
 
 logger = logging.getLogger(__name__)
@@ -202,11 +204,25 @@ class PlaychitectWindow(Adw.ApplicationWindow):
         """Build the main content view stack with four pages."""
         stack = Adw.ViewStack()
 
-        # Library view (using new LibraryView)
+        # Library view with preview panel
         self._library_view = LibraryView()
         self._library_view.connect("scan-complete", self._on_library_scan_complete)
         self._library_view.connect("track-selected", self._on_library_track_selected)
-        stack.add_titled(self._library_view, "library", "Library")
+        self._library_view.connect("preview-toggled", self._on_preview_toggled)
+
+        # Create track preview panel (hidden by default)
+        self._track_preview = TrackPreviewPanel()
+        self._track_preview.set_visible(False)
+        self._track_preview.connect("prev-track", self._on_preview_prev)
+        self._track_preview.connect("next-track", self._on_preview_next)
+
+        # Library page with split pane
+        library_paned = Gtk.Paned(orientation=Gtk.Orientation.HORIZONTAL)
+        library_paned.set_start_child(self._library_view)
+        library_paned.set_end_child(self._track_preview)
+        library_paned.set_shrink_end_child(False)
+        library_paned.set_position(600)
+        stack.add_titled(library_paned, "library", "Library")
 
         # Playlists view (using new PlaylistsView)
         self._playlists_view = PlaylistsView()
@@ -433,7 +449,31 @@ class PlaychitectWindow(Adw.ApplicationWindow):
         self._track_title = f"Playchitect — {count} tracks"
         self.set_title(self._track_title)
 
-    def _on_library_track_selected(self, view: LibraryView, track: object) -> None:
+    def _on_library_track_selected(self, view: LibraryView, track: LibraryTrackModel) -> None:
         """Handle track selection in library view."""
-        # TODO: Implement track preview or details view
-        logger.debug("Track selected: %s", getattr(track, "display_title", track))
+        logger.debug("Track selected: %s", track.display_title)
+        # Load track into preview panel if visible
+        if self._track_preview.get_visible():
+            self._track_preview.load_track(track)
+
+    def _on_preview_toggled(self, _view: LibraryView, active: bool) -> None:
+        """Handle preview panel toggle button."""
+        self._track_preview.set_visible(active)
+        if active:
+            # Load current selection if panel is being shown
+            track = self._library_view.get_selected_track()
+            if track is not None:
+                self._track_preview.load_track(track)
+        else:
+            # Stop playback when hiding panel
+            self._track_preview._stop_playback()
+
+    def _on_preview_prev(self, _panel: TrackPreviewPanel) -> None:
+        """Handle previous track request from preview panel."""
+        logger.debug("Previous track requested from preview panel")
+        # TODO: Implement track navigation in library view
+
+    def _on_preview_next(self, _panel: TrackPreviewPanel) -> None:
+        """Handle next track request from preview panel."""
+        logger.debug("Next track requested from preview panel")
+        # TODO: Implement track navigation in library view
