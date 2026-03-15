@@ -57,6 +57,37 @@ class PlaychitectWindow(Adw.ApplicationWindow):
         self._cluster_btn.set_sensitive(False)
         header.pack_start(self._cluster_btn)
 
+        # ── Clustering Options ────────────────────────────────────────────────
+        options_btn = Gtk.MenuButton(icon_name="emblem-system-symbolic")
+        options_btn.set_tooltip_text("Clustering Options")
+
+        popover_content = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=6)
+        popover_content.set_margin_top(6)
+        popover_content.set_margin_bottom(6)
+        popover_content.set_margin_start(6)
+        popover_content.set_margin_end(6)
+
+        group = Adw.PreferencesGroup(title="Playlist Size")
+        row = Adw.ActionRow(title="Target")
+
+        suffix = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL, spacing=6)
+
+        self._target_spin = Gtk.SpinButton.new_with_range(1, 500, 1)
+        suffix.append(self._target_spin)
+
+        self._target_unit = Gtk.DropDown.new_from_strings(["Tracks", "Minutes"])
+        self._target_unit.connect("notify::selected-item", self._on_unit_changed)
+        suffix.append(self._target_unit)
+
+        row.add_suffix(suffix)
+        group.add(row)
+        popover_content.append(group)
+
+        popover = Gtk.Popover()
+        popover.set_child(popover_content)
+        options_btn.set_popover(popover)
+        header.pack_end(options_btn)
+
         toolbar_view = Adw.ToolbarView()
         toolbar_view.add_top_bar(header)
 
@@ -83,11 +114,43 @@ class PlaychitectWindow(Adw.ApplicationWindow):
         toolbar_view.set_content(paned)
         self.set_content(toolbar_view)
 
-        # Load default music directory after the window is shown
+        # Load config defaults
         config = get_config()
+
+        # Load target size
+        def_tracks = config.get("default_target_tracks")
+        def_duration = config.get("default_target_duration")
+
+        if def_duration:
+            self._target_unit.set_selected(1)  # Minutes
+            self._target_spin.set_range(5, 300)
+            self._target_spin.set_value(def_duration)
+        else:
+            self._target_unit.set_selected(0)  # Tracks
+            self._target_spin.set_range(1, 500)
+            self._target_spin.set_value(def_tracks or 25)
+
+        # Load default music directory after the window is shown
         music_path = config.get_test_music_path()
         if music_path and music_path.is_dir():
             GLib.idle_add(self._start_scan, music_path)
+
+    def _on_unit_changed(self, dropdown: Gtk.DropDown, _pspec: object) -> None:
+        """Update spinner range when unit changes."""
+        is_minutes = dropdown.get_selected() == 1
+        if is_minutes:
+            self._target_spin.set_range(5, 300)  # 5 mins to 5 hours
+            # If value is huge (from tracks mode), clamp it logic?
+            # Or just let set_range handle it.
+            # Ideally we might want to convert, but simple switching is safer.
+            current = self._target_spin.get_value()
+            if current < 5:
+                self._target_spin.set_value(60)  # Default to 1 hour
+        else:
+            self._target_spin.set_range(1, 500)  # 1 to 500 tracks
+            current = self._target_spin.get_value()
+            if current > 500:
+                self._target_spin.set_value(25)  # Default to 25 tracks
 
     # ── Preview chip ──────────────────────────────────────────────────────────
 
@@ -185,17 +248,38 @@ class PlaychitectWindow(Adw.ApplicationWindow):
         self._cluster_btn.set_sensitive(False)
         self.set_title("Playchitect — analysing & clustering…")
 
-        # Perform in a thread to keep UI responsive
-        threading.Thread(target=self._cluster_worker, daemon=True).start()
+        # Read UI state (main thread)
+        target_val = self._target_spin.get_value()
+        is_minutes = self._target_unit.get_selected() == 1
 
-    def _cluster_worker(self) -> None:
+        # Persist to config
+        config = get_config()
+        if is_minutes:
+            config.set("default_target_duration", target_val)
+            config.set("default_target_tracks", None)
+        else:
+            config.set("default_target_tracks", int(target_val))
+            config.set("default_target_duration", None)
+        config.save()
+
+        # Perform in a thread to keep UI responsive
+        threading.Thread(
+            target=self._cluster_worker, args=(target_val, is_minutes), daemon=True
+        ).start()
+
+    def _cluster_worker(self, target_val: float, is_minutes: bool) -> None:
         """Background worker for clustering."""
         try:
             config = get_config()
             int_analyzer = IntensityAnalyzer(cache_dir=config.get_cache_dir() / "intensity")
             self._intensity_map = int_analyzer.analyze_batch(list(self._metadata_map.keys()))
 
-            clusterer = PlaylistClusterer(target_tracks_per_playlist=20)
+            # Configure clusterer based on UI selection
+            if is_minutes:
+                clusterer = PlaylistClusterer(target_duration_per_playlist=target_val)
+            else:
+                clusterer = PlaylistClusterer(target_tracks_per_playlist=int(target_val))
+
             self._clusters = clusterer.cluster_by_features(self._metadata_map, self._intensity_map)
 
             # Sequence each cluster (default: ramp)

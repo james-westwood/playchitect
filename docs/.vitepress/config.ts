@@ -49,6 +49,18 @@ export default withMermaid(defineConfig({
             { text: 'Releasing', link: '/contributing/releasing' },
           ]
         }
+      ],
+      '/planning/': [
+        {
+          text: 'Planning',
+          items: [
+            { text: 'Roadmap', link: '/planning/ROADMAP' },
+            { text: 'GUI Design', link: '/planning/gui-design' },
+            { text: 'Flatpak Guide', link: '/planning/flatpak-guide' },
+            { text: 'PyPI Publishing', link: '/planning/pypi-publishing' },
+            { text: 'Release Strategy', link: '/planning/release-strategy' },
+          ]
+        }
       ]
     },
 
