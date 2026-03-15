@@ -26,7 +26,9 @@ TRACK_SUBSET_SIZE = 100
 # Values are set to roughly 2-3x the local baseline to allow for CI runner variability.
 THRESHOLD_AUDIO_SCANNER = 0.010  # 10ms for 50 tracks
 THRESHOLD_METADATA_EXTRACTOR = 0.050  # 50ms for 50 tracks
-THRESHOLD_INTENSITY_ANALYZER = 0.100  # 100ms for one 0.5s file
+THRESHOLD_INTENSITY_ANALYZER = (
+    0.150  # 150ms for one 0.5s file (increased for structural+vocal features)
+)
 THRESHOLD_CLUSTERING = 1.500  # 1.5s for 1000 tracks (includes silhouette)
 THRESHOLD_M3U_EXPORT = 0.050  # 50ms for 50 tracks
 THRESHOLD_CUE_EXPORT = 0.050  # 50ms for 50 tracks
