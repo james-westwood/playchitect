@@ -4,3 +4,4 @@
 [2026-03-15] [TASK-09] key_harmonic_features: added chroma-based key detection with Camelot Wheel mapping, harmonic_compatibility() function, and camelot_key/key_index fields to IntensityFeatures with JSON cache persistence
 [2026-03-15] [TASK-02] cli_weight_flags: implemented and merged (PR #128)
 [2026-03-15] [TASK-11] energy_flow_features: implemented and merged (PR #129)
+[2026-03-15] [TASK-13] timbre_texture_features: implemented and merged (PR #130)

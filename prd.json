@@ -90,7 +90,7 @@
       "owner": "ralph",
       "description": "Add timbre/texture features to IntensityFeatures in playchitect/core/intensity_analyzer.py. (1) Add four new metadata fields to `IntensityFeatures` (NOT part of the main clustering feature vector): `spectral_flatness: float` (0\u20131), `zero_crossing_rate: float` (0\u20131), `mfcc_variance: float` (0\u20131), `spectral_rolloff_85: float` (0\u20131, normalised to Nyquist). (2) In `analyze()`, compute: `spectral_flatness = float(np.mean(librosa.feature.spectral_flatness(y=y)))`  normalised to [0,1] by clipping at 0.5; `zcr = float(np.mean(librosa.feature.zero_crossing_rate(y=y)[0]))` normalised to [0,1] by clipping at 0.5; `mfcc_var = float(np.mean(np.var(librosa.feature.mfcc(y=y, sr=sr, n_mfcc=13), axis=1)))` normalised to [0,1] by dividing by 100 and clipping; `sr_85 = float(np.mean(librosa.feature.spectral_rolloff(y=y, sr=sr, roll_percent=0.85)[0])) / (sr/2)` clamped 0\u20131. (3) Add all four to JSON cache, handle old cache gracefully. (4) Do NOT add to `to_feature_vector()`. Add unit tests.",
       "acceptance_criteria": "tests/unit/test_intensity_analyzer.py: analysis of a synthetic y yields all four fields in [0, 1]. Old cache missing new keys loads as 0.0. `uv run pytest tests/ -v` passes.",
-      "completed": false,
+      "completed": true,
       "priority": 4,
       "note": "GitHub issue #40"
     },
