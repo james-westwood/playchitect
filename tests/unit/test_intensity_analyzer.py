@@ -578,7 +578,8 @@ class TestIntensityAnalyzer:
         assert 0.0 <= features.drop_density <= 1.0
 
         # Sine wave should have zero drop density (no drops in steady tone)
-        assert features.drop_density >= 0.0
+        # Threshold is mean + 2*std; for steady signal, std ≈ 0, so no frames exceed threshold
+        assert features.drop_density < 0.1
 
     def test_analyze_emits_no_audioread_or_soundfile_warnings(self, tmp_path: Path) -> None:
         """analyze() on a valid audio fixture must not emit WARNING-level log
