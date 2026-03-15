@@ -82,6 +82,8 @@ def _make_view() -> PlaylistsView:
     view._harmonic_switch = MagicMock()
     # TASK-12: Sort dropdown
     view._sort_dropdown = MagicMock()
+    # TASK-14: Timbre similarity scale
+    view._timbre_scale = MagicMock()
     return view
 
 
@@ -322,6 +324,8 @@ class TestPlaylistsViewInstantiation:
             patch("playchitect.gui.views.playlists_view.Gtk.StringList") as mock_stringlist,
             # TASK-10: Harmonic mixing switch
             patch("playchitect.gui.views.playlists_view.Gtk.Switch") as mock_switch,
+            # TASK-14: Timbre similarity scale
+            patch("playchitect.gui.views.playlists_view.Gtk.Scale") as mock_scale,
         ):
             # Setup mock returns
             mock_action.return_value = MagicMock()
@@ -338,6 +342,7 @@ class TestPlaylistsViewInstantiation:
             mock_dropdown.return_value = MagicMock()
             mock_stringlist.new.return_value = MagicMock()
             mock_switch.return_value = MagicMock()
+            mock_scale.return_value = MagicMock()
 
             view = PlaylistsView()
             assert view is not None
@@ -405,3 +410,13 @@ class TestSortControls:
         view = _make_view()
         assert hasattr(view, "_sort_dropdown")
         assert view._sort_dropdown is not None
+
+
+class TestTimbreControls:
+    """Tests for the timbre/texture controls (TASK-14)."""
+
+    def test_toolbar_has_timbre_scale(self):
+        """Verify PlaylistsView has a Timbre similarity Scale widget."""
+        view = _make_view()
+        assert hasattr(view, "_timbre_scale")
+        assert view._timbre_scale is not None
