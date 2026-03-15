@@ -355,7 +355,7 @@ EOF
       done
       # Same pre-merge guard and orchestrator tracking as the main path
       PRD_CHANGES=$(gh pr diff "$PR_NUMBER" -- prd.json 2>/dev/null \
-        | grep '^+.*"completed": true' | wc -l)
+        | grep -c '^+.*"completed": true' || true)
       if [[ "$PRD_CHANGES" -gt 1 ]]; then
         log "  ABORT: coder marked $PRD_CHANGES tasks complete in prd.json (expected 0). Closing PR #$PR_NUMBER."
         gh pr close "$PR_NUMBER" --comment "Closing: coder incorrectly modified prd.json (marked $PRD_CHANGES tasks complete). The orchestrator owns prd.json."
@@ -723,7 +723,7 @@ Fix steps:
   # Note: the coder prompt now says not to touch prd.json at all, so ideally
   # this count will always be zero. Non-zero means the coder ignored instructions.
   PRD_CHANGES=$(gh pr diff "$PR_NUMBER" -- prd.json 2>/dev/null \
-    | grep '^+.*"completed": true' | wc -l)
+    | grep -c '^+.*"completed": true' || true)
   if [[ "$PRD_CHANGES" -gt 1 ]]; then
     log "  ABORT: coder marked $PRD_CHANGES tasks complete in prd.json (expected 0). Closing PR #$PR_NUMBER."
     gh pr close "$PR_NUMBER" --comment "Closing: coder incorrectly modified prd.json (marked $PRD_CHANGES tasks complete). The orchestrator owns prd.json. Re-run ralph to retry this task."
