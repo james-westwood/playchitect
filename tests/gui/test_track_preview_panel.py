@@ -129,6 +129,19 @@ def panel() -> TrackPreviewPanel:
     p._seek_timeout_id = None
     p._current_track = None
 
+    # Mock tag-related widgets
+    p._tags_flowbox = MagicMock()
+    p._tags_flowbox.get_first_child = MagicMock(return_value=None)
+    p._tag_entry = MagicMock()
+    p._completion_model = MagicMock()
+
+    # Mock tag store
+    p._tag_store = MagicMock()
+    p._tag_store.get_tags = MagicMock(return_value=[])
+    p._tag_store.all_tags = MagicMock(return_value=[])
+    p._tag_store.add_tag = MagicMock()
+    p._tag_store.remove_tag = MagicMock()
+
     return p
 
 
@@ -373,3 +386,153 @@ class TestTimeFormatting:
     def test_format_time_negative_clamped(self, panel: TrackPreviewPanel) -> None:
         """Verify negative values are clamped to 0."""
         assert panel._format_time(-5) == "0:00"
+
+
+class TestTagSection:
+    """Test the vibe tags section in TrackPreviewPanel."""
+
+    @pytest.fixture
+    def panel_with_tags(self) -> TrackPreviewPanel:
+        """Return a TrackPreviewPanel with mocked tag widgets."""
+        p = TrackPreviewPanel.__new__(TrackPreviewPanel)
+
+        # Mock all required attributes
+        p._title_label = MagicMock()
+        p._artist_label = MagicMock()
+        p._album_label = MagicMock()
+        p._bpm_pill = MagicMock()
+        p._key_pill = MagicMock()
+        p._duration_pill = MagicMock()
+        p._format_pill = MagicMock()
+        p._cover_picture = MagicMock()
+        p._cover_icon = MagicMock()
+        p._seek_scale = MagicMock()
+        p._current_time_label = MagicMock()
+        p._total_time_label = MagicMock()
+        p._play_btn = MagicMock()
+
+        # Mock tag-related widgets
+        p._tags_flowbox = MagicMock()
+        p._tags_flowbox.get_first_child = MagicMock(return_value=None)
+        p._tag_entry = MagicMock()
+        p._completion_model = MagicMock()
+
+        # Mock GStreamer
+        p._playbin = None
+        p._is_playing = False
+        p._duration_ns = 0
+        p._seek_timeout_id = None
+        p._current_track = None
+
+        # Mock tag store
+        p._tag_store = MagicMock()
+        p._tag_store.get_tags = MagicMock(return_value=[])
+        p._tag_store.all_tags = MagicMock(return_value=[])
+        p._tag_store.add_tag = MagicMock()
+        p._tag_store.remove_tag = MagicMock()
+
+        return p
+
+    def test_tag_flowbox_exists(self, panel_with_tags: TrackPreviewPanel) -> None:
+        """Verify the tags FlowBox widget exists."""
+        assert panel_with_tags._tags_flowbox is not None
+
+    def test_tag_entry_exists(self, panel_with_tags: TrackPreviewPanel) -> None:
+        """Verify the tag entry widget exists."""
+        assert panel_with_tags._tag_entry is not None
+
+    def test_refresh_tags_display_clears_existing(self, panel_with_tags: TrackPreviewPanel) -> None:
+        """Verify _refresh_tags_display clears existing tags."""
+        panel_with_tags._current_track = MagicMock()
+        panel_with_tags._current_track.filepath = "/music/test.mp3"
+
+        panel_with_tags._refresh_tags_display()
+
+        # Should call get_first_child to start clearing
+        panel_with_tags._tags_flowbox.get_first_child.assert_called()
+
+    def test_add_tag_calls_store(self, panel_with_tags: TrackPreviewPanel) -> None:
+        """Verify _on_add_tag_clicked calls tag_store.add_tag."""
+        panel_with_tags._current_track = MagicMock()
+        panel_with_tags._current_track.filepath = "/music/test.mp3"
+        panel_with_tags._tag_entry.get_text = MagicMock(return_value="techno")
+
+        panel_with_tags._on_add_tag_clicked(None)
+
+        # Should normalize path and add tag
+        panel_with_tags._tag_store.add_tag.assert_called_once()
+        call_args = panel_with_tags._tag_store.add_tag.call_args
+        assert str(call_args[0][0]) == "/music/test.mp3"
+        assert call_args[0][1] == "techno"
+
+    def test_add_tag_clears_entry(self, panel_with_tags: TrackPreviewPanel) -> None:
+        """Verify adding a tag clears the entry."""
+        panel_with_tags._current_track = MagicMock()
+        panel_with_tags._current_track.filepath = "/music/test.mp3"
+        panel_with_tags._tag_entry.get_text = MagicMock(return_value="techno")
+
+        panel_with_tags._on_add_tag_clicked(None)
+
+        panel_with_tags._tag_entry.set_text.assert_called_once_with("")
+
+    def test_add_tag_noop_without_track(self, panel_with_tags: TrackPreviewPanel) -> None:
+        """Verify adding a tag is a no-op when no track is loaded."""
+        panel_with_tags._current_track = None
+        panel_with_tags._tag_entry.get_text = MagicMock(return_value="techno")
+
+        panel_with_tags._on_add_tag_clicked(None)
+
+        panel_with_tags._tag_store.add_tag.assert_not_called()
+
+    def test_add_tag_noop_with_empty_text(self, panel_with_tags: TrackPreviewPanel) -> None:
+        """Verify adding a tag is a no-op when entry is empty."""
+        panel_with_tags._current_track = MagicMock()
+        panel_with_tags._current_track.filepath = "/music/test.mp3"
+        panel_with_tags._tag_entry.get_text = MagicMock(return_value="   ")
+
+        panel_with_tags._on_add_tag_clicked(None)
+
+        panel_with_tags._tag_store.add_tag.assert_not_called()
+
+    def test_remove_tag_calls_store(self, panel_with_tags: TrackPreviewPanel) -> None:
+        """Verify _on_remove_tag calls tag_store.remove_tag."""
+        panel_with_tags._current_track = MagicMock()
+        panel_with_tags._current_track.filepath = "/music/test.mp3"
+
+        panel_with_tags._on_remove_tag("techno")
+
+        panel_with_tags._tag_store.remove_tag.assert_called_once()
+        call_args = panel_with_tags._tag_store.remove_tag.call_args
+        assert str(call_args[0][0]) == "/music/test.mp3"
+        assert call_args[0][1] == "techno"
+
+    def test_remove_tag_noop_without_track(self, panel_with_tags: TrackPreviewPanel) -> None:
+        """Verify removing a tag is a no-op when no track is loaded."""
+        panel_with_tags._current_track = None
+
+        panel_with_tags._on_remove_tag("techno")
+
+        panel_with_tags._tag_store.remove_tag.assert_not_called()
+
+    def test_completion_model_updated_on_refresh(self, panel_with_tags: TrackPreviewPanel) -> None:
+        """Verify completion model is updated when refreshing tags."""
+        panel_with_tags._current_track = MagicMock()
+        panel_with_tags._current_track.filepath = "/music/test.mp3"
+        panel_with_tags._tag_store.all_tags = MagicMock(return_value=["techno", "house"])
+
+        panel_with_tags._refresh_tags_display()
+
+        # Should call all_tags to get available tags for completion
+        panel_with_tags._tag_store.all_tags.assert_called_once()
+
+    def test_get_tags_for_current_track(self, panel_with_tags: TrackPreviewPanel) -> None:
+        """Verify _refresh_tags_display calls get_tags for current track."""
+        panel_with_tags._current_track = MagicMock()
+        panel_with_tags._current_track.filepath = "/music/test.mp3"
+        panel_with_tags._tag_store.get_tags = MagicMock(return_value=["techno", "house"])
+
+        panel_with_tags._refresh_tags_display()
+
+        panel_with_tags._tag_store.get_tags.assert_called_once()
+        call_args = panel_with_tags._tag_store.get_tags.call_args
+        assert str(call_args[0][0]) == "/music/test.mp3"

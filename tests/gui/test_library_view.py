@@ -187,7 +187,10 @@ def library_view() -> LibraryView:
     v = LibraryView.__new__(LibraryView)
     v._search_text = ""
     v._selected_format = "All"
+    v._tag_filter = ""
     v._scan_thread = None
+    v._tag_store = MagicMock()
+    v._tag_store.get_tags = MagicMock(return_value=[])
 
     # Fake model chain
     v._store = _FakeListStore()

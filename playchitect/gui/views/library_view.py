@@ -24,6 +24,7 @@ from gi.repository import (  # type: ignore[unresolved-import]  # noqa: E402
 
 from playchitect.core.audio_scanner import AudioScanner  # noqa: E402
 from playchitect.core.metadata_extractor import MetadataExtractor  # noqa: E402
+from playchitect.core.vibe_tags import VibeTagStore  # noqa: E402
 
 logger = logging.getLogger(__name__)
 
@@ -138,7 +139,9 @@ class LibraryView(Gtk.Box):
         # State
         self._search_text = ""
         self._selected_format = "All"
+        self._tag_filter = ""
         self._scan_thread: threading.Thread | None = None
+        self._tag_store = VibeTagStore()
 
         # Model chain: ListStore → FilterListModel → SortListModel → Selection
         self._store = Gio.ListStore(item_type=LibraryTrackModel)
@@ -190,6 +193,13 @@ class LibraryView(Gtk.Box):
         self._preview_toggle.connect("toggled", self._on_preview_toggled)
         toolbar.append(self._preview_toggle)
 
+        # Tag filter toggle button
+        self._tag_filter_toggle = Gtk.ToggleButton()
+        self._tag_filter_toggle.set_icon_name("tag-symbolic")
+        self._tag_filter_toggle.set_tooltip_text("Toggle Tag Filter")
+        self._tag_filter_toggle.connect("toggled", self._on_tag_filter_toggled)
+        toolbar.append(self._tag_filter_toggle)
+
         # SearchBar (hidden by default)
         self._search_bar = Gtk.SearchBar()
         self._search_bar.set_search_mode_enabled(False)
@@ -202,9 +212,28 @@ class LibraryView(Gtk.Box):
 
         self._search_bar.set_child(search_entry)
 
-        # Add toolbar and search bar to main box
+        # Tag filter bar (hidden by default)
+        self._tag_filter_bar = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL, spacing=6)
+        self._tag_filter_bar.set_margin_start(12)
+        self._tag_filter_bar.set_margin_end(12)
+        self._tag_filter_bar.set_margin_top(6)
+        self._tag_filter_bar.set_margin_bottom(6)
+        self._tag_filter_bar.set_visible(False)
+
+        tag_label = Gtk.Label(label="Filter by tag:")
+        tag_label.add_css_class("caption")
+        self._tag_filter_bar.append(tag_label)
+
+        self._tag_filter_entry = Gtk.SearchEntry()
+        self._tag_filter_entry.set_placeholder_text("Enter tag...")
+        self._tag_filter_entry.set_hexpand(True)
+        self._tag_filter_entry.connect("search-changed", self._on_tag_filter_changed)
+        self._tag_filter_bar.append(self._tag_filter_entry)
+
+        # Add toolbar, search bar, and tag filter bar to main box
         self.append(toolbar)
         self.append(self._search_bar)
+        self.append(self._tag_filter_bar)
 
     def _build_format_chips(self) -> None:
         """Build format filter chips below the header."""
@@ -245,6 +274,7 @@ class LibraryView(Gtk.Box):
             ("BPM", 70, "bpm", self._bind_bpm),
             ("Duration", 80, "duration_secs", self._bind_duration),
             ("Format", 70, "file_format", self._bind_format),
+            ("Tags", 120, None, self._bind_tags),
         ]
 
         for header, width, sort_attr, bind_fn in columns:
@@ -303,6 +333,26 @@ class LibraryView(Gtk.Box):
         label.set_xalign(0.5)
         label.set_text(track.file_format.upper() if track.file_format else "—")
 
+    def _bind_tags(self, _factory: Gtk.SignalListItemFactory, item: Gtk.ListItem) -> None:
+        """Bind tags column showing comma-separated tags (truncated)."""
+        track: LibraryTrackModel = item.get_item()
+        label: Gtk.Label = item.get_child()
+        label.set_xalign(0.0)
+
+        track_path = Path(track.filepath)
+        tags = self._tag_store.get_tags(track_path)
+
+        if tags:
+            tag_text = ", ".join(tags)
+            # Truncate to 30 chars with ellipsis
+            if len(tag_text) > 30:
+                tag_text = tag_text[:27] + "..."
+            label.set_text(tag_text)
+            label.set_tooltip_text(", ".join(tags))
+        else:
+            label.set_text("—")
+            label.set_tooltip_text("")
+
     def _build_footer(self) -> None:
         """Build footer showing track count."""
         footer = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL, spacing=6)
@@ -333,6 +383,18 @@ class LibraryView(Gtk.Box):
     def _on_preview_toggled(self, btn: Gtk.ToggleButton) -> None:
         """Emit preview-toggled signal when preview panel toggle changes."""
         self.emit("preview-toggled", btn.get_active())
+
+    def _on_tag_filter_toggled(self, btn: Gtk.ToggleButton) -> None:
+        """Toggle tag filter bar visibility."""
+        self._tag_filter_bar.set_visible(btn.get_active())
+        if btn.get_active():
+            self._tag_filter_entry.grab_focus()
+
+    def _on_tag_filter_changed(self, entry: Gtk.SearchEntry) -> None:
+        """Handle tag filter text changes."""
+        self._tag_filter = entry.get_text().lower().strip()
+        self._filter.changed(Gtk.FilterChange.DIFFERENT)
+        self._update_footer()
 
     def _on_search_changed(self, entry: Gtk.SearchEntry) -> None:
         """Handle search text changes."""
@@ -450,7 +512,7 @@ class LibraryView(Gtk.Box):
     # ── Filter ──────────────────────────────────────────────────────────────────
 
     def _filter_func(self, item: Any, _user_data: object) -> bool:
-        """Filter function combining search and format filters."""
+        """Filter function combining search, format, and tag filters."""
         track: LibraryTrackModel = item
 
         # Format filter
@@ -463,6 +525,14 @@ class LibraryView(Gtk.Box):
             title_match = self._search_text in track.display_title.lower()
             artist_match = self._search_text in (track.artist or "").lower()
             if not (title_match or artist_match):
+                return False
+
+        # Tag filter
+        if self._tag_filter:
+            track_path = Path(track.filepath)
+            tags = self._tag_store.get_tags(track_path)
+            tag_match = any(self._tag_filter in tag for tag in tags)
+            if not tag_match:
                 return False
 
         return True
