@@ -1,11 +1,11 @@
-"""
-Sequencing engine for ordering tracks within clusters.
+"""Sequencing engine for ordering tracks within clusters.
 
 Creates cohesive DJ set narratives using intensity ramps and smart
 opener/closer placement.
 """
 
 import logging
+from enum import StrEnum
 from pathlib import Path
 
 from playchitect.core.clustering import ClusterResult
@@ -14,6 +14,156 @@ from playchitect.core.metadata_extractor import TrackMetadata
 from playchitect.core.track_selector import TrackSelector
 
 logger = logging.getLogger(__name__)
+
+
+class FiveRhythmsPhase(StrEnum):
+    """Five Rhythms phases for dance/movement-based sequencing."""
+
+    FLOWING = "flowing"
+    STACCATO = "staccato"
+    CHAOS = "chaos"
+    LYRICAL = "lyrical"
+    STILLNESS = "stillness"
+
+
+# Phase ordering for Five Rhythms sequence
+_FIVE_RHYTHMS_ORDER: list[FiveRhythmsPhase] = [
+    FiveRhythmsPhase.FLOWING,
+    FiveRhythmsPhase.STACCATO,
+    FiveRhythmsPhase.CHAOS,
+    FiveRhythmsPhase.LYRICAL,
+    FiveRhythmsPhase.STILLNESS,
+]
+
+# BPM and energy thresholds for Five Rhythms classification
+_FIVE_RHYTHMS_THRESHOLDS: dict[str, dict[str, float]] = {
+    "flowing": {"bpm_min": 85.0, "bpm_max": 115.0, "rms_max": 0.5},
+    "staccato": {"bpm_min": 115.0, "bpm_max": 135.0, "rms_min": 0.4, "rms_max": 0.7},
+    "chaos": {"bpm_threshold": 135.0, "rms_threshold": 0.75},
+    "stillness": {"bpm_threshold": 85.0, "rms_threshold": 0.25},
+}
+
+
+def classify_five_rhythms_phase(bpm: float, rms_energy: float) -> FiveRhythmsPhase:
+    """
+    Classify a track into a Five Rhythms phase based on BPM and RMS energy.
+
+    Classification rules:
+    - Flowing: BPM 85-115 and RMS < 0.5 (smooth, continuous movement)
+    - Staccato: BPM 115-135 and RMS 0.4-0.7 (sharp, percussive)
+    - Chaos: BPM > 135 or RMS > 0.75 (high energy, release)
+    - Stillness: BPM < 85 or RMS < 0.25 (quiet, meditative)
+    - Lyrical: Everything else (expressive, melodic)
+
+    Args:
+        bpm: Track tempo in beats per minute (must be > 0)
+        rms_energy: RMS energy level (0.0-1.0)
+
+    Returns:
+        FiveRhythmsPhase classification for the track
+
+    Raises:
+        ValueError: If BPM is not positive
+    """
+    if bpm <= 0:
+        raise ValueError(f"BPM must be positive, got {bpm}")
+
+    thresholds = _FIVE_RHYTHMS_THRESHOLDS
+
+    # Chaos: high BPM or very high energy
+    chaos_thresholds = thresholds["chaos"]
+    if bpm > chaos_thresholds["bpm_threshold"] or rms_energy > chaos_thresholds["rms_threshold"]:
+        return FiveRhythmsPhase.CHAOS
+
+    # Stillness: low BPM or very low energy
+    stillness_thresholds = thresholds["stillness"]
+    if (
+        bpm < stillness_thresholds["bpm_threshold"]
+        or rms_energy < stillness_thresholds["rms_threshold"]
+    ):
+        return FiveRhythmsPhase.STILLNESS
+
+    # Flowing: mid BPM with low energy
+    flowing_thresholds = thresholds["flowing"]
+    if (
+        flowing_thresholds["bpm_min"] <= bpm < flowing_thresholds["bpm_max"]
+        and rms_energy < flowing_thresholds["rms_max"]
+    ):
+        return FiveRhythmsPhase.FLOWING
+
+    # Staccato: higher BPM with mid energy
+    staccato_thresholds = thresholds["staccato"]
+    if (
+        staccato_thresholds["bpm_min"] <= bpm < staccato_thresholds["bpm_max"]
+        and staccato_thresholds["rms_min"] <= rms_energy < staccato_thresholds["rms_max"]
+    ):
+        return FiveRhythmsPhase.STACCATO
+
+    # Default: Lyrical
+    return FiveRhythmsPhase.LYRICAL
+
+
+def sequence_five_rhythms(
+    tracks: list[Path],
+    metadata: dict[Path, TrackMetadata],
+    features: dict[Path, IntensityFeatures],
+) -> list[Path]:
+    """
+    Sequence tracks according to the Five Rhythms flow.
+
+    Groups tracks by Five Rhythms phase, then orders them:
+    Flowing → Staccato → Chaos → Lyrical → Stillness
+    Within each phase, tracks are sorted by energy ascending.
+    Phases with no tracks are skipped.
+
+    Args:
+        tracks: List of track paths to sequence
+        metadata: Mapping of path to TrackMetadata (contains BPM)
+        features: Mapping of path to IntensityFeatures (contains RMS energy)
+
+    Returns:
+        List of track paths in Five Rhythms order
+
+    Raises:
+        ValueError: If a track is missing from the metadata or features dict
+    """
+    # Group tracks by phase
+    phase_groups: dict[FiveRhythmsPhase, list[Path]] = {phase: [] for phase in FiveRhythmsPhase}
+
+    for track in tracks:
+        if track not in metadata:
+            raise ValueError(f"Missing metadata for track: {track}")
+        if track not in features:
+            raise ValueError(f"Missing features for track: {track}")
+
+        track_bpm = metadata[track].bpm
+        if track_bpm is None or track_bpm <= 0:
+            # Skip tracks without valid BPM - they default to lyrical
+            phase_groups[FiveRhythmsPhase.LYRICAL].append(track)
+            continue
+
+        rms_energy = features[track].rms_energy
+        phase = classify_five_rhythms_phase(track_bpm, rms_energy)
+        phase_groups[phase].append(track)
+
+    # Build final sequence in phase order
+    result: list[Path] = []
+    for phase in _FIVE_RHYTHMS_ORDER:
+        group = phase_groups[phase]
+        if not group:
+            continue
+
+        # Sort within phase by RMS energy ascending
+        group.sort(key=lambda t: features[t].rms_energy)
+        result.extend(group)
+
+    logger.info(
+        "Sequenced %d tracks using Five Rhythms: %s",
+        len(result),
+        {p.value: len(phase_groups[p]) for p in FiveRhythmsPhase if phase_groups[p]},
+    )
+
+    return result
 
 
 class Sequencer:
