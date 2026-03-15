@@ -57,7 +57,7 @@
       "owner": "ralph",
       "description": "Extend the `scan` Click command in playchitect/cli/commands.py with two new options: (1) `--weight-file PATH` (type=click.Path(exists=True, path_type=Path), default=None) \u2014 loads WeightOverrides from the YAML file (from TASK-01) and passes it to PlaylistClusterer via the new `weight_overrides` param. (2) `--learn-weights / --no-learn-weights` boolean flag (default True) \u2014 controls whether EWKM per-cluster weight refinement runs. Currently EWKM is always attempted when `n_tracks >= _MIN_TRACKS_EWKM`; gate it behind this flag by adding `use_ewkm: bool = True` to PlaylistClusterer.__init__ and skip the ewkm_refine call when False. Wire both flags through. Add integration tests in tests/integration/test_cli_weight_flags.py that invoke the CLI via Click's test runner (CliRunner) with `--weight-file` pointing at a minimal YAML fixture and `--no-learn-weights`, asserting exit code 0.",
       "acceptance_criteria": "tests/integration/test_cli_weight_flags.py: CliRunner invocation with --weight-file + minimal YAML exits 0. --no-learn-weights exits 0 without error. `playchitect scan --help` output includes both flags. `uv run pytest tests/ -v` passes.",
-      "completed": false,
+      "completed": true,
       "priority": 2,
       "note": "GitHub issue #27"
     },

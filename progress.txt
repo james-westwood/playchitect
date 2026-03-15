@@ -2,3 +2,4 @@
 [2026-03-15] [FIX-03] suppress_librosa_warnings_in_batch: added suppress_audio_log_warnings() to utils/warnings.py and applied it with suppress_librosa_warnings() in analyze() and _analyze_worker() to prevent audioread/soundfile backend-negotiation log chatter from leaking to users
 [2026-03-15] [TASK-01] yaml_weight_overrides: implemented WeightOverrides dataclass with YAML loading and weight override application in PlaylistClusterer; added example config and 24 unit tests
 [2026-03-15] [TASK-09] key_harmonic_features: added chroma-based key detection with Camelot Wheel mapping, harmonic_compatibility() function, and camelot_key/key_index fields to IntensityFeatures with JSON cache persistence
+[2026-03-15] [TASK-02] cli_weight_flags: implemented and merged (PR #128)
