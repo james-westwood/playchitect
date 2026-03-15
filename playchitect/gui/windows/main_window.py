@@ -151,6 +151,7 @@ class PlaychitectWindow(Adw.ApplicationWindow):
                     hardness=0.0,
                     duration=meta.duration or 0.0,
                     audio_format=meta.filepath.suffix,
+                    mood="",
                 )
                 for meta in self._metadata_map.values()
                 if meta is not None
@@ -255,6 +256,7 @@ class PlaychitectWindow(Adw.ApplicationWindow):
                 cluster=cluster.cluster_id if isinstance(cluster.cluster_id, int) else -1,
                 duration=meta.duration or 0.0,
                 audio_format=path.suffix,
+                mood=intensity.mood_label if intensity else "",
             )
             cluster_tracks.append(model)
 

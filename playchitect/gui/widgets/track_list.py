@@ -44,6 +44,7 @@ class TrackModel(GObject.Object):
     cluster = GObject.Property(type=int, default=-1)
     duration = GObject.Property(type=float, default=0.0)  # seconds
     audio_format = GObject.Property(type=str, default="")  # ".flac", ".mp3", …
+    mood = GObject.Property(type=str, default="")  # Mood classification label
 
     def __init__(
         self,
@@ -56,6 +57,7 @@ class TrackModel(GObject.Object):
         cluster: int = -1,
         duration: float = 0.0,
         audio_format: str = "",
+        mood: str = "",
     ) -> None:
         super().__init__()
         self.filepath = filepath
@@ -67,6 +69,7 @@ class TrackModel(GObject.Object):
         self.cluster = cluster
         self.duration = duration
         self.audio_format = audio_format
+        self.mood = mood
 
     @property
     def duration_str(self) -> str:
@@ -229,6 +232,7 @@ class TrackListWidget(Gtk.Box):
             ("Title", 220, True, "title"),
             ("Artist", 160, True, "artist"),
             ("BPM", 70, True, "bpm"),
+            ("Mood", 90, True, "mood"),
             ("Hardness", 100, False, "hardness"),
             ("Cluster", 80, True, "cluster"),
             ("Time", 70, True, "duration"),
@@ -238,6 +242,7 @@ class TrackListWidget(Gtk.Box):
             self._bind_title,
             self._bind_artist,
             self._bind_bpm,
+            self._bind_mood,
             self._bind_intensity,
             self._bind_cluster,
             self._bind_duration,
@@ -286,6 +291,11 @@ class TrackListWidget(Gtk.Box):
         label: Gtk.Label = item.get_child()
         label.set_xalign(1.0)
         label.set_text(str(int(track.bpm)) if track.bpm > 0 else "—")
+
+    def _bind_mood(self, _factory: Gtk.SignalListItemFactory, item: Gtk.ListItem) -> None:
+        track: TrackModel = item.get_item()
+        label: Gtk.Label = item.get_child()
+        label.set_text(track.mood or "—")
 
     def _bind_intensity(self, _factory: Gtk.SignalListItemFactory, item: Gtk.ListItem) -> None:
         track: TrackModel = item.get_item()

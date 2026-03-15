@@ -186,6 +186,9 @@ class IntensityFeatures:
     vocal_presence: float = 0.0  # Vocal content in 200-800Hz harmonic band (0-1)
     intro_length_secs: float = 0.0  # Time until energy exceeds threshold (seconds)
 
+    # Mood classification (not part of feature vector)
+    mood_label: str = "Ethereal"  # Mood classification label
+
     @property
     def hardness(self) -> float:
         """
@@ -274,6 +277,9 @@ class IntensityFeatures:
             data["vocal_presence"] = 0.0
         if "intro_length_secs" not in data:
             data["intro_length_secs"] = 0.0
+        # Handle old cache files missing mood field
+        if "mood_label" not in data:
+            data["mood_label"] = "Ethereal"
         return cls(**data)
 
 
@@ -421,6 +427,11 @@ class IntensityAnalyzer:
             vocal_presence=vocal_presence,
             intro_length_secs=intro_length_secs,
         )
+
+        # Classify mood after features are computed
+        from playchitect.core.mood_classifier import classify_mood
+
+        features.mood_label = classify_mood(features)
 
         # Cache results
         if self.cache_db is not None:
