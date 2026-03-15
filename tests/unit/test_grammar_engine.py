@@ -1,7 +1,5 @@
 """Unit tests for grammar_engine module."""
 
-import pytest
-
 from playchitect.core.naming.grammar_engine import (
     ROYAL_ORDER,
     SYNONYMS,
