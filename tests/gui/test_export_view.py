@@ -34,6 +34,14 @@ def _make_view() -> ExportView:
     view._serato_button = MagicMock()
     view._mixxx_button = MagicMock()
 
+    # Set default return values for get_active() to avoid truthy MagicMock issues
+    view._m3u_button.get_active.return_value = False
+    view._cue_button.get_active.return_value = False
+    view._rekordbox_button.get_active.return_value = False
+    view._traktor_button.get_active.return_value = False
+    view._serato_button.get_active.return_value = False
+    view._mixxx_button.get_active.return_value = False
+
     view._all_clusters_button = MagicMock()
     view._selected_only_button = MagicMock()
     view._cluster_dropdown = MagicMock()
@@ -308,7 +316,7 @@ class TestPublicAPI:
         clusters = []
         metadata = {}
 
-        view.set_clusters(clusters, metadata)  # type: ignore[arg-type]
+        view.set_clusters(clusters, metadata)
 
         assert view._clusters == clusters
         assert view._metadata_map == metadata

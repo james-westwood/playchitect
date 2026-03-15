@@ -137,9 +137,9 @@ class TestPlaylistsViewPublicAPI:
     def test_set_metadata(self):
         """Test set_metadata updates the metadata map."""
         view = _make_view()
-        metadata_map = {Path("/test/track1.mp3"): MagicMock()}  # type: ignore[dict-item]
+        metadata_map = {Path("/test/track1.mp3"): MagicMock()}
 
-        view.set_metadata(metadata_map)  # type: ignore[arg-type]
+        view.set_metadata(metadata_map)
 
         assert view._metadata_map == metadata_map
         view._generate_btn.set_sensitive.assert_called_once_with(True)
@@ -178,7 +178,7 @@ class TestPlaylistsViewPublicAPI:
         assert view._clusters == []
         assert view._cluster_stats == []
         assert view._selected_cluster_id is None
-        view._track_list.clear.assert_called_once()  # type: ignore[attr-defined]
+        view._track_list.clear.assert_called_once()
         view._count_label.set_text.assert_called_with("0 clusters")
 
 
