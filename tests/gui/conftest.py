@@ -268,6 +268,28 @@ class _FakeGtkBase:
     def set_expanded(self, *_args: object) -> None:
         pass
 
+    def set_max_width_chars(self, *_args: object) -> None:
+        pass
+
+    def set_width_chars(self, *_args: object) -> None:
+        pass
+
+    def set_range(self, *_args: object) -> None:
+        pass
+
+    def set_draw_value(self, *_args: object) -> None:
+        pass
+
+    def set_value(self, *_args: object) -> None:
+        pass
+
+    def set_content_fit(self, *_args: object) -> None:
+        pass
+
+    @classmethod
+    def new_from_icon_name(cls, *_args: object) -> _FakeGtkBase:
+        return cls()
+
 
 _gtk_mock = MagicMock()
 _gtk_mock.Box = _FakeGtkBase
@@ -281,6 +303,9 @@ _gtk_mock.ListStore = _FakeGtkBase
 _gtk_mock.ScrolledWindow = _FakeGtkBase
 _gtk_mock.Button = _FakeGtkBase
 _gtk_mock.Label = _FakeGtkBase
+_gtk_mock.Picture = _FakeGtkBase
+_gtk_mock.Image = _FakeGtkBase
+_gtk_mock.Scale = _FakeGtkBase
 _gtk_mock.Expander = _FakeGtkBase
 _gtk_mock.SingleSelection = _FakeGtkBase
 _gtk_mock.SignalListItemFactory = _FakeGtkBase
@@ -295,6 +320,8 @@ _gtk_mock.Orientation.HORIZONTAL = 0
 _gtk_mock.Orientation.VERTICAL = 1
 _gtk_mock.SelectionMode = MagicMock()
 _gtk_mock.SelectionMode.SINGLE = 0
+_gtk_mock.ContentFit = MagicMock()
+_gtk_mock.ContentFit.COVER = 0
 
 _adw_mock = MagicMock()
 _adw_mock.Application = _FakeGtkBase
