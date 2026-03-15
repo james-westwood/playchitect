@@ -11,6 +11,7 @@ import click
 from playchitect.core.audio_scanner import AudioScanner
 from playchitect.core.clustering import PlaylistClusterer
 from playchitect.core.export import CUEExporter, M3UExporter
+from playchitect.core.importers import parse_rekordbox_xml
 from playchitect.core.metadata_extractor import MetadataExtractor
 from playchitect.core.track_selector import TrackSelector
 from playchitect.utils.config import get_config
@@ -535,6 +536,60 @@ def info(music_path: Path, format: str) -> None:
         click.echo("\nFile types:")
         for ext, count in sorted(extensions.items()):
             click.echo(f"  {ext}: {count}")
+
+
+@cli.command(name="import-rekordbox")
+@click.argument("xml_path", type=click.Path(exists=True, path_type=Path))
+def import_rekordbox(xml_path: Path) -> None:
+    """
+    Import tracks from Rekordbox XML library export.
+
+    XML_PATH: Path to Rekordbox XML file (from File > Export Collection)
+    """
+    try:
+        tracks = parse_rekordbox_xml(xml_path)
+    except FileNotFoundError as e:
+        click.echo(f"Error: File not found - {e}", err=True)
+        sys.exit(1)
+    except Exception as e:
+        click.echo(f"Error parsing XML: {e}", err=True)
+        sys.exit(1)
+
+    if not tracks:
+        click.echo("No tracks found in XML file.")
+        return
+
+    # Print summary table
+    click.echo(f"\nSuccessfully imported {len(tracks)} tracks from Rekordbox:\n")
+
+    # Header
+    click.echo(f"{'#':<4} {'File':<40} {'BPM':<8} {'Key':<8} {'Cues':<6}")
+    click.echo("-" * 70)
+
+    # Rows
+    for i, track in enumerate(tracks, 1):
+        location = track["location"]
+        filename = Path(location).name
+        # Truncate long filenames
+        display_name = (filename[:37] + "...") if len(filename) > 40 else filename
+
+        bpm = f"{track['bpm']:.2f}" if track["bpm"] else "-"
+        key = track["key_rekordbox"] or "-"
+        cues = len(track["cue_points"])
+
+        click.echo(f"{i:<4} {display_name:<40} {bpm:<8} {key:<8} {cues:<6}")
+
+    # Summary stats
+    click.echo("-" * 70)
+    total_cues = sum(len(t["cue_points"]) for t in tracks)
+    tracks_with_bpm = sum(1 for t in tracks if t["bpm"] is not None)
+    tracks_with_key = sum(1 for t in tracks if t["key_rekordbox"])
+
+    click.echo("\nSummary:")
+    click.echo(f"  Total tracks: {len(tracks)}")
+    click.echo(f"  Tracks with BPM: {tracks_with_bpm}/{len(tracks)}")
+    click.echo(f"  Tracks with key: {tracks_with_key}/{len(tracks)}")
+    click.echo(f"  Total cue points: {total_cues}")
 
 
 def main() -> None:
