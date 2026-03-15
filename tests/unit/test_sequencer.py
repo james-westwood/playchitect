@@ -13,7 +13,9 @@ from playchitect.core.metadata_extractor import TrackMetadata
 from playchitect.core.sequencer import (
     FiveRhythmsPhase,
     Sequencer,
+    SequencingStrategy,
     classify_five_rhythms_phase,
+    sequence_by_strategy,
     sequence_five_rhythms,
     sequence_harmonic,
 )
@@ -535,3 +537,193 @@ class TestSequenceHarmonic:
         # All tracks should be in result
         assert len(result) == 4
         assert set(result) == set(paths)
+
+
+class TestSequenceByStrategy:
+    """Test sequence_by_strategy function (TASK-12)."""
+
+    def _create_features(
+        self,
+        path: Path,
+        rms_energy: float,
+        energy_gradient: float = 0.0,
+        drop_density: float = 0.0,
+    ) -> IntensityFeatures:
+        """Create IntensityFeatures with specified values."""
+        return IntensityFeatures(
+            filepath=path,
+            file_hash=f"hash_{path.stem}",
+            rms_energy=rms_energy,
+            brightness=0.5,
+            sub_bass_energy=0.5,
+            kick_energy=0.5,
+            bass_harmonics=0.5,
+            percussiveness=0.5,
+            onset_strength=0.5,
+            camelot_key="8B",
+            key_index=0.0,
+            energy_gradient=energy_gradient,
+            drop_density=drop_density,
+        )
+
+    def test_strategy_enum_values(self):
+        """Test that SequencingStrategy enum has correct values."""
+        assert SequencingStrategy.RAMP == "ramp"
+        assert SequencingStrategy.BUILD == "build"
+        assert SequencingStrategy.DESCENT == "descent"
+        assert SequencingStrategy.ALTERNATING == "alternating"
+
+    def test_ramp_strategy_sorts_by_rms_ascending(self):
+        """Test 'ramp' strategy sorts tracks by RMS energy ascending."""
+        # Create 6 tracks with different RMS energies
+        paths = [Path(f"track_{i}.flac") for i in range(6)]
+        features = {
+            paths[0]: self._create_features(paths[0], 0.9),  # Highest
+            paths[1]: self._create_features(paths[1], 0.5),
+            paths[2]: self._create_features(paths[2], 0.2),  # Lowest
+            paths[3]: self._create_features(paths[3], 0.7),
+            paths[4]: self._create_features(paths[4], 0.3),
+            paths[5]: self._create_features(paths[5], 0.1),  # Lowest
+        }
+
+        result = sequence_by_strategy(paths, features, "ramp")
+
+        # Should be sorted by RMS ascending
+        expected_order = [paths[5], paths[2], paths[4], paths[1], paths[3], paths[0]]
+        assert result == expected_order
+
+    def test_build_strategy_sorts_by_gradient_descending(self):
+        """Test 'build' strategy sorts tracks by energy_gradient descending."""
+        # Create 6 tracks with different energy gradients
+        paths = [Path(f"track_{i}.flac") for i in range(6)]
+        features = {
+            paths[0]: self._create_features(paths[0], 0.5, energy_gradient=0.8),  # Highest
+            paths[1]: self._create_features(paths[1], 0.5, energy_gradient=0.2),
+            paths[2]: self._create_features(paths[2], 0.5, energy_gradient=-0.5),
+            paths[3]: self._create_features(paths[3], 0.5, energy_gradient=0.5),
+            paths[4]: self._create_features(paths[4], 0.5, energy_gradient=-0.8),  # Lowest
+            paths[5]: self._create_features(paths[5], 0.5, energy_gradient=0.0),
+        }
+
+        result = sequence_by_strategy(paths, features, "build")
+
+        # Should be sorted by energy_gradient descending (rising tracks first)
+        expected_order = [paths[0], paths[3], paths[1], paths[5], paths[2], paths[4]]
+        assert result == expected_order
+
+    def test_descent_strategy_sorts_by_rms_descending(self):
+        """Test 'descent' strategy sorts tracks by RMS energy descending."""
+        # Create 6 tracks with different RMS energies
+        paths = [Path(f"track_{i}.flac") for i in range(6)]
+        features = {
+            paths[0]: self._create_features(paths[0], 0.1),
+            paths[1]: self._create_features(paths[1], 0.6),
+            paths[2]: self._create_features(paths[2], 0.9),  # Highest
+            paths[3]: self._create_features(paths[3], 0.3),
+            paths[4]: self._create_features(paths[4], 0.5),
+            paths[5]: self._create_features(paths[5], 0.7),
+        }
+
+        result = sequence_by_strategy(paths, features, "descent")
+
+        # Should be sorted by RMS descending
+        expected_order = [paths[2], paths[5], paths[1], paths[4], paths[3], paths[0]]
+        assert result == expected_order
+
+    def test_alternating_strategy_interleaves_high_low(self):
+        """Test 'alternating' strategy interleaves high/low energy tracks."""
+        # Create 6 tracks with different RMS energies
+        paths = [Path(f"track_{i}.flac") for i in range(6)]
+        features = {
+            paths[0]: self._create_features(paths[0], 0.1),  # Low
+            paths[1]: self._create_features(paths[1], 0.2),  # Low
+            paths[2]: self._create_features(paths[2], 0.3),  # Low
+            paths[3]: self._create_features(paths[3], 0.7),  # High
+            paths[4]: self._create_features(paths[4], 0.8),  # High
+            paths[5]: self._create_features(paths[5], 0.9),  # High
+        }
+
+        result = sequence_by_strategy(paths, features, "alternating")
+
+        # Should have 6 tracks
+        assert len(result) == 6
+        assert set(result) == set(paths)
+
+        # Check that high and low are interleaved
+        # High half: paths[5], paths[4], paths[3] (energy 0.9, 0.8, 0.7)
+        # Low half: paths[0], paths[1], paths[2] (energy 0.1, 0.2, 0.3)
+        # Interleaving: high, low, high, low, high, low
+        high_energies = {paths[3], paths[4], paths[5]}
+        low_energies = {paths[0], paths[1], paths[2]}
+
+        # First track should be high energy
+        assert result[0] in high_energies
+        # Second track should be low energy
+        assert result[1] in low_energies
+        # Pattern should continue
+        assert result[2] in high_energies
+        assert result[3] in low_energies
+        assert result[4] in high_energies
+        assert result[5] in low_energies
+
+    def test_strategies_produce_different_orderings(self):
+        """Test that each of the 4 strategies produces a different ordering on 6 tracks."""
+        # Create 6 tracks with varied characteristics
+        paths = [Path(f"track_{i}.flac") for i in range(6)]
+        features = {
+            paths[0]: self._create_features(
+                paths[0], 0.2, energy_gradient=-0.5
+            ),  # Low RMS, falling
+            paths[1]: self._create_features(
+                paths[1], 0.4, energy_gradient=0.8
+            ),  # Mid-low RMS, rising
+            paths[2]: self._create_features(
+                paths[2], 0.6, energy_gradient=-0.2
+            ),  # Mid-high RMS, slight fall
+            paths[3]: self._create_features(paths[3], 0.5, energy_gradient=0.3),  # Mid RMS, rising
+            paths[4]: self._create_features(
+                paths[4], 0.9, energy_gradient=0.1
+            ),  # High RMS, slight rise
+            paths[5]: self._create_features(
+                paths[5], 0.1, energy_gradient=0.5
+            ),  # Very low RMS, rising
+        }
+
+        ramp_result = sequence_by_strategy(paths, features, "ramp")
+        build_result = sequence_by_strategy(paths, features, "build")
+        descent_result = sequence_by_strategy(paths, features, "descent")
+        alternating_result = sequence_by_strategy(paths, features, "alternating")
+
+        # All four should produce different orderings
+        assert ramp_result != build_result, "ramp and build should produce different orderings"
+        assert ramp_result != descent_result, "ramp and descent should produce different orderings"
+        assert ramp_result != alternating_result, (
+            "ramp and alternating should produce different orderings"
+        )
+        assert build_result != descent_result, (
+            "build and descent should produce different orderings"
+        )
+        assert build_result != alternating_result, (
+            "build and alternating should produce different orderings"
+        )
+        assert descent_result != alternating_result, (
+            "descent and alternating should produce different orderings"
+        )
+
+    def test_empty_tracks_returns_empty(self):
+        """Test that empty tracks list returns empty list."""
+        result = sequence_by_strategy([], {}, "ramp")
+        assert result == []
+
+    def test_missing_features_raises(self):
+        """Test that missing features raises ValueError."""
+        paths = [Path("test.flac")]
+        with pytest.raises(ValueError, match="Missing features"):
+            sequence_by_strategy(paths, {}, "ramp")
+
+    def test_invalid_strategy_raises(self):
+        """Test that invalid strategy raises ValueError."""
+        paths = [Path("test.flac")]
+        features = {paths[0]: self._create_features(paths[0], 0.5)}
+        with pytest.raises(ValueError, match="Invalid strategy"):
+            sequence_by_strategy(paths, features, "invalid")

@@ -80,6 +80,8 @@ def _make_view() -> PlaylistsView:
     view._playlists_spin = MagicMock()
     # TASK-10: Harmonic mixing switch
     view._harmonic_switch = MagicMock()
+    # TASK-12: Sort dropdown
+    view._sort_dropdown = MagicMock()
     return view
 
 
@@ -393,3 +395,13 @@ class TestHarmonicMixingControls:
         view = _make_view()
         assert hasattr(view, "_harmonic_switch")
         assert view._harmonic_switch is not None
+
+
+class TestSortControls:
+    """Tests for the sort controls (TASK-12)."""
+
+    def test_toolbar_has_sort_dropdown(self):
+        """Verify PlaylistsView has a sort by DropDown."""
+        view = _make_view()
+        assert hasattr(view, "_sort_dropdown")
+        assert view._sort_dropdown is not None

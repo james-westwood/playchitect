@@ -46,6 +46,9 @@ class TrackModel(GObject.Object):
     audio_format = GObject.Property(type=str, default="")  # ".flac", ".mp3", …
     mood = GObject.Property(type=str, default="")  # Mood classification label
     camelot_key = GObject.Property(type=str, default="")  # Camelot notation (e.g., '8B')
+    # TASK-12: Energy flow features for GUI columns
+    energy_gradient = GObject.Property(type=float, default=0.0)  # -1 to 1
+    drop_density = GObject.Property(type=float, default=0.0)  # 0 to 1
 
     def __init__(
         self,
@@ -60,6 +63,8 @@ class TrackModel(GObject.Object):
         audio_format: str = "",
         mood: str = "",
         camelot_key: str = "",
+        energy_gradient: float = 0.0,
+        drop_density: float = 0.0,
     ) -> None:
         super().__init__()
         self.filepath = filepath
@@ -73,6 +78,8 @@ class TrackModel(GObject.Object):
         self.audio_format = audio_format
         self.mood = mood
         self.camelot_key = camelot_key
+        self.energy_gradient = energy_gradient
+        self.drop_density = drop_density
 
     @property
     def duration_str(self) -> str:
@@ -86,6 +93,23 @@ class TrackModel(GObject.Object):
         # Using hardness for the visual bars as it's the more robust metric
         filled = round(max(0.0, min(1.0, self.hardness)) * 5)
         return "█" * filled + "░" * (5 - filled)
+
+    @property
+    def gradient_icon(self) -> str:
+        """Return ↑/↓/→ icon based on energy_gradient sign."""
+        if self.energy_gradient > 0.05:
+            return "↑"
+        elif self.energy_gradient < -0.05:
+            return "↓"
+        return "→"
+
+    @property
+    def drop_density_formatted(self) -> str:
+        """Return drop_density as float string (drops/min)."""
+        # Convert normalized drop_density back to approximate drops/min
+        # drop_density is normalized to [0, 1] with 10 drops/min = 1.0
+        drops_per_min = self.drop_density * 10.0
+        return f"{drops_per_min:.1f}"
 
     @property
     def display_title(self) -> str:
@@ -239,6 +263,8 @@ class TrackListWidget(Gtk.Box):
             ("", 24, False, None),  # Compatibility dot column (no header)
             ("Mood", 90, True, "mood"),
             ("Hardness", 100, False, "hardness"),
+            ("Gradient", 60, False, None),  # TASK-12: Energy gradient indicator
+            ("Drops/min", 70, True, "drop_density"),  # TASK-12: Drop density
             ("Cluster", 80, True, "cluster"),
             ("Time", 70, True, "duration"),
         ]
@@ -251,6 +277,8 @@ class TrackListWidget(Gtk.Box):
             self._bind_compat_dot,
             self._bind_mood,
             self._bind_intensity,
+            self._bind_gradient,  # TASK-12
+            self._bind_drop_density,  # TASK-12
             self._bind_cluster,
             self._bind_duration,
         ]
@@ -334,6 +362,21 @@ class TrackListWidget(Gtk.Box):
         label: Gtk.Label = item.get_child()
         label.set_xalign(0.5)
         label.set_text(track.camelot_key or "—")
+
+    # TASK-12: Gradient column bind method
+    def _bind_gradient(self, _factory: Gtk.SignalListItemFactory, item: Gtk.ListItem) -> None:
+        track: TrackModel = item.get_item()
+        label: Gtk.Label = item.get_child()
+        label.set_xalign(0.5)
+        label.set_text(track.gradient_icon)
+        label.set_tooltip_text(f"Energy gradient: {track.energy_gradient:.3f}")
+
+    # TASK-12: Drop density column bind method
+    def _bind_drop_density(self, _factory: Gtk.SignalListItemFactory, item: Gtk.ListItem) -> None:
+        track: TrackModel = item.get_item()
+        label: Gtk.Label = item.get_child()
+        label.set_xalign(1.0)
+        label.set_text(track.drop_density_formatted)
 
     # ── Compatibility dot column ───────────────────────────────────────────────
 

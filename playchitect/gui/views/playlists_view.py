@@ -209,6 +209,22 @@ class PlaylistsView(Gtk.Box):
 
         self._action_bar.pack_start(harmonic_box)
 
+        # Center: Sort by control (TASK-12)
+        sort_box = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL, spacing=6)
+        sort_box.set_margin_start(12)
+        sort_label = Gtk.Label(label="Sort by:")
+        sort_box.append(sort_label)
+
+        sort_model = Gtk.StringList.new(
+            ["Energy ramp (default)", "Build to peak", "Gradual descent", "Alternating"]
+        )
+        self._sort_dropdown = Gtk.DropDown(model=sort_model)
+        self._sort_dropdown.set_selected(0)  # Default to "Energy ramp (default)"
+        self._sort_dropdown.set_tooltip_text("Select energy flow sequencing strategy")
+        sort_box.append(self._sort_dropdown)
+
+        self._action_bar.pack_start(sort_box)
+
         # Right: Spinner (hidden while idle)
         self._spinner = Gtk.Spinner()
         self._spinner.set_visible(False)
@@ -473,19 +489,37 @@ class PlaylistsView(Gtk.Box):
             self._track_list.clear()
             return
 
-        # Apply harmonic sequencing if switch is enabled
-        track_order = cluster.tracks
+        track_order = list(cluster.tracks)
+
+        # Apply sequencing strategy from sort dropdown (TASK-12)
+        selected_sort = self._sort_dropdown.get_selected()
+        strategy_map = {0: "ramp", 1: "build", 2: "descent", 3: "alternating"}
+        selected_strategy = strategy_map.get(selected_sort, "ramp")
+
+        from playchitect.core.sequencer import sequence_by_strategy
+
+        try:
+            track_order = sequence_by_strategy(
+                track_order,
+                self._intensity_map,
+                selected_strategy,
+            )
+        except (ValueError, KeyError) as e:
+            logger.warning("Strategy sequencing failed: %s", e)
+            # Fall back to original order
+
+        # Apply harmonic sequencing if switch is enabled (overrides sort strategy)
         if self._harmonic_switch.get_active():
             from playchitect.core.sequencer import sequence_harmonic
 
             try:
                 track_order = sequence_harmonic(
-                    list(cluster.tracks),
+                    track_order,
                     self._intensity_map,
                 )
             except (ValueError, KeyError) as e:
                 logger.warning("Harmonic sequencing failed: %s", e)
-                # Fall back to original order
+                # Fall back to order from strategy
 
         # Build track models
         tracks: list[TrackModel] = []
@@ -507,6 +541,8 @@ class PlaylistsView(Gtk.Box):
                 audio_format=path.suffix,
                 mood=intensity.mood_label if intensity else "",
                 camelot_key=intensity.camelot_key if intensity else "",
+                energy_gradient=intensity.energy_gradient if intensity else 0.0,  # TASK-12
+                drop_density=intensity.drop_density if intensity else 0.0,  # TASK-12
             )
             tracks.append(model)
 
