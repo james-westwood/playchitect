@@ -151,6 +151,50 @@ class PlaylistsView(Gtk.Box):
         self._generate_btn.connect("clicked", self._on_generate_clicked)
         self._action_bar.pack_start(self._generate_btn)
 
+        # Left: Playlist size controls box
+        controls_box = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL, spacing=12)
+        controls_box.set_margin_start(12)
+
+        # Size value SpinButton with label
+        size_box = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL, spacing=6)
+        size_label = Gtk.Label(label="Size:")
+        size_box.append(size_label)
+
+        self._size_spin = Gtk.SpinButton()
+        self._size_spin.set_range(5, 200)
+        self._size_spin.set_increments(1, 10)
+        self._size_spin.set_value(20)
+        self._size_spin.set_snap_to_ticks(True)
+        self._size_spin.set_numeric(True)
+        self._size_spin.set_width_chars(4)
+        size_box.append(self._size_spin)
+        controls_box.append(size_box)
+
+        # Unit DropDown (tracks/minutes)
+        unit_model = Gtk.StringList.new(["tracks", "minutes"])
+        self._unit_dropdown = Gtk.DropDown(model=unit_model)
+        self._unit_dropdown.set_selected(0)  # Default to "tracks"
+        self._unit_dropdown.connect("notify::selected", self._on_unit_changed)
+        controls_box.append(self._unit_dropdown)
+
+        # Number of playlists SpinButton with label
+        playlists_box = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL, spacing=6)
+        playlists_label = Gtk.Label(label="Playlists:")
+        playlists_box.append(playlists_label)
+
+        self._playlists_spin = Gtk.SpinButton()
+        self._playlists_spin.set_range(0, 20)
+        self._playlists_spin.set_increments(1, 5)
+        self._playlists_spin.set_value(0)
+        self._playlists_spin.set_snap_to_ticks(True)
+        self._playlists_spin.set_numeric(True)
+        self._playlists_spin.set_width_chars(3)
+        self._playlists_spin.set_tooltip_text("0 = auto (elbow/silhouette)")
+        playlists_box.append(self._playlists_spin)
+        controls_box.append(playlists_box)
+
+        self._action_bar.pack_start(controls_box)
+
         # Right: Spinner (hidden while idle)
         self._spinner = Gtk.Spinner()
         self._spinner.set_visible(False)
@@ -298,19 +342,50 @@ class PlaylistsView(Gtk.Box):
         thread = threading.Thread(target=self._generate_worker, daemon=True)
         thread.start()
 
+    def _on_unit_changed(self, dropdown: Gtk.DropDown, _param: object) -> None:
+        """Handle unit dropdown change (tracks/minutes)."""
+        selected = dropdown.get_selected()
+        if selected == 0:
+            # Tracks mode: range 5-200, step 1, value 20
+            self._size_spin.set_range(5, 200)
+            self._size_spin.set_increments(1, 10)
+            self._size_spin.set_value(20)
+        else:
+            # Minutes mode: range 30-240, step 5, value 60
+            self._size_spin.set_range(30, 240)
+            self._size_spin.set_increments(5, 15)
+            self._size_spin.set_value(60)
+
     def _generate_worker(self) -> None:
         """Background worker for intensity analysis and clustering."""
         try:
             config = get_config()
             cache_dir = config.get_cache_dir() / "intensity"
 
+            # Read control values
+            size_value = int(self._size_spin.get_value())
+            unit_selected = self._unit_dropdown.get_selected()
+            n_playlists = int(self._playlists_spin.get_value())
+            n_playlists = n_playlists if n_playlists > 0 else None
+
             # Analyze intensities
             analyzer = IntensityAnalyzer(cache_dir=cache_dir)
             self._intensity_map = analyzer.analyze_batch(list(self._metadata_map.keys()))
 
-            # Cluster by features
-            clusterer = PlaylistClusterer(target_tracks_per_playlist=20)
-            self._clusters = clusterer.cluster_by_features(self._metadata_map, self._intensity_map)
+            # Create clusterer based on unit selection
+            if unit_selected == 0:
+                # Tracks mode
+                clusterer = PlaylistClusterer(target_tracks_per_playlist=size_value)
+            else:
+                # Minutes mode
+                clusterer = PlaylistClusterer(target_duration_per_playlist=size_value)
+
+            # Cluster by features with optional n_playlists override
+            self._clusters = clusterer.cluster_by_features(
+                self._metadata_map,
+                self._intensity_map,
+                n_playlists=n_playlists,
+            )
 
             # Convert to stats
             self._cluster_stats = ClusterStats.from_results(self._clusters)
