@@ -134,7 +134,7 @@
       "owner": "ralph",
       "description": "Implement the 5 Rhythms sequencing mode in playchitect/core/sequencer.py (requires TASK-15 for vocal_presence). (1) Add `FiveRhythmsPhase` StrEnum: FLOWING='flowing', STACCATO='staccato', CHAOS='chaos', LYRICAL='lyrical', STILLNESS='stillness'. (2) Add module-level `_FIVE_RHYTHMS_THRESHOLDS` dict mapping phase to BPM and energy criteria. (3) Add `classify_five_rhythms_phase(bpm: float, rms_energy: float) -> FiveRhythmsPhase`: Flowing = bpm 85\u2013115 and rms < 0.5; Staccato = bpm 115\u2013135 and rms 0.4\u20130.7; Chaos = bpm > 135 or rms > 0.75; Stillness = bpm < 85 or rms < 0.25; Lyrical = everything else. (4) Add `sequence_five_rhythms(tracks: list[Path], features: dict[Path, IntensityFeatures]) -> list[Path]`: group tracks by phase; order groups Flowing \u2192 Staccato \u2192 Chaos \u2192 Lyrical \u2192 Stillness; within each group sort by energy ascending; concatenate. If a phase has no tracks, skip it. (5) Add 'Five Rhythms' to the Sort DropDown in PlaylistsView (TASK-12). (6) Add unit tests with 5 synthetic IntensityFeatures covering each phase.",
       "acceptance_criteria": "tests/unit/test_sequencer.py: sequence_five_rhythms on 5 tracks (one per phase) returns Flowing first, Stillness last. classify_five_rhythms_phase(90, 0.3) == FLOWING. classify_five_rhythms_phase(145, 0.8) == CHAOS. `uv run pytest tests/ -v` passes.",
-      "completed": false,
+      "completed": true,
       "priority": 4,
       "note": "GitHub issue #51"
     },
