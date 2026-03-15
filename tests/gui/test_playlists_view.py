@@ -502,68 +502,6 @@ class TestVocalFilterControls:
             assert any_btn is not None, "ToggleButton with label='Any' not found"
             # Verify set_active(True) was called
             any_btn.set_active.assert_any_call(True)
-        """Verify 'Any' vocal filter button is active by default."""
-        from unittest.mock import MagicMock, patch
-
-        from playchitect.gui.views.playlists_view import PlaylistsView
-
-        with (
-            patch("playchitect.gui.views.playlists_view.Gtk.Box") as mock_box,
-            patch("playchitect.gui.views.playlists_view.Gtk.ActionBar") as mock_action,
-            patch("playchitect.gui.views.playlists_view.Gtk.Button") as mock_button,
-            patch("playchitect.gui.views.playlists_view.Gtk.ToggleButton") as mock_toggle,
-            patch("playchitect.gui.views.playlists_view.Gtk.SpinButton") as mock_spin,
-            patch("playchitect.gui.views.playlists_view.Gtk.DropDown") as mock_dropdown,
-            patch("playchitect.gui.views.playlists_view.Gtk.StringList") as mock_stringlist,
-            patch("playchitect.gui.views.playlists_view.Gtk.Switch") as mock_switch,
-            patch("playchitect.gui.views.playlists_view.Gtk.Scale") as mock_scale,
-            patch("playchitect.gui.views.playlists_view.TrackListWidget") as mock_tracklist,
-            patch("playchitect.gui.views.playlists_view.Gtk.Spinner") as mock_spinner,
-            patch("playchitect.gui.views.playlists_view.Gtk.Label") as mock_label,
-            patch("playchitect.gui.views.playlists_view.Gtk.Paned") as mock_paned,
-            patch("playchitect.gui.views.playlists_view.Gtk.ListBox") as mock_listbox,
-            patch("playchitect.gui.views.playlists_view.Gtk.ScrolledWindow") as mock_scroll,
-            patch("playchitect.gui.views.playlists_view.Gtk.Separator") as mock_sep,
-        ):
-            # Setup mock returns
-            mock_action.return_value = MagicMock()
-            mock_button.return_value = MagicMock()
-            mock_spinner.return_value = MagicMock()
-            mock_label.return_value = MagicMock()
-            mock_paned.return_value = MagicMock()
-            mock_listbox.return_value = MagicMock()
-            mock_scroll.return_value = MagicMock()
-            mock_sep.return_value = MagicMock()
-            mock_tracklist.return_value = MagicMock()
-            mock_box.return_value = MagicMock()
-            mock_spin.return_value = MagicMock()
-            mock_dropdown.return_value = MagicMock()
-            mock_stringlist.new.return_value = MagicMock()
-            mock_switch.return_value = MagicMock()
-            mock_scale.return_value = MagicMock()
-
-            # Create toggle button mocks to capture their creation
-            toggle_mocks = []
-
-            def capture_toggle(*args, **kwargs):
-                mock = MagicMock()
-                toggle_mocks.append((args, kwargs, mock))
-                return mock
-
-            mock_toggle.side_effect = capture_toggle
-
-            _ = PlaylistsView()
-
-            # Find the "Any" toggle button (should be first vocal filter button)
-            any_btn = None
-            for args, kwargs, mock in toggle_mocks:
-                if kwargs.get("label") == "Any":
-                    any_btn = mock
-                    break
-
-            assert any_btn is not None, "ToggleButton with label='Any' not found"
-            # Verify set_active(True) was called
-            any_btn.set_active.assert_any_call(True)
 
 
 class TestIntroColumn:
