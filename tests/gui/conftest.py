@@ -10,6 +10,7 @@ from __future__ import annotations
 
 import sys
 from types import ModuleType
+from typing import Any
 from unittest.mock import MagicMock
 
 
@@ -132,6 +133,36 @@ class _FakeGtkBase:
     def add_suffix(self, *_args: object) -> None:
         pass
 
+    def set_show_row_separators(self, *_args: object) -> None:
+        pass
+
+    def set_show_column_separators(self, *_args: object) -> None:
+        pass
+
+    def append_column(self, *_args: object) -> None:
+        pass
+
+    def set_reorderable(self, *_args: object) -> None:
+        pass
+
+    def get_sorter(self, *_args: object) -> Any:
+        return None
+
+    def add_controller(self, *_args: object) -> None:
+        pass
+
+    def set_key_capture_widget(self, *_args: object) -> None:
+        pass
+
+    def set_search_mode_enabled(self, *_args: object) -> None:
+        pass
+
+    def set_placeholder_text(self, *_args: object) -> None:
+        pass
+
+    def set_child(self, *_args: object) -> None:
+        pass
+
     def add(self, *_args: object) -> None:
         pass
 
@@ -163,9 +194,6 @@ class _FakeGtkBase:
         pass
 
     def set_end_child(self, *_args: object) -> None:
-        pass
-
-    def set_child(self, *_args: object) -> None:
         pass
 
     def set_visible_child_name(self, *_args: object) -> None:
