@@ -217,7 +217,14 @@ class PlaylistsView(Gtk.Box):
         sort_box.append(sort_label)
 
         sort_model = Gtk.StringList.new(
-            ["Energy ramp (default)", "Build to peak", "Gradual descent", "Alternating"]
+            [
+                "Energy ramp (default)",
+                "Build to peak",
+                "Gradual descent",
+                "Alternating",
+                "Short intro first",  # TASK-16
+                "Long intro first",  # TASK-16
+            ]
         )
         self._sort_dropdown = Gtk.DropDown(model=sort_model)
         self._sort_dropdown.set_selected(0)  # Default to "Energy ramp (default)"
@@ -245,6 +252,32 @@ class PlaylistsView(Gtk.Box):
         timbre_box.append(self._timbre_scale)
 
         self._action_bar.pack_start(timbre_box)
+
+        # TASK-16: Vocal filter chips
+        vocal_box = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL, spacing=6)
+        vocal_box.set_margin_start(12)
+        vocal_label = Gtk.Label(label="Vocals:")
+        vocal_box.append(vocal_label)
+
+        # ToggleButton group for vocal filter
+        self._vocal_btn_any = Gtk.ToggleButton(label="Any")
+        self._vocal_btn_any.set_active(True)
+        self._vocal_btn_any.connect("toggled", self._on_vocal_filter_changed)
+        vocal_box.append(self._vocal_btn_any)
+
+        self._vocal_btn_instrumental = Gtk.ToggleButton(label="Instrumental")
+        self._vocal_btn_instrumental.set_group(self._vocal_btn_any)
+        self._vocal_btn_instrumental.connect("toggled", self._on_vocal_filter_changed)
+        self._vocal_btn_instrumental.set_tooltip_text("vocal_presence < 0.3")
+        vocal_box.append(self._vocal_btn_instrumental)
+
+        self._vocal_btn_vocal = Gtk.ToggleButton(label="Vocal")
+        self._vocal_btn_vocal.set_group(self._vocal_btn_any)
+        self._vocal_btn_vocal.connect("toggled", self._on_vocal_filter_changed)
+        self._vocal_btn_vocal.set_tooltip_text("vocal_presence > 0.6")
+        vocal_box.append(self._vocal_btn_vocal)
+
+        self._action_bar.pack_start(vocal_box)
 
         # Right: Spinner (hidden while idle)
         self._spinner = Gtk.Spinner()
@@ -414,6 +447,76 @@ class PlaylistsView(Gtk.Box):
             self._load_tracks_for_cluster(self._selected_cluster_id)
             logger.info("Harmonic mixing %s", "enabled" if switch.get_active() else "disabled")
 
+    def _on_vocal_filter_changed(self, _btn: Gtk.ToggleButton) -> None:
+        """Handle vocal filter chip change - reload track list if cluster selected."""
+        if self._selected_cluster_id is not None:
+            self._load_tracks_for_cluster(self._selected_cluster_id)
+        # Log the current filter state
+        if self._vocal_btn_instrumental.get_active():
+            logger.debug("Vocal filter: Instrumental (vocal_presence < 0.3)")
+        elif self._vocal_btn_vocal.get_active():
+            logger.debug("Vocal filter: Vocal (vocal_presence > 0.6)")
+        else:
+            logger.debug("Vocal filter: Any")
+
+    def _get_vocal_filter_thresholds(self) -> tuple[float, float] | None:
+        """Return vocal_presence (min, max) thresholds based on active filter chip.
+
+        Returns:
+            Tuple of (min_threshold, max_threshold) or None for 'Any' filter.
+            For 'Instrumental': returns (0.0, 0.3)
+            For 'Vocal': returns (0.6, 1.0)
+        """
+        if self._vocal_btn_instrumental.get_active():
+            return (0.0, 0.3)
+        if self._vocal_btn_vocal.get_active():
+            return (0.6, 1.0)
+        return None  # 'Any' selected - no filter
+
+    def _apply_vocal_filter(
+        self,
+        metadata_map: dict[Path, TrackMetadata],
+        intensity_map: dict[Path, Any],
+    ) -> tuple[dict[Path, TrackMetadata], dict[Path, Any]]:
+        """Filter tracks based on vocal_presence thresholds.
+
+        Args:
+            metadata_map: Map of file paths to track metadata.
+            intensity_map: Map of file paths to intensity features.
+
+        Returns:
+            Tuple of (filtered_metadata, filtered_intensity) containing only
+            tracks that match the current vocal filter setting.
+        """
+        thresholds = self._get_vocal_filter_thresholds()
+        if thresholds is None:
+            # No filtering - return original maps
+            return metadata_map, intensity_map
+
+        min_vocal, max_vocal = thresholds
+        filtered_metadata: dict[Path, TrackMetadata] = {}
+        filtered_intensity: dict[Path, Any] = {}
+
+        for path, metadata in metadata_map.items():
+            intensity = intensity_map.get(path)
+            if intensity is None:
+                continue
+
+            vocal_presence = getattr(intensity, "vocal_presence", 0.0)
+            if min_vocal <= vocal_presence <= max_vocal:
+                filtered_metadata[path] = metadata
+                filtered_intensity[path] = intensity
+
+        if len(filtered_metadata) < len(metadata_map):
+            logger.info(
+                "Vocal filter applied: %d of %d tracks match (%s)",
+                len(filtered_metadata),
+                len(metadata_map),
+                "Instrumental" if max_vocal <= 0.3 else "Vocal",
+            )
+
+        return filtered_metadata, filtered_intensity
+
     def _generate_worker(self) -> None:
         """Background worker for intensity analysis and clustering."""
         try:
@@ -441,6 +544,11 @@ class PlaylistsView(Gtk.Box):
             analyzer = IntensityAnalyzer(cache_dir=cache_dir)
             self._intensity_map = analyzer.analyze_batch(list(self._metadata_map.keys()))
 
+            # TASK-16: Apply vocal filter to metadata and intensity maps before clustering
+            filtered_metadata, filtered_intensity = self._apply_vocal_filter(
+                self._metadata_map, self._intensity_map
+            )
+
             # Create clusterer based on unit selection with optional weight overrides
             if unit_selected == 0:
                 # Tracks mode
@@ -457,8 +565,8 @@ class PlaylistsView(Gtk.Box):
 
             # Cluster by features with optional n_playlists override
             self._clusters = clusterer.cluster_by_features(
-                self._metadata_map,
-                self._intensity_map,
+                filtered_metadata,
+                filtered_intensity,
                 n_playlists=n_playlists,
             )
 
@@ -519,6 +627,23 @@ class PlaylistsView(Gtk.Box):
             if first_row:
                 self._cluster_list.select_row(first_row)
 
+    def _sort_by_intro(self, tracks: list[Path], ascending: bool = True) -> list[Path]:
+        """Sort tracks by intro_length_secs.
+
+        Args:
+            tracks: List of track file paths.
+            ascending: If True, sort short intro first; if False, long intro first.
+
+        Returns:
+            Sorted list of track paths.
+        """
+
+        def get_intro_length(path: Path) -> float:
+            intensity = self._intensity_map.get(path)
+            return getattr(intensity, "intro_length_secs", 0.0) if intensity else 0.0
+
+        return sorted(tracks, key=get_intro_length, reverse=not ascending)
+
     def _load_tracks_for_cluster(self, cluster_id: int | str) -> None:
         """Load tracks for the selected cluster into the track list."""
         # Find the cluster result
@@ -529,22 +654,32 @@ class PlaylistsView(Gtk.Box):
 
         track_order = list(cluster.tracks)
 
-        # Apply sequencing strategy from sort dropdown (TASK-12)
+        # Apply sequencing strategy from sort dropdown (TASK-12, TASK-16)
         selected_sort = self._sort_dropdown.get_selected()
         strategy_map = {0: "ramp", 1: "build", 2: "descent", 3: "alternating"}
-        selected_strategy = strategy_map.get(selected_sort, "ramp")
 
-        from playchitect.core.sequencer import sequence_by_strategy
+        # TASK-16: Handle intro sorting (indices 4 and 5)
+        if selected_sort == 4:
+            # Short intro first (ascending)
+            track_order = self._sort_by_intro(track_order, ascending=True)
+        elif selected_sort == 5:
+            # Long intro first (descending)
+            track_order = self._sort_by_intro(track_order, ascending=False)
+        else:
+            # Standard energy strategies
+            selected_strategy = strategy_map.get(selected_sort, "ramp")
 
-        try:
-            track_order = sequence_by_strategy(
-                track_order,
-                self._intensity_map,
-                selected_strategy,
-            )
-        except (ValueError, KeyError) as e:
-            logger.warning("Strategy sequencing failed: %s", e)
-            # Fall back to original order
+            from playchitect.core.sequencer import sequence_by_strategy
+
+            try:
+                track_order = sequence_by_strategy(
+                    track_order,
+                    self._intensity_map,
+                    selected_strategy,
+                )
+            except (ValueError, KeyError) as e:
+                logger.warning("Strategy sequencing failed: %s", e)
+                # Fall back to original order
 
         # Apply harmonic sequencing if switch is enabled (overrides sort strategy)
         if self._harmonic_switch.get_active():
@@ -582,6 +717,8 @@ class PlaylistsView(Gtk.Box):
                 energy_gradient=intensity.energy_gradient if intensity else 0.0,  # TASK-12
                 drop_density=intensity.drop_density if intensity else 0.0,  # TASK-12
                 spectral_flatness=intensity.spectral_flatness if intensity else 0.0,  # TASK-14
+                vocal_presence=intensity.vocal_presence if intensity else 0.0,  # TASK-16
+                intro_length_secs=intensity.intro_length_secs if intensity else 0.0,  # TASK-16
             )
             tracks.append(model)
 

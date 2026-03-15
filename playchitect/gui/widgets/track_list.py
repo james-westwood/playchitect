@@ -51,6 +51,9 @@ class TrackModel(GObject.Object):
     drop_density = GObject.Property(type=float, default=0.0)  # 0 to 1
     # TASK-14: Timbre/texture feature for GUI column
     spectral_flatness = GObject.Property(type=float, default=0.0)  # 0-1 (texture/noisiness)
+    # TASK-16: Structural/vocal features
+    vocal_presence = GObject.Property(type=float, default=0.0)  # 0-1 (vocal content)
+    intro_length_secs = GObject.Property(type=float, default=0.0)  # seconds
 
     def __init__(
         self,
@@ -68,6 +71,8 @@ class TrackModel(GObject.Object):
         energy_gradient: float = 0.0,
         drop_density: float = 0.0,
         spectral_flatness: float = 0.0,
+        vocal_presence: float = 0.0,
+        intro_length_secs: float = 0.0,
     ) -> None:
         super().__init__()
         self.filepath = filepath
@@ -84,6 +89,8 @@ class TrackModel(GObject.Object):
         self.energy_gradient = energy_gradient
         self.drop_density = drop_density
         self.spectral_flatness = spectral_flatness
+        self.vocal_presence = vocal_presence
+        self.intro_length_secs = intro_length_secs
 
     @property
     def duration_str(self) -> str:
@@ -124,6 +131,11 @@ class TrackModel(GObject.Object):
             return "Mixed"
         else:
             return "Noisy"
+
+    @property
+    def intro_formatted(self) -> str:
+        """Return intro_length_secs formatted as 'Xs' (e.g., '12s')."""
+        return f"{int(self.intro_length_secs)}s"
 
     @property
     def display_title(self) -> str:
@@ -280,6 +292,7 @@ class TrackListWidget(Gtk.Box):
             ("Hardness", 100, False, "hardness"),
             ("Gradient", 60, False, None),  # TASK-12: Energy gradient indicator
             ("Drops/min", 70, True, "drop_density"),  # TASK-12: Drop density
+            ("Intro", 60, True, "intro_length_secs"),  # TASK-16: Intro length
             ("Cluster", 80, True, "cluster"),
             ("Time", 70, True, "duration"),
         ]
@@ -295,6 +308,7 @@ class TrackListWidget(Gtk.Box):
             self._bind_intensity,
             self._bind_gradient,  # TASK-12
             self._bind_drop_density,  # TASK-12
+            self._bind_intro,  # TASK-16
             self._bind_cluster,
             self._bind_duration,
         ]
@@ -400,6 +414,14 @@ class TrackListWidget(Gtk.Box):
         label: Gtk.Label = item.get_child()
         label.set_xalign(1.0)
         label.set_text(track.drop_density_formatted)
+
+    # TASK-16: Intro column bind method
+    def _bind_intro(self, _factory: Gtk.SignalListItemFactory, item: Gtk.ListItem) -> None:
+        track: TrackModel = item.get_item()
+        label: Gtk.Label = item.get_child()
+        label.set_xalign(1.0)
+        label.set_text(track.intro_formatted)
+        label.set_tooltip_text(f"Intro length: {track.intro_length_secs:.2f}s")
 
     # ── Compatibility dot column ───────────────────────────────────────────────
 
