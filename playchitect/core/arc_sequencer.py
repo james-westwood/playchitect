@@ -5,7 +5,6 @@ the overall energy flow of a playlist (warmup, peak hour, closing, etc.).
 """
 
 from dataclasses import dataclass
-from pathlib import Path
 
 from playchitect.core.clustering import ClusterResult
 
@@ -105,7 +104,6 @@ def apply_arc(
     # If more clusters than arc positions, some clusters will share positions
     arc_curve = preset.arc_curve
     num_positions = len(arc_curve)
-    num_clusters = len(clusters_with_energy)
 
     # Build result by matching each cluster to best arc position
     assigned: list[tuple[ClusterResult, int]] = []
