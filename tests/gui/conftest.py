@@ -26,6 +26,13 @@ def _property(*, type: object, default: object = None) -> object:  # noqa: A002
     return default
 
 
+class _FakeValue:
+    """Fake value object for drag-and-drop data."""
+
+    def get_int(self) -> int:
+        return 0
+
+
 _gobject_mock = MagicMock()
 _gobject_mock.Object = _FakeGObject
 _gobject_mock.Property = _property
@@ -283,11 +290,49 @@ class _FakeGtkBase:
     def set_value(self, *_args: object) -> None:
         pass
 
+    def set_draw_func(self, *_args: object) -> None:
+        pass
+
+    def queue_draw(self) -> None:
+        pass
+
     def set_content_fit(self, *_args: object) -> None:
         pass
 
+    def set_fraction(self, *_args: object) -> None:
+        pass
+
+    def set_wide_handle(self, *_args: object) -> None:
+        pass
+
+    def set_active(self, *_args: object) -> None:
+        pass
+
+    def get_active(self) -> bool:
+        return False
+
+    def set_group(self, *_args: object) -> None:
+        pass
+
+    def set_button(self, *_args: object) -> None:
+        pass
+
+    def set_actions(self, *_args: object) -> None:
+        pass
+
+    def get_value(self) -> _FakeValue:
+        return _FakeValue()
+
     @classmethod
     def new_from_icon_name(cls, *_args: object) -> _FakeGtkBase:
+        return cls()
+
+    @classmethod
+    def new(cls, *_args: object, **_kwargs: object) -> _FakeGtkBase:
+        return cls()
+
+    @classmethod
+    def new_for_value(cls, *_args: object, **_kwargs: object) -> _FakeGtkBase:
         return cls()
 
 
@@ -312,6 +357,28 @@ _gtk_mock.SignalListItemFactory = _FakeGtkBase
 _gtk_mock.ListItem = _FakeGtkBase
 _gtk_mock.GestureClick = _FakeGtkBase
 _gtk_mock.ProgressBar = _FakeGtkBase
+_gtk_mock.DrawingArea = _FakeGtkBase
+_gtk_mock.DropTarget = _FakeGtkBase
+_gtk_mock.DragSource = _FakeGtkBase
+_gtk_mock.Paned = _FakeGtkBase
+_gtk_mock.ToggleButton = _FakeGtkBase
+_gtk_mock.Separator = _FakeGtkBase
+_gtk_mock.SearchBar = _FakeGtkBase
+_gtk_mock.SearchEntry = _FakeGtkBase
+_gtk_mock.FileDialog = _FakeGtkBase
+_gtk_mock.Spinner = _FakeGtkBase
+_gtk_mock.PopoverMenu = _FakeGtkBase
+_gtk_mock.CustomFilter = _FakeGtkBase
+_gtk_mock.FilterListModel = _FakeGtkBase
+_gtk_mock.SortListModel = _FakeGtkBase
+_gtk_mock.MultiSelection = _FakeGtkBase
+_gtk_mock.Ordering = MagicMock()
+_gtk_mock.Ordering.SMALLER = -1
+_gtk_mock.Ordering.EQUAL = 0
+_gtk_mock.Ordering.LARGER = 1
+_gtk_mock.EventControllerKey = _FakeGtkBase
+_gtk_mock.Align = MagicMock()
+_gtk_mock.Align.CENTER = 0
 _gtk_mock.PolicyType = MagicMock()
 _gtk_mock.PolicyType.AUTOMATIC = 0
 _gtk_mock.PolicyType.NEVER = 1
@@ -348,7 +415,17 @@ _gi_mod.require_version = MagicMock()  # type: ignore[attr-defined]
 _repo_mod = ModuleType("gi.repository")
 _repo_mod.GObject = _gobject_mock  # type: ignore[attr-defined]
 _repo_mod.Gtk = _gtk_mock  # type: ignore[attr-defined]
-_repo_mod.Gdk = MagicMock()  # type: ignore[attr-defined]
+
+# Gdk mock with DragAction
+_gdk_mock = MagicMock()
+_gdk_mock.DragAction = MagicMock()
+_gdk_mock.DragAction.MOVE = 1
+_gdk_mock.DragAction.COPY = 2
+_gdk_mock.KEY_space = 32
+_gdk_mock.Rectangle = MagicMock()
+_gdk_mock.ModifierType = MagicMock()
+
+_repo_mod.Gdk = _gdk_mock  # type: ignore[attr-defined]
 _repo_mod.Gio = MagicMock()  # type: ignore[attr-defined]
 _repo_mod.GLib = MagicMock()  # type: ignore[attr-defined]
 _repo_mod.Pango = _pango_mock  # type: ignore[attr-defined]
