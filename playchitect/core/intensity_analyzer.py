@@ -24,7 +24,7 @@ import librosa
 import numpy as np
 
 from playchitect.utils.config import get_config
-from playchitect.utils.warnings import suppress_librosa_warnings
+from playchitect.utils.warnings import suppress_audio_log_warnings, suppress_librosa_warnings
 
 logger = logging.getLogger(__name__)
 
@@ -67,7 +67,8 @@ def _analyze_worker(args: tuple[str, str]) -> tuple[str, dict[str, Any]]:
     """
     filepath_str, cache_dir_str = args
     analyzer = IntensityAnalyzer(cache_dir=Path(cache_dir_str))
-    features = analyzer.analyze(Path(filepath_str))
+    with suppress_librosa_warnings(), suppress_audio_log_warnings():
+        features = analyzer.analyze(Path(filepath_str))
     return (filepath_str, features.to_dict())
 
 
@@ -230,8 +231,9 @@ class IntensityAnalyzer:
 
         logger.debug(f"Analyzing: {filepath.name}")
 
-        # Load audio
-        with suppress_librosa_warnings():
+        # Load audio — suppress backend-negotiation warnings from librosa /
+        # audioread / soundfile so they never appear in user-facing output.
+        with suppress_librosa_warnings(), suppress_audio_log_warnings():
             try:
                 # Use duration=300 limit to avoid OOM on huge files, enough for intensity
                 y, _ = librosa.load(filepath, sr=self.sample_rate, mono=True, duration=300)

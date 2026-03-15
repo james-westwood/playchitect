@@ -1,1 +1,2 @@
 [2026-03-15] [FIX-01] downgrade_pca_bootstrap_warning: changed logger.warning to logger.info in weighting.py for non-actionable PCA bootstrap CI fallback message
+[2026-03-15] [FIX-03] suppress_librosa_warnings_in_batch: added suppress_audio_log_warnings() to utils/warnings.py and applied it with suppress_librosa_warnings() in analyze() and _analyze_worker() to prevent audioread/soundfile backend-negotiation log chatter from leaking to users

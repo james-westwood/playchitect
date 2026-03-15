@@ -2,6 +2,7 @@
 Unit tests for intensity_analyzer module.
 """
 
+import logging
 import os
 from pathlib import Path
 from unittest.mock import MagicMock, patch
@@ -348,6 +349,56 @@ class TestIntensityAnalyzer:
 
         # Harmonic should have low percussiveness
         assert harmonic_features.percussiveness < 0.5
+
+    def test_analyze_emits_no_audioread_or_soundfile_warnings(self, tmp_path: Path) -> None:
+        """analyze() on a valid audio fixture must not emit WARNING-level log
+        records from the audioread or soundfile loggers.
+
+        This guards against backend-negotiation chatter (e.g. 'PySoundFile
+        failed', 'Trying audioread…') leaking into user-visible output.
+        """
+        import soundfile as sf
+
+        # Build a minimal valid WAV fixture — 1 second of 440 Hz sine wave.
+        sample_rate = 22050
+        duration = 1.0
+        t = np.linspace(0, duration, int(sample_rate * duration))
+        audio = np.sin(2 * np.pi * 440 * t).astype(np.float32) * 0.5
+        fixture = tmp_path / "valid_tone.wav"
+        sf.write(fixture, audio, sample_rate)
+
+        # Capture WARNING+ records from the target loggers.
+        noisy_logger_names = ("audioread", "soundfile", "librosa")
+        captured_records: list[logging.LogRecord] = []
+
+        class _CapturingHandler(logging.Handler):
+            def emit(self, record: logging.LogRecord) -> None:
+                captured_records.append(record)
+
+        capturing_handler = _CapturingHandler(level=logging.WARNING)
+        loggers_under_test = [logging.getLogger(name) for name in noisy_logger_names]
+        original_levels = [lg.level for lg in loggers_under_test]
+
+        for lg in loggers_under_test:
+            lg.addHandler(capturing_handler)
+            # Ensure the logger itself is not filtering out WARNING records
+            # before they reach our handler.
+            if lg.level == logging.NOTSET or lg.level > logging.WARNING:
+                lg.setLevel(logging.WARNING)
+
+        try:
+            analyzer = IntensityAnalyzer(sample_rate=sample_rate, cache_enabled=False)
+            analyzer.analyze(fixture)
+        finally:
+            for lg, level in zip(loggers_under_test, original_levels):
+                lg.removeHandler(capturing_handler)
+                lg.setLevel(level)
+
+        warning_records = [r for r in captured_records if r.levelno >= logging.WARNING]
+        assert warning_records == [], (
+            f"Expected no WARNING-level log records from audioread/soundfile/librosa "
+            f"loggers, but got: {[r.getMessage() for r in warning_records]}"
+        )
 
 
 class TestIntegration:
