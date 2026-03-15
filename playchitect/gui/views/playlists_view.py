@@ -39,6 +39,7 @@ from playchitect.core.clustering import ClusterResult, PlaylistClusterer  # noqa
 from playchitect.core.intensity_analyzer import IntensityAnalyzer  # noqa: E402
 from playchitect.core.metadata_extractor import TrackMetadata  # noqa: E402
 from playchitect.gui.widgets.cluster_stats import ClusterStats  # noqa: E402
+from playchitect.gui.widgets.energy_arc_widget import EnergyArcWidget  # noqa: E402
 from playchitect.gui.widgets.track_list import TrackListWidget, TrackModel  # noqa: E402
 from playchitect.utils.config import get_config  # noqa: E402
 from playchitect.utils.weight_config import WeightOverrides  # noqa: E402
@@ -310,10 +311,20 @@ class PlaylistsView(Gtk.Box):
         self.append(self._paned)
 
     def _build_cluster_sidebar(self) -> None:
-        """Build the left cluster sidebar with ListBox."""
+        """Build the left cluster sidebar with energy arc and ListBox."""
+        sidebar_box = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=0)
+        sidebar_box.set_size_request(_SIDEBAR_WIDTH, -1)
+
+        # Energy arc sparkline above cluster list
+        self._energy_arc = EnergyArcWidget()
+        sidebar_box.append(self._energy_arc)
+
+        # Separator between arc and list
+        sidebar_box.append(Gtk.Separator(orientation=Gtk.Orientation.HORIZONTAL))
+
         scroll = Gtk.ScrolledWindow()
         scroll.set_policy(Gtk.PolicyType.NEVER, Gtk.PolicyType.AUTOMATIC)
-        scroll.set_size_request(_SIDEBAR_WIDTH, -1)
+        scroll.set_vexpand(True)
 
         self._cluster_list = Gtk.ListBox()
         self._cluster_list.set_selection_mode(Gtk.SelectionMode.SINGLE)
@@ -330,7 +341,8 @@ class PlaylistsView(Gtk.Box):
         self._cluster_list.set_placeholder(self._cluster_placeholder)
 
         scroll.set_child(self._cluster_list)
-        self._paned.set_start_child(scroll)
+        sidebar_box.append(scroll)
+        self._paned.set_start_child(sidebar_box)
 
     def _build_right_content(self) -> None:
         """Build the right pane with track ColumnView and stats strip."""
@@ -584,6 +596,10 @@ class PlaylistsView(Gtk.Box):
         self._set_loading_state(False)
         self._refresh_cluster_sidebar()
 
+        # Update energy arc visualization
+        if hasattr(self, "_energy_arc"):
+            self._energy_arc.update_clusters(self._clusters)
+
         # Update count label
         count = len(self._cluster_stats)
         noun = "cluster" if count == 1 else "clusters"
@@ -736,6 +752,10 @@ class PlaylistsView(Gtk.Box):
         self._clusters = clusters
         self._cluster_stats = ClusterStats.from_results(clusters)
         self._refresh_cluster_sidebar()
+
+        # Update energy arc visualization
+        if hasattr(self, "_energy_arc"):
+            self._energy_arc.update_clusters(clusters)
 
         # Update count
         count = len(self._cluster_stats)
