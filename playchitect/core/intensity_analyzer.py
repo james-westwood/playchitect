@@ -182,6 +182,10 @@ class IntensityFeatures:
     mfcc_variance: float = 0.0  # Spectral shape complexity (0-1)
     spectral_rolloff_85: float = 0.0  # Frequency where 85% energy is below (0-1)
 
+    # Structural/vocal features (metadata, not clustering dimensions)
+    vocal_presence: float = 0.0  # Vocal content in 200-800Hz harmonic band (0-1)
+    intro_length_secs: float = 0.0  # Time until energy exceeds threshold (seconds)
+
     @property
     def hardness(self) -> float:
         """
@@ -265,6 +269,11 @@ class IntensityFeatures:
             data["mfcc_variance"] = 0.0
         if "spectral_rolloff_85" not in data:
             data["spectral_rolloff_85"] = 0.0
+        # Handle old cache files missing structural/vocal fields
+        if "vocal_presence" not in data:
+            data["vocal_presence"] = 0.0
+        if "intro_length_secs" not in data:
+            data["intro_length_secs"] = 0.0
         return cls(**data)
 
 
@@ -382,6 +391,10 @@ class IntensityAnalyzer:
                 mfcc_var = self._calculate_mfcc_variance(y, self.sample_rate)
                 sr_85 = self._calculate_spectral_rolloff_85(y, self.sample_rate)
 
+                # Compute structural/vocal features
+                vocal_presence = self._calculate_vocal_presence(y, self.sample_rate)
+                intro_length_secs = self._calculate_intro_length(y, self.sample_rate)
+
             except Exception as e:
                 # Re-raise as ValueError with context for analyze_batch to catch
                 raise ValueError(f"Failed to analyze {filepath.name}: {e}") from e
@@ -405,6 +418,8 @@ class IntensityAnalyzer:
             zero_crossing_rate=zcr,
             mfcc_variance=mfcc_var,
             spectral_rolloff_85=sr_85,
+            vocal_presence=vocal_presence,
+            intro_length_secs=intro_length_secs,
         )
 
         # Cache results
@@ -683,6 +698,74 @@ class IntensityAnalyzer:
         # Normalize to [0, 1] by dividing by Nyquist frequency (sr/2)
         nyquist = sr / 2.0
         return float(np.clip(rolloff_mean / nyquist, 0.0, 1.0))
+
+    def _calculate_vocal_presence(self, y: np.ndarray, sr: int) -> float:
+        """
+        Calculate vocal presence as ratio of harmonic energy in 200-800Hz band.
+
+        Uses HPSS to separate harmonic component, then measures what proportion
+        of the harmonic energy falls in the typical vocal frequency range.
+
+        Args:
+            y: Audio time series
+            sr: Sample rate
+
+        Returns:
+            Vocal presence score (0-1), scaled to account for vocal band being a subset
+        """
+        # Separate harmonic component using HPSS
+        y_harmonic, _ = librosa.effects.hpss(y)
+
+        # Compute harmonic spectrogram
+        harmonic_spec = np.abs(librosa.stft(y_harmonic))
+
+        # Find frequency bins for 200-800Hz (typical vocal range)
+        freqs = librosa.fft_frequencies(sr=sr)
+        vocal_bins = (freqs >= 200) & (freqs < 800)
+
+        # Calculate vocal band energy and total harmonic energy
+        vocal_energy = harmonic_spec[vocal_bins].sum()
+        total_harmonic_energy = harmonic_spec.sum() + 1e-9  # Small epsilon to avoid div by zero
+
+        # Scale by 10 because vocal band is a subset of total spectrum
+        vocal_presence = float(np.clip(vocal_energy / total_harmonic_energy * 10, 0, 1))
+
+        return vocal_presence
+
+    def _calculate_intro_length(self, y: np.ndarray, sr: int) -> float:
+        """
+        Calculate intro length as time until energy exceeds threshold.
+
+        Uses RMS frames to find when the track's energy first exceeds
+        50% of the mean RMS energy, indicating the end of the intro.
+
+        Args:
+            y: Audio time series
+            sr: Sample rate
+
+        Returns:
+            Intro length in seconds (0 if no intro detected)
+        """
+        # Compute RMS frames (same parameters as energy_gradient step)
+        rms_frames = librosa.feature.rms(y=y, frame_length=2048, hop_length=512)[0]
+
+        if len(rms_frames) == 0:
+            return 0.0
+
+        # Threshold is 50% of mean RMS energy
+        threshold = 0.5 * np.mean(rms_frames)
+
+        # Find first frame that exceeds threshold
+        intro_frames = int(np.argmax(rms_frames > threshold))
+
+        # If no frame exceeds threshold, argmax returns 0; verify it actually exceeds
+        if intro_frames == 0 and rms_frames[0] <= threshold:
+            return 0.0
+
+        # Convert frames to seconds: frame_length=2048, hop_length=512
+        intro_length_secs = float(intro_frames * 512 / sr)
+
+        return intro_length_secs
 
     def _compute_file_hash(self, filepath: Path) -> str:
         """
