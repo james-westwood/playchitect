@@ -133,6 +133,29 @@ class TestIntensityFeatures:
         assert features.camelot_key == "8B"
         assert features.key_index == 0.0
 
+    def test_from_dict_energy_flow_backward_compat(self) -> None:
+        """Test creating from old dictionary without energy flow fields."""
+        data = {
+            "filepath": "test.mp3",
+            "file_hash": "abc123",
+            "rms_energy": 0.5,
+            "brightness": 0.6,
+            "sub_bass_energy": 0.3,
+            "kick_energy": 0.7,
+            "bass_harmonics": 0.4,
+            "percussiveness": 0.8,
+            "onset_strength": 0.65,
+            "camelot_key": "8B",
+            "key_index": 0.0,
+        }
+
+        features = IntensityFeatures.from_dict(data)
+
+        # Should default to 0.0
+        assert features.dynamic_range == 0.0
+        assert features.energy_gradient == 0.0
+        assert features.drop_density == 0.0
+
 
 class TestHarmonicCompatibility:
     """Test harmonic compatibility function."""
@@ -527,6 +550,36 @@ class TestIntensityAnalyzer:
 
         # Harmonic should have low percussiveness
         assert harmonic_features.percussiveness < 0.5
+
+    def test_energy_flow_features_synthetic_audio(self, tmp_path: Path) -> None:
+        """Test energy flow features with synthetic sine-wave audio."""
+        sample_rate = 22050
+        duration = 2.0  # seconds
+        frequency = 440.0  # A4 note
+
+        # Generate sine wave
+        t = np.linspace(0, duration, int(sample_rate * duration))
+        audio = np.sin(2 * np.pi * frequency * t).astype(np.float32)
+
+        # Save as WAV
+        import soundfile as sf
+
+        test_file = tmp_path / "test_energy_flow.wav"
+        sf.write(test_file, audio, sample_rate)
+
+        # Analyze
+        analyzer = IntensityAnalyzer(sample_rate=sample_rate, cache_enabled=False)
+        features = analyzer.analyze(test_file)
+
+        # Verify energy flow features are valid
+        assert 0.0 <= features.dynamic_range <= 1.0
+        assert -1.0 <= features.energy_gradient <= 1.0
+        assert isinstance(features.energy_gradient, float)
+        assert 0.0 <= features.drop_density <= 1.0
+
+        # Sine wave should have zero drop density (no drops in steady tone)
+        # Threshold is mean + 2*std; for steady signal, std ≈ 0, so no frames exceed threshold
+        assert features.drop_density < 0.1
 
     def test_analyze_emits_no_audioread_or_soundfile_warnings(self, tmp_path: Path) -> None:
         """analyze() on a valid audio fixture must not emit WARNING-level log

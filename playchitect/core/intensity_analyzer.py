@@ -87,6 +87,7 @@ def harmonic_compatibility(key_a: str, key_b: str) -> bool:
 # Normalization constants
 _RMS_NORM_FACTOR: float = 0.3  # Typical peak RMS for normalized audio
 _ONSET_NORM_FACTOR: float = 10.0  # Typical peak onset strength envelope mean
+_MAX_GRADIENT_RMS_PER_FRAME: float = 0.001  # Max expected RMS change per frame for gradient
 
 # Frequency band limits (Hz) — optimized for techno/electronic music
 _FREQ_SUB_BASS_LOW: int = 20
@@ -170,6 +171,11 @@ class IntensityFeatures:
     camelot_key: str  # Camelot Wheel notation (e.g., '8B')
     key_index: float  # Chroma bin index 0-11 as float
 
+    # Energy flow features (metadata, not clustering dimensions)
+    dynamic_range: float = 0.0  # Range of RMS energy (0-1)
+    energy_gradient: float = 0.0  # Trend of energy over time (-1 to 1)
+    drop_density: float = 0.0  # Normalised drops per minute (0-1)
+
     @property
     def hardness(self) -> float:
         """
@@ -228,7 +234,8 @@ class IntensityFeatures:
         """Create from dictionary.
 
         Handles backward compatibility with old cache files that may not
-        have the camelot_key and key_index fields.
+        have the camelot_key, key_index, dynamic_range, energy_gradient,
+        or drop_density fields.
         """
         data["filepath"] = Path(data["filepath"])
         # Handle old cache files missing harmonic fields
@@ -236,6 +243,13 @@ class IntensityFeatures:
             data["camelot_key"] = "8B"  # Default to C major
         if "key_index" not in data:
             data["key_index"] = 0.0
+        # Handle old cache files missing energy flow fields
+        if "dynamic_range" not in data:
+            data["dynamic_range"] = 0.0
+        if "energy_gradient" not in data:
+            data["energy_gradient"] = 0.0
+        if "drop_density" not in data:
+            data["drop_density"] = 0.0
         return cls(**data)
 
 
@@ -342,6 +356,11 @@ class IntensityAnalyzer:
                 # Compute chroma features for key detection
                 camelot_key, key_index = self._calculate_key(y, self.sample_rate)
 
+                # Compute energy flow features from RMS frames
+                dynamic_range, energy_gradient, drop_density = self._calculate_energy_flow_features(
+                    y
+                )
+
             except Exception as e:
                 # Re-raise as ValueError with context for analyze_batch to catch
                 raise ValueError(f"Failed to analyze {filepath.name}: {e}") from e
@@ -358,6 +377,9 @@ class IntensityAnalyzer:
             onset_strength=onset,
             camelot_key=camelot_key,
             key_index=key_index,
+            dynamic_range=dynamic_range,
+            energy_gradient=energy_gradient,
+            drop_density=drop_density,
         )
 
         # Cache results
@@ -523,6 +545,55 @@ class IntensityAnalyzer:
         camelot_key, key_index = _CHROMA_TO_CAMELOT[dominant_bin]
 
         return camelot_key, float(key_index)
+
+    def _calculate_energy_flow_features(self, y: np.ndarray) -> tuple[float, float, float]:
+        """
+        Calculate energy flow features: dynamic range, gradient, and drop density.
+
+        Args:
+            y: Audio time series
+
+        Returns:
+            Tuple of (dynamic_range, energy_gradient, drop_density)
+        """
+        # Compute RMS frames
+        rms_frames = librosa.feature.rms(y=y, frame_length=2048, hop_length=512)[0]
+
+        # Dynamic range: normalized difference between max and min RMS
+        dynamic_range = float(
+            np.clip((rms_frames.max() - rms_frames.min()) / (_RMS_NORM_FACTOR + 1e-9), 0, 1)
+        )
+
+        # Energy gradient: trend of RMS over time, normalized to [-1, 1]
+        if len(rms_frames) > 1:
+            gradient = np.polyfit(np.arange(len(rms_frames)), rms_frames, 1)[0]
+            # Clip at ±_MAX_GRADIENT_RMS_PER_FRAME then divide to normalize
+            gradient_clipped = np.clip(
+                gradient, -_MAX_GRADIENT_RMS_PER_FRAME, _MAX_GRADIENT_RMS_PER_FRAME
+            )
+            energy_gradient = float(gradient_clipped / _MAX_GRADIENT_RMS_PER_FRAME)
+        else:
+            energy_gradient = 0.0
+
+        # Drop density: count high-energy frames divided by duration in minutes
+        # Normalised to [0, 1] by clipping at 10 drops/min
+        mean_rms = rms_frames.mean()
+        std_rms = rms_frames.std()
+        threshold = mean_rms + 2 * std_rms
+        drops = np.sum(rms_frames > threshold)
+
+        # Track duration in minutes
+        hop_length = 512
+        sr = self.sample_rate
+        duration_minutes = (len(rms_frames) * hop_length) / (sr * 60)
+
+        if duration_minutes > 0:
+            drops_per_minute = drops / duration_minutes
+            drop_density = float(np.clip(drops_per_minute / 10, 0, 1))
+        else:
+            drop_density = 0.0
+
+        return dynamic_range, energy_gradient, drop_density
 
     def _compute_file_hash(self, filepath: Path) -> str:
         """
