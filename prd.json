@@ -222,7 +222,7 @@
       "owner": "ralph",
       "description": "Implement the Playlists view. Create playchitect/gui/views/playlists_view.py with `PlaylistsView(Gtk.Box)`. Migrate logic from playchitect/gui/widgets/cluster_view.py and cluster_stats.py. (1) Top toolbar `Gtk.ActionBar`: [Generate Playlists] `Gtk.Button` (primary style), `Gtk.Spinner` (hidden while idle), cluster count `Gtk.Label`. (2) Left cluster sidebar (~250px, `Gtk.Paned` left child): `Gtk.ListBox` of `ClusterRowWidget` \u2014 each row shows cluster index label, track count badge, and a small coloured energy indicator bar. Clicking a row emits `'cluster-selected'` signal. (3) Right content (`Gtk.Paned` right child): `Gtk.ColumnView` for the selected cluster's tracks \u2014 columns: #, Title, Artist, BPM, Intensity. (4) Stats strip below the right pane: reuse `ClusterStats` widget from playchitect/gui/widgets/cluster_stats.py. (5) [Generate Playlists] button handler: call `IntensityAnalyzer.analyze_batch()` then `PlaylistClusterer.cluster_by_features()` in a `threading.Thread`, on completion use `GLib.idle_add` to refresh the cluster sidebar. (6) Register as 'playlists' page in main_window.py. Remove the old split-pane cluster panel from main_window.py once migrated. Add smoke tests in tests/gui/test_playlists_view.py.",
       "acceptance_criteria": "tests/gui/test_playlists_view.py: PlaylistsView instantiates. cluster-selected signal defined. ClusterStats reused. Existing GUI smoke tests still pass. `uv run pytest tests/ -v` passes.",
-      "completed": false,
+      "completed": true,
       "priority": 3,
       "note": "GitHub issue #115 (MVP)"
     },
