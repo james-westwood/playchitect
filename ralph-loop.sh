@@ -610,18 +610,37 @@ Do NOT push. Do NOT open a new PR. Fix only the issues raised — do not refacto
       log "  CI fix round $_ci_fix_round/$MAX_CI_FIX_ROUNDS — waiting for CI to re-run..."
     fi
 
-    log "  Waiting for CI on PR #$PR_NUMBER..."
+    # Pin to the specific run ID for this push so we never read stale data
+    # from a previous run. On the first pass (_ci_fix_round=0) we take
+    # whatever the latest run is; on fix rounds we already waited for the
+    # new run ID above.
+    POLL_RUN_ID=$(gh run list --branch "$BRANCH" --limit 1 --json databaseId -q '.[0].databaseId' 2>/dev/null || echo "")
+    log "  Waiting for CI run ${POLL_RUN_ID:-unknown} on PR #$PR_NUMBER..."
     CI_FINAL_STATUS=""
     for _wait in $(seq 1 60); do
       sleep 30
-      CI_STATUS=$(gh pr checks "$PR_NUMBER" --json state -q '.[].state' 2>/dev/null | sort -u | tr '\n' ' ')
-      if echo "$CI_STATUS" | grep -q "FAILURE\|ERROR"; then
-        CI_FINAL_STATUS="FAILED"
-        break
-      fi
-      if [[ -n "$CI_STATUS" ]] && ! echo "$CI_STATUS" | grep -q "PENDING\|IN_PROGRESS\|QUEUED\|WAITING\|EXPECTED"; then
-        CI_FINAL_STATUS="PASSED"
-        break
+      if [[ -n "$POLL_RUN_ID" ]]; then
+        # Poll the pinned run directly — immune to stale data from other runs
+        RUN_CONCLUSION=$(gh run view "$POLL_RUN_ID" --json conclusion -q '.conclusion' 2>/dev/null || echo "")
+        RUN_STATUS=$(gh run view "$POLL_RUN_ID" --json status -q '.status' 2>/dev/null || echo "")
+        if [[ "$RUN_CONCLUSION" == "failure" || "$RUN_CONCLUSION" == "error" ]]; then
+          CI_FINAL_STATUS="FAILED"
+          break
+        fi
+        if [[ "$RUN_STATUS" == "completed" && "$RUN_CONCLUSION" == "success" ]]; then
+          CI_FINAL_STATUS="PASSED"
+          break
+        fi
+        CI_STATUS="$RUN_STATUS/$RUN_CONCLUSION"
+      else
+        # Fallback: no run ID yet, poll PR checks generically
+        CI_STATUS=$(gh pr checks "$PR_NUMBER" --json state -q '.[].state' 2>/dev/null | sort -u | tr '\n' ' ')
+        if echo "$CI_STATUS" | grep -q "FAILURE\|ERROR"; then
+          CI_FINAL_STATUS="FAILED"; break
+        fi
+        if [[ -n "$CI_STATUS" ]] && ! echo "$CI_STATUS" | grep -q "PENDING\|IN_PROGRESS\|QUEUED\|WAITING\|EXPECTED"; then
+          CI_FINAL_STATUS="PASSED"; break
+        fi
       fi
       log "  Still waiting... (check ${_wait}/60, ci=$CI_STATUS)"
     done
@@ -661,8 +680,27 @@ Fix steps:
 
       git checkout "$BRANCH"
       run_coder "$CODER" "$CI_FIX_PROMPT" 2>&1 | tee -a "$LOG_FILE"
-      log "  Pushing CI fixes to $BRANCH..."
+
+      # Capture the current run ID before pushing so we can detect when
+      # GitHub registers the *new* run triggered by the push. Without this,
+      # the poller races against GitHub's indexing window and may read stale
+      # data from the just-failed run, misclassifying it as a new failure.
+      PREV_RUN_ID=$(gh run list --branch "$BRANCH" --limit 1 --json databaseId -q '.[0].databaseId' 2>/dev/null || echo "")
+      log "  Pushing CI fixes to $BRANCH (prev run ID: ${PREV_RUN_ID:-none})..."
       git push origin "$BRANCH"
+
+      # Wait for GitHub to register a new run (different ID from the one
+      # that just failed). Cap at 20 attempts × 10s = ~3 minutes.
+      log "  Waiting for GitHub to register new CI run..."
+      for _reg in $(seq 1 20); do
+        sleep 10
+        NEW_RUN_ID=$(gh run list --branch "$BRANCH" --limit 1 --json databaseId -q '.[0].databaseId' 2>/dev/null || echo "")
+        if [[ -n "$NEW_RUN_ID" && "$NEW_RUN_ID" != "$PREV_RUN_ID" ]]; then
+          log "  New CI run registered: $NEW_RUN_ID (attempt $_reg/20)"
+          break
+        fi
+        log "  Still waiting for new run... (attempt $_reg/20, current=${NEW_RUN_ID:-none})"
+      done
     fi
 
     if [[ -z "$CI_FINAL_STATUS" ]]; then
