@@ -22,6 +22,15 @@ if TYPE_CHECKING:
 logger = logging.getLogger(__name__)
 
 
+class SequencingStrategy(StrEnum):
+    """Available sequencing strategies for energy flow control."""
+
+    RAMP = "ramp"  # Energy ramp (default): sort by RMS energy ascending
+    BUILD = "build"  # Build to peak: sort by energy_gradient descending
+    DESCENT = "descent"  # Gradual descent: sort by RMS energy descending
+    ALTERNATING = "alternating"  # Alternating: interleave high/low energy
+
+
 class FiveRhythmsPhase(StrEnum):
     """Five Rhythms phases for dance/movement-based sequencing."""
 
@@ -301,6 +310,96 @@ def sequence_fresh(
         len(result),
         len(tracks) - len(result),
     )
+
+    return result
+
+
+def sequence_by_strategy(
+    tracks: list[Path],
+    features: dict[Path, IntensityFeatures],
+    strategy: str,
+) -> list[Path]:
+    """Sequence tracks according to the specified energy flow strategy.
+
+    Strategies:
+        - 'ramp': Energy ramp (default) - sort by RMS energy ascending
+        - 'build': Build to peak - sort by energy_gradient descending (rising tracks first)
+        - 'descent': Gradual descent - sort by RMS energy descending
+        - 'alternating': Alternating - interleave high/low energy tracks
+
+    Args:
+        tracks: List of track paths to sequence.
+        features: Mapping of path to IntensityFeatures (contains RMS energy,
+            energy_gradient, etc.).
+        strategy: One of 'ramp', 'build', 'descent', 'alternating'.
+
+    Returns:
+        List of track paths in the sequenced order.
+
+    Raises:
+        ValueError: If a track is missing from the features dict or if
+            strategy is invalid.
+    """
+    if not tracks:
+        return []
+
+    # Validate all tracks have features
+    for track in tracks:
+        if track not in features:
+            raise ValueError(f"Missing features for track: {track}")
+
+    # Validate strategy
+    valid_strategies = {s.value for s in SequencingStrategy}
+    if strategy not in valid_strategies:
+        raise ValueError(f"Invalid strategy '{strategy}'. Must be one of: {valid_strategies}")
+
+    result: list[Path] = []
+
+    if strategy == SequencingStrategy.RAMP:
+        # Sort by RMS energy ascending (low to high)
+        result = sorted(tracks, key=lambda t: features[t].rms_energy)
+        logger.info("Sequenced %d tracks using 'ramp' strategy (RMS ascending)", len(result))
+
+    elif strategy == SequencingStrategy.BUILD:
+        # Sort by energy_gradient descending (rising tracks first)
+        result = sorted(tracks, key=lambda t: features[t].energy_gradient, reverse=True)
+        logger.info("Sequenced %d tracks using 'build' strategy (gradient descending)", len(result))
+
+    elif strategy == SequencingStrategy.DESCENT:
+        # Sort by RMS energy descending (high to low)
+        result = sorted(tracks, key=lambda t: features[t].rms_energy, reverse=True)
+        logger.info("Sequenced %d tracks using 'descent' strategy (RMS descending)", len(result))
+
+    elif strategy == SequencingStrategy.ALTERNATING:
+        # Interleave high/low energy tracks
+        sorted_by_energy = sorted(tracks, key=lambda t: features[t].rms_energy)
+        low_half = sorted_by_energy[: len(sorted_by_energy) // 2]
+        high_half = sorted_by_energy[len(sorted_by_energy) // 2 :]
+
+        result: list[Path] = []
+        # Interleave: take from high (reversed for descending), then low
+        high_reversed = list(reversed(high_half))
+        low_iter = iter(low_half)
+        high_iter = iter(high_reversed)
+
+        # Alternate between high and low
+        while True:
+            has_low = False
+            has_high = False
+            try:
+                result.append(next(high_iter))
+                has_high = True
+            except StopIteration:
+                pass
+            try:
+                result.append(next(low_iter))
+                has_low = True
+            except StopIteration:
+                pass
+            if not has_low and not has_high:
+                break
+
+        logger.info("Sequenced %d tracks using 'alternating' strategy", len(result))
 
     return result
 
