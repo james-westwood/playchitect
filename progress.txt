@@ -27,3 +27,4 @@
 [2026-03-15] [TASK-19] energy_arc_visualization: implemented and merged (PR #150)
 [2026-03-15] [TASK-21] energy_blocks: implemented and merged (PR #151)
 [2026-03-15] [TASK-23] interactive_set_builder_workspace: implemented and merged (PR #152)
+[2026-03-15] [TASK-24] specialized_export_formats: implemented and merged (PR #153)
