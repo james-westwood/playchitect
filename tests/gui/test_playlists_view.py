@@ -74,6 +74,10 @@ def _make_view() -> PlaylistsView:
     view._stats_intensity_label = MagicMock()
     view._stats_tracks_label = MagicMock()
     view._stats_duration_label = MagicMock()
+    # New controls for TASK-08
+    view._size_spin = MagicMock()
+    view._unit_dropdown = MagicMock()
+    view._playlists_spin = MagicMock()
     return view
 
 
@@ -308,6 +312,10 @@ class TestPlaylistsViewInstantiation:
             patch("playchitect.gui.views.playlists_view.Gtk.ScrolledWindow") as mock_scroll,
             patch("playchitect.gui.views.playlists_view.Gtk.Separator") as mock_sep,
             patch("playchitect.gui.views.playlists_view.TrackListWidget") as mock_tracklist,
+            # New controls for TASK-08
+            patch("playchitect.gui.views.playlists_view.Gtk.SpinButton") as mock_spin,
+            patch("playchitect.gui.views.playlists_view.Gtk.DropDown") as mock_dropdown,
+            patch("playchitect.gui.views.playlists_view.Gtk.StringList") as mock_stringlist,
         ):
             # Setup mock returns
             mock_action.return_value = MagicMock()
@@ -320,6 +328,9 @@ class TestPlaylistsViewInstantiation:
             mock_sep.return_value = MagicMock()
             mock_tracklist.return_value = MagicMock()
             mock_box.return_value = MagicMock()
+            mock_spin.return_value = MagicMock()
+            mock_dropdown.return_value = MagicMock()
+            mock_stringlist.new.return_value = MagicMock()
 
             view = PlaylistsView()
             assert view is not None
@@ -342,3 +353,28 @@ class TestPlaylistsViewInstantiation:
             row = ClusterRowWidget(stats)
             assert row is not None
             assert row.cluster_id == 1
+
+
+# ── TestPlaylistSizeControls ────────────────────────────────────────────────
+
+
+class TestPlaylistSizeControls:
+    """Tests for the playlist size controls (TASK-08)."""
+
+    def test_toolbar_has_size_spinbutton(self):
+        """Verify PlaylistsView has a size SpinButton."""
+        view = _make_view()
+        assert hasattr(view, "_size_spin")
+        assert view._size_spin is not None
+
+    def test_toolbar_has_unit_dropdown(self):
+        """Verify PlaylistsView has a unit DropDown."""
+        view = _make_view()
+        assert hasattr(view, "_unit_dropdown")
+        assert view._unit_dropdown is not None
+
+    def test_toolbar_has_playlists_spinbutton(self):
+        """Verify PlaylistsView has a playlists SpinButton."""
+        view = _make_view()
+        assert hasattr(view, "_playlists_spin")
+        assert view._playlists_spin is not None
