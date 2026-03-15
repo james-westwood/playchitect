@@ -321,7 +321,7 @@
       "owner": "ralph",
       "description": "Implement Energy Blocks in the Set Builder view (requires TASK-03 stub). (1) Create playchitect/core/energy_blocks.py. Define `EnergyBlock(id: str, name: str, target_duration_min: float, energy_min: float, energy_max: float, cluster_ids: list[int])` dataclass. Implement `suggest_blocks(clusters: list[ClusterResult], features: dict[Path, IntensityFeatures]) -> list[EnergyBlock]`: sort clusters by mean rms_energy; divide into 4\u20135 named groups: 'Warm-up' (lowest 20%), 'Build' (20\u201350%), 'Peak' (50\u201380%), 'Sustain' (80\u201395%), 'Wind Down' (top or bottom based on arc); set target_duration_min proportional to track count; compute energy_min/max from the cluster range. (2) Create playchitect/gui/views/set_builder_view.py with `SetBuilderView(Gtk.Box)`. Top strip: `Gtk.Box(HORIZONTAL)` of `EnergyBlockCard` widgets \u2014 each a `Gtk.Frame` with name label, duration badge, energy range badge. Below: `Gtk.ColumnView` showing tracks in the selected block. [+ Add Block] `Gtk.Button` appends a new 'Custom' block. (3) Register as 'set-builder' page in main_window.py. (4) Add unit tests for suggest_blocks.",
       "acceptance_criteria": "tests/unit/test_energy_blocks.py: suggest_blocks on 10 clusters returns 4\u20135 blocks covering all clusters. Energy ranges are non-overlapping. SetBuilderView smoke test instantiates. `uv run pytest tests/ -v` passes.",
-      "completed": false,
+      "completed": true,
       "priority": 5,
       "note": "GitHub issue #99"
     },
