@@ -266,7 +266,7 @@
       "owner": "ralph",
       "description": "Add harmonic mixing controls to PlaylistsView (requires TASK-09 and TASK-05). (1) In PlaylistsView toolbar, add a `Gtk.Box` with a `Gtk.Label('Harmonic mixing')` and `Gtk.Switch`. (2) Add a 'Key' column to the Playlists track ColumnView showing `camelot_key` from IntensityFeatures. (3) Add a compatibility dot column: a `Gtk.DrawingArea` (16\u00d716) drawn green/amber/red based on `harmonic_compatibility(this_track.camelot_key, prev_track.camelot_key)` \u2014 green=compatible, amber=same number different letter, red=incompatible. (4) In playchitect/core/sequencer.py, inspect the existing `Sequencer` class; add `sequence_harmonic(tracks: list[Path], features: dict[Path, IntensityFeatures]) -> list[Path]` that uses a greedy nearest-Camelot-neighbour approach: start from the track with highest energy, repeatedly pick the next track with the highest `harmonic_compatibility` score (break ties by energy proximity). (5) When the switch is on, call `sequence_harmonic` instead of the default energy ramp in PlaylistsView. Add unit tests for `sequence_harmonic`.",
       "acceptance_criteria": "tests/unit/test_sequencer.py: sequence_harmonic on 4 tracks with known keys produces a sequence where adjacent pairs maximise compatibility. PlaylistsView smoke test shows switch and Key column. `uv run pytest tests/ -v` passes.",
-      "completed": false,
+      "completed": true,
       "priority": 4,
       "note": "GitHub issue #37"
     },
