@@ -9,10 +9,7 @@ from __future__ import annotations
 import sys
 from pathlib import Path
 from types import ModuleType
-from typing import Any
 from unittest.mock import MagicMock
-
-import pytest
 
 # ── Setup GTK mocks (must be before any GUI imports) ─────────────────────────
 
@@ -137,9 +134,8 @@ sys.modules.setdefault("gi.repository.GLib", _glib_mock)
 sys.modules.setdefault("gi.repository.Pango", _pango_mock)
 sys.modules.setdefault("gi.repository.Adw", _adw_mock)
 
-# Now we can import the PlaylistsView
-from playchitect.gui.views.playlists_view import PlaylistsView
-
+# Now we can import the PlaylistsView  # noqa: E402
+from playchitect.gui.views.playlists_view import PlaylistsView  # noqa: E402
 
 # ── Helpers ─────────────────────────────────────────────────────────────────
 
