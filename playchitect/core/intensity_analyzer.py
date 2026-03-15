@@ -31,6 +31,59 @@ logger = logging.getLogger(__name__)
 # Default timeout for individual file analysis in batch mode (seconds)
 _WORKER_TIMEOUT_SECS: int = 30
 
+
+def harmonic_compatibility(key_a: str, key_b: str) -> bool:
+    """
+    Check if two Camelot Wheel keys are harmonically compatible.
+
+    Compatible if:
+    - Same number (±0 letter change): e.g., 8B ↔ 8A
+    - Adjacent number (±1 same letter): e.g., 8B ↔ 9B or 7B
+    - Same letter (±1 number): e.g., 8B ↔ 9B (already covered)
+
+    Args:
+        key_a: Camelot notation (e.g., '8B', '12A')
+        key_b: Camelot notation (e.g., '8B', '3A')
+
+    Returns:
+        True if keys are compatible for mixing
+
+    Raises:
+        ValueError: If keys are not in valid Camelot format
+    """
+
+    # Parse Camelot notation
+    def parse_key(key: str) -> tuple[int, str]:
+        if len(key) < 2 or not key[-1].isalpha():
+            raise ValueError(f"Invalid Camelot key format: {key}")
+        try:
+            number = int(key[:-1])
+            letter = key[-1].upper()
+        except ValueError as e:
+            raise ValueError(f"Invalid Camelot key format: {key}") from e
+        if number < 1 or number > 12:
+            raise ValueError(f"Camelot number must be 1-12: {key}")
+        if letter not in ("A", "B"):
+            raise ValueError(f"Camelot letter must be A or B: {key}")
+        return number, letter
+
+    num_a, letter_a = parse_key(key_a)
+    num_b, letter_b = parse_key(key_b)
+
+    # Same number: always compatible (adjacent on wheel, mode switch)
+    if num_a == num_b:
+        return True
+
+    # Same letter with adjacent numbers
+    if letter_a == letter_b:
+        # Adjacent on the wheel (wrapping: 12 adjacent to 1)
+        diff = abs(num_a - num_b)
+        if diff == 1 or diff == 11:  # 11 because 1 and 12 are adjacent
+            return True
+
+    return False
+
+
 # Normalization constants
 _RMS_NORM_FACTOR: float = 0.3  # Typical peak RMS for normalized audio
 _ONSET_NORM_FACTOR: float = 10.0  # Typical peak onset strength envelope mean
@@ -47,6 +100,24 @@ _ENERGY_GATE_PERCENTILE: int = 25
 
 # Default sample rate for librosa audio loading (Hz)
 _DEFAULT_SAMPLE_RATE: int = 22050
+
+# Camelot Wheel mapping for major keys (chromatic scale C=0)
+# Maps chroma index 0-11 to (camelot_notation, key_index)
+# Major keys only - minor detection out of scope
+_CHROMA_TO_CAMELOT: dict[int, tuple[str, int]] = {
+    0: ("8B", 0),  # C Major
+    1: ("3B", 1),  # C# Major
+    2: ("10B", 2),  # D Major
+    3: ("5B", 3),  # D# Major
+    4: ("12B", 4),  # E Major
+    5: ("7B", 5),  # F Major
+    6: ("2B", 6),  # F# Major
+    7: ("9B", 7),  # G Major
+    8: ("4B", 8),  # G# Major
+    9: ("11B", 9),  # A Major
+    10: ("6B", 10),  # A# Major
+    11: ("1B", 11),  # B Major
+}
 
 
 def _analyze_worker(args: tuple[str, str]) -> tuple[str, dict[str, Any]]:
@@ -94,6 +165,10 @@ class IntensityFeatures:
     # Rhythmic features
     percussiveness: float  # HPSS ratio (0-1)
     onset_strength: float  # Beat intensity (0-1)
+
+    # Harmonic features
+    camelot_key: str  # Camelot Wheel notation (e.g., '8B')
+    key_index: float  # Chroma bin index 0-11 as float
 
     @property
     def hardness(self) -> float:
@@ -150,8 +225,17 @@ class IntensityFeatures:
 
     @classmethod
     def from_dict(cls, data: dict[str, Any]) -> IntensityFeatures:
-        """Create from dictionary."""
+        """Create from dictionary.
+
+        Handles backward compatibility with old cache files that may not
+        have the camelot_key and key_index fields.
+        """
         data["filepath"] = Path(data["filepath"])
+        # Handle old cache files missing harmonic fields
+        if "camelot_key" not in data:
+            data["camelot_key"] = "8B"  # Default to C major
+        if "key_index" not in data:
+            data["key_index"] = 0.0
         return cls(**data)
 
 
@@ -255,6 +339,9 @@ class IntensityAnalyzer:
                 percussiveness = self._calculate_percussiveness(S)
                 onset = self._calculate_onset_strength(S, self.sample_rate)
 
+                # Compute chroma features for key detection
+                camelot_key, key_index = self._calculate_key(y, self.sample_rate)
+
             except Exception as e:
                 # Re-raise as ValueError with context for analyze_batch to catch
                 raise ValueError(f"Failed to analyze {filepath.name}: {e}") from e
@@ -269,6 +356,8 @@ class IntensityAnalyzer:
             bass_harmonics=harmonics,
             percussiveness=percussiveness,
             onset_strength=onset,
+            camelot_key=camelot_key,
+            key_index=key_index,
         )
 
         # Cache results
@@ -405,6 +494,35 @@ class IntensityAnalyzer:
         onset_env = librosa.onset.onset_strength(S=S, sr=sr)
         onset_mean = float(np.mean(onset_env))
         return float(np.clip(onset_mean / _ONSET_NORM_FACTOR, 0.0, 1.0))
+
+    def _calculate_key(self, y: np.ndarray, sr: int) -> tuple[str, float]:
+        """
+        Calculate musical key using chroma features.
+
+        Uses Constant-Q Transform (CQT) chroma analysis to determine
+        the dominant pitch class, then maps to Camelot Wheel notation.
+        Major keys only - minor detection is out of scope.
+
+        Args:
+            y: Audio time series
+            sr: Sample rate
+
+        Returns:
+            Tuple of (camelot_key_str, key_index_float)
+        """
+        # Compute chroma features using CQT
+        chroma = librosa.feature.chroma_cqt(y=y, sr=sr)
+
+        # Average across time frames to get 12-bin chroma vector
+        chroma_mean = chroma.mean(axis=1)
+
+        # Find dominant chroma bin (0-11, where 0=C, 1=C#, ..., 11=B)
+        dominant_bin = int(np.argmax(chroma_mean))
+
+        # Map to Camelot notation
+        camelot_key, key_index = _CHROMA_TO_CAMELOT[dominant_bin]
+
+        return camelot_key, float(key_index)
 
     def _compute_file_hash(self, filepath: Path) -> str:
         """
