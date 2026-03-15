@@ -2,8 +2,6 @@
 
 from pathlib import Path
 
-import pytest
-
 from playchitect.core.vibe_tags import VibeTagStore, _normalize_tag
 
 
