@@ -18,3 +18,4 @@
 [2026-03-15] [TASK-04] library_view: implemented and merged (PR #141)
 [2026-03-15] [TASK-05] playlists_view: implemented and merged (PR #142)
 [2026-03-15] [TASK-06] export_view: implemented and merged (PR #143)
+[2026-03-15] [TASK-07] track_preview_panel: implemented and merged (PR #144)
