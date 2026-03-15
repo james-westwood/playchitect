@@ -1,5 +1,7 @@
-"""Playlist naming support: vibe profiling and salience scoring."""
+"""Playlist naming support: vibe profiling, grammar engine, and intelligent naming."""
 
+from playchitect.core.naming.grammar_engine import generate_name
+from playchitect.core.naming.playlist_namer import TAG_TO_DESCRIPTORS, PlaylistNamer
 from playchitect.core.naming.vibe_profiler import (
     VibeProfile,
     bucket_bpm,
@@ -14,4 +16,7 @@ __all__ = [
     "score_salience",
     "bucket_bpm",
     "bucket_energy",
+    "generate_name",
+    "PlaylistNamer",
+    "TAG_TO_DESCRIPTORS",
 ]

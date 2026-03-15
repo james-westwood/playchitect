@@ -16,6 +16,7 @@ from playchitect.core.audio_scanner import AudioScanner  # noqa: E402
 from playchitect.core.clustering import ClusterResult, PlaylistClusterer  # noqa: E402
 from playchitect.core.intensity_analyzer import IntensityAnalyzer, IntensityFeatures  # noqa: E402
 from playchitect.core.metadata_extractor import MetadataExtractor, TrackMetadata  # noqa: E402
+from playchitect.core.naming.playlist_namer import PlaylistNamer  # noqa: E402
 from playchitect.core.play_history import PlayHistory  # noqa: E402
 from playchitect.core.sequencer import Sequencer, sequence_fresh  # noqa: E402
 from playchitect.core.track_previewer import TrackPreviewer  # noqa: E402
@@ -40,6 +41,10 @@ class PlaychitectWindow(Adw.ApplicationWindow):
         # ── Preview service ───────────────────────────────────────────────────
         self._previewer = TrackPreviewer()
         self._track_title = "Playchitect"  # restored after preview flash
+
+        # ── Playlist naming service ───────────────────────────────────────────
+        self._playlist_namer = PlaylistNamer()
+        self._cluster_names: dict[int | str, str] = {}
 
         # ── Header bar ────────────────────────────────────────────────────────
         header = Adw.HeaderBar()
@@ -254,6 +259,12 @@ class PlaychitectWindow(Adw.ApplicationWindow):
                         cluster, self._metadata_map, self._intensity_map, mode="ramp"
                     )
 
+            # Generate intelligent names for all clusters
+            self._cluster_names = self._playlist_namer.name_all_clusters(
+                self._clusters, self._intensity_map, self._metadata_map
+            )
+            logger.info("Generated cluster names: %s", self._cluster_names)
+
             GLib.idle_add(self._on_cluster_complete)
         except Exception:
             logger.exception("Error during clustering")
@@ -270,6 +281,10 @@ class PlaychitectWindow(Adw.ApplicationWindow):
 
         stats = ClusterStats.from_results(self._clusters)
         self.cluster_panel.load_clusters(stats)
+
+        # Apply generated names to cluster cards
+        if self._cluster_names:
+            self.cluster_panel.set_cluster_names(self._cluster_names)
 
         self._track_title = f"Playchitect — {len(self._clusters)} clusters"
         self.set_title(self._track_title)
@@ -300,6 +315,19 @@ class PlaychitectWindow(Adw.ApplicationWindow):
         # Update UI with reordered clusters
         stats = ClusterStats.from_results(self._clusters)
         self.cluster_panel.load_clusters(stats)
+
+        # Re-apply cluster names after arc selection
+        if self._cluster_names:
+            # Build updated names dict for the new cluster order
+            updated_names = {}
+            for cluster in self._clusters:
+                # Try to find original name by cluster_id
+                if cluster.cluster_id in self._cluster_names:
+                    updated_names[cluster.cluster_id] = self._cluster_names[cluster.cluster_id]
+                else:
+                    updated_names[cluster.cluster_id] = f"Cluster {cluster.cluster_id}"
+            self.cluster_panel.set_cluster_names(updated_names)
+
         self._track_title = f"Playchitect — {len(self._clusters)} clusters ({preset_name})"
         self.set_title(self._track_title)
 
