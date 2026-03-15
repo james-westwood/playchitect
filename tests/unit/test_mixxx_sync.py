@@ -4,9 +4,16 @@ Unit tests for Mixxx database synchronization.
 
 import sqlite3
 from pathlib import Path
+from typing import Any
 
 import pytest
 
+from playchitect.core.clustering import ClusterResult
+from playchitect.core.exporters.mixxx_sync import (
+    read_mixxx_library,
+    sync_all_playlists,
+    write_mixxx_crate,
+)
 from playchitect.core.metadata_extractor import TrackMetadata
 from playchitect.core.mixxx_sync import MixxxSync
 
@@ -34,7 +41,9 @@ def mock_mixxx_db(tmp_path: Path) -> Path:
             rating INTEGER DEFAULT 0,
             timesplayed INTEGER DEFAULT 0,
             last_played_at DATETIME,
-            samplerate INTEGER DEFAULT 44100
+            samplerate INTEGER DEFAULT 44100,
+            mixxx_deleted INTEGER DEFAULT 0,
+            bpm REAL DEFAULT 0
         )
     """)
 
@@ -50,9 +59,108 @@ def mock_mixxx_db(tmp_path: Path) -> Path:
         )
     """)
 
+    # Add crates tables for bidirectional sync
+    cursor.execute("""
+        CREATE TABLE crates (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            name TEXT UNIQUE
+        )
+    """)
+
+    cursor.execute("""
+        CREATE TABLE crate_tracks (
+            crate_id INTEGER REFERENCES crates(id),
+            track_id INTEGER REFERENCES library(id),
+            PRIMARY KEY (crate_id, track_id)
+        )
+    """)
+
     conn.commit()
     conn.close()
     return db_path
+
+
+@pytest.fixture
+def mock_mixxx_db_with_data(tmp_path: Path) -> tuple[Path, list[Path]]:
+    """Create a mock Mixxx DB pre-populated with tracks."""
+    db_path = tmp_path / "mixxxdb.sqlite"
+    conn = sqlite3.connect(db_path)
+    cursor = conn.cursor()
+
+    # Create tables
+    cursor.execute("""
+        CREATE TABLE track_locations (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            location varchar(512) UNIQUE,
+            fs_deleted INTEGER DEFAULT 0
+        )
+    """)
+
+    cursor.execute("""
+        CREATE TABLE library (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            location INTEGER REFERENCES track_locations(id),
+            rating INTEGER DEFAULT 0,
+            timesplayed INTEGER DEFAULT 0,
+            last_played_at DATETIME,
+            samplerate INTEGER DEFAULT 44100,
+            mixxx_deleted INTEGER DEFAULT 0,
+            bpm REAL DEFAULT 120.0
+        )
+    """)
+
+    cursor.execute("""
+        CREATE TABLE cues (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            track_id INTEGER REFERENCES library(id),
+            type INTEGER,
+            position INTEGER,
+            length INTEGER DEFAULT 0,
+            hotcue INTEGER,
+            label varchar(32)
+        )
+    """)
+
+    cursor.execute("""
+        CREATE TABLE crates (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            name TEXT UNIQUE
+        )
+    """)
+
+    cursor.execute("""
+        CREATE TABLE crate_tracks (
+            crate_id INTEGER REFERENCES crates(id),
+            track_id INTEGER REFERENCES library(id),
+            PRIMARY KEY (crate_id, track_id)
+        )
+    """)
+
+    # Insert test tracks
+    track_paths: list[Path] = []
+    for i in range(5):
+        track_file = tmp_path / f"track_{i}.mp3"
+        track_file.touch()
+        track_path = track_file.resolve()
+        track_paths.append(track_path)
+
+        cursor.execute(
+            "INSERT INTO track_locations (location, fs_deleted) VALUES (?, 0)",
+            (str(track_path),),
+        )
+        loc_id = cursor.lastrowid
+
+        cursor.execute(
+            """
+            INSERT INTO library (location, rating, timesplayed, bpm, mixxx_deleted)
+            VALUES (?, ?, ?, ?, 0)
+            """,
+            (loc_id, i + 1, i * 10, 120.0 + i),
+        )
+
+    conn.commit()
+    conn.close()
+    return db_path, track_paths
 
 
 def seed_track(
@@ -228,3 +336,213 @@ class TestMixxxSync:
                 sync = MixxxSync()
                 expected = Path("/Users/dj/Library/Application Support/Mixxx/mixxxdb.sqlite")
                 assert sync.db_path == expected
+
+
+class TestBidirectionalSync:
+    """Tests for bidirectional sync functions (TASK-25)."""
+
+    def test_write_mixxx_crate_creates_crate_and_tracks(self, mock_mixxx_db_with_data):
+        """Test that write_mixxx_crate creates a crate row and crate_tracks rows."""
+        db_path, track_paths = mock_mixxx_db_with_data
+
+        # Write a crate with 3 tracks
+        crate_name = "Test Playlist"
+        tracks_to_add = track_paths[:3]
+        count = write_mixxx_crate(db_path, crate_name, tracks_to_add)
+
+        assert count == 3
+
+        # Verify crate was created
+        conn = sqlite3.connect(db_path)
+        cursor = conn.cursor()
+        cursor.execute("SELECT id, name FROM crates WHERE name = ?", (crate_name,))
+        crate_row = cursor.fetchone()
+        assert crate_row is not None
+        crate_id = crate_row[0]
+
+        # Verify crate_tracks were created
+        cursor.execute("SELECT COUNT(*) FROM crate_tracks WHERE crate_id = ?", (crate_id,))
+        track_count = cursor.fetchone()[0]
+        assert track_count == 3
+
+        conn.close()
+
+    def test_write_mixxx_crate_updates_existing_crate(self, mock_mixxx_db_with_data):
+        """Test that write_mixxx_crate replaces existing crate contents."""
+        db_path, track_paths = mock_mixxx_db_with_data
+
+        crate_name = "Test Playlist"
+
+        # First write - 2 tracks
+        count1 = write_mixxx_crate(db_path, crate_name, track_paths[:2])
+        assert count1 == 2
+
+        # Second write - 4 tracks (should replace)
+        count2 = write_mixxx_crate(db_path, crate_name, track_paths[:4])
+        assert count2 == 4
+
+        # Verify only 4 tracks in crate
+        conn = sqlite3.connect(db_path)
+        cursor = conn.cursor()
+        cursor.execute("SELECT id FROM crates WHERE name = ?", (crate_name,))
+        crate_id = cursor.fetchone()[0]
+
+        cursor.execute("SELECT COUNT(*) FROM crate_tracks WHERE crate_id = ?", (crate_id,))
+        track_count = cursor.fetchone()[0]
+        assert track_count == 4
+
+        conn.close()
+
+    def test_write_mixxx_crate_skips_unknown_tracks(self, mock_mixxx_db_with_data, tmp_path):
+        """Test that write_mixxx_crate skips tracks not in the library."""
+        db_path, track_paths = mock_mixxx_db_with_data
+
+        crate_name = "Test Playlist"
+
+        # Create a path that doesn't exist in the DB
+        unknown_track = tmp_path / "unknown.mp3"
+        unknown_track.touch()
+
+        # Write with mix of known and unknown tracks
+        tracks_to_add = [track_paths[0], unknown_track]
+        count = write_mixxx_crate(db_path, crate_name, tracks_to_add)
+
+        # Only 1 track should be written (the known one)
+        assert count == 1
+
+    def test_sync_all_playlists_returns_dict(self, mock_mixxx_db_with_data):
+        """Test that sync_all_playlists returns a dict mapping cluster names to track counts."""
+        db_path, track_paths = mock_mixxx_db_with_data
+
+        # Create cluster results
+        clusters: list[ClusterResult] = [
+            ClusterResult(
+                cluster_id=0,
+                tracks=track_paths[:2],
+                bpm_mean=120.0,
+                bpm_std=2.0,
+                track_count=2,
+                total_duration=600.0,
+            ),
+            ClusterResult(
+                cluster_id=1,
+                tracks=track_paths[2:4],
+                bpm_mean=125.0,
+                bpm_std=3.0,
+                track_count=2,
+                total_duration=720.0,
+            ),
+        ]
+
+        results = sync_all_playlists(db_path, clusters)
+
+        # Should return a dict
+        assert isinstance(results, dict)
+        assert len(results) == 2
+        assert "Playchitect 0" in results
+        assert "Playchitect 1" in results
+        assert results["Playchitect 0"] == 2
+        assert results["Playchitect 1"] == 2
+
+    def test_read_mixxx_library_returns_expected_dicts(self, mock_mixxx_db_with_data):
+        """Test that read_mixxx_library returns expected dicts on fixture DB."""
+        db_path, track_paths = mock_mixxx_db_with_data
+
+        results = read_mixxx_library(db_path)
+
+        # Should return list of dicts
+        assert isinstance(results, list)
+        assert len(results) == 5  # We created 5 tracks
+
+        # Check structure of first result
+        first = results[0]
+        assert isinstance(first, dict)
+        assert "location" in first
+        assert "bpm" in first
+        assert "rating" in first
+        assert "timesplayed" in first
+
+        # Check values
+        assert first["bpm"] == 120.0
+        assert first["rating"] == 1
+        assert first["timesplayed"] == 0
+
+    def test_read_mixxx_library_excludes_deleted_tracks(self, mock_mixxx_db_with_data):
+        """Test that read_mixxx_library excludes tracks with mixxx_deleted=1."""
+        db_path, track_paths = mock_mixxx_db_with_data
+
+        # Mark one track as deleted
+        conn = sqlite3.connect(db_path)
+        cursor = conn.cursor()
+        cursor.execute("UPDATE library SET mixxx_deleted = 1 WHERE id = 1")
+        conn.commit()
+        conn.close()
+
+        results = read_mixxx_library(db_path)
+
+        # Should only have 4 tracks now
+        assert len(results) == 4
+
+    def test_read_mixxx_library_empty_db(self, tmp_path):
+        """Test read_mixxx_library on empty database."""
+        db_path = tmp_path / "empty.sqlite"
+        conn = sqlite3.connect(db_path)
+        cursor = conn.cursor()
+
+        # Create tables but no data
+        cursor.execute("""
+            CREATE TABLE track_locations (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                location varchar(512) UNIQUE,
+                fs_deleted INTEGER DEFAULT 0
+            )
+        """)
+
+        cursor.execute("""
+            CREATE TABLE library (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                location INTEGER REFERENCES track_locations(id),
+                rating INTEGER DEFAULT 0,
+                timesplayed INTEGER DEFAULT 0,
+                last_played_at DATETIME,
+                samplerate INTEGER DEFAULT 44100,
+                mixxx_deleted INTEGER DEFAULT 0,
+                bpm REAL DEFAULT 0
+            )
+        """)
+
+        conn.commit()
+        conn.close()
+
+        results = read_mixxx_library(db_path)
+        assert results == []
+
+    def test_sync_all_playlists_empty_clusters(self, mock_mixxx_db_with_data):
+        """Test sync_all_playlists with empty cluster list."""
+        db_path, _ = mock_mixxx_db_with_data
+
+        results = sync_all_playlists(db_path, [])
+
+        assert isinstance(results, dict)
+        assert len(results) == 0
+
+    def test_sync_all_playlists_with_str_cluster_id(self, mock_mixxx_db_with_data):
+        """Test sync_all_playlists handles string cluster IDs."""
+        db_path, track_paths = mock_mixxx_db_with_data
+
+        # Create cluster with string ID
+        clusters: list[Any] = [
+            ClusterResult(
+                cluster_id="techno_0",
+                tracks=track_paths[:2],
+                bpm_mean=130.0,
+                bpm_std=2.0,
+                track_count=2,
+                total_duration=600.0,
+            ),
+        ]
+
+        results = sync_all_playlists(db_path, clusters)
+
+        assert "Playchitect techno_0" in results
+        assert results["Playchitect techno_0"] == 2
