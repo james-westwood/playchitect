@@ -76,7 +76,7 @@ class EnergyArcWidget(Gtk.DrawingArea):
     def _on_draw(
         self,
         _drawing_area: Gtk.DrawingArea,
-        cr: "cairo.Context",  # type: ignore[name-defined]
+        cr: object,  # cairo.Context
         width: int,
         height: int,
     ) -> None:
@@ -87,7 +87,6 @@ class EnergyArcWidget(Gtk.DrawingArea):
         - Stroke line over the top
         - Small circle dots at each data point
         """
-        import cairo
 
         if not self._clusters:
             return
