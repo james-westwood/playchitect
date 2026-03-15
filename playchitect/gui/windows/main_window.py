@@ -21,10 +21,8 @@ from playchitect.core.play_history import PlayHistory  # noqa: E402
 from playchitect.core.sequencer import Sequencer, sequence_fresh  # noqa: E402
 from playchitect.core.track_previewer import TrackPreviewer  # noqa: E402
 from playchitect.gui.preferences_window import PreferencesWindow  # noqa: E402
-from playchitect.gui.views import LibraryView  # noqa: E402
-from playchitect.gui.widgets.cluster_stats import ClusterStats  # noqa: E402
-from playchitect.gui.widgets.cluster_view import ClusterViewPanel  # noqa: E402
-from playchitect.gui.widgets.track_list import TrackListWidget, TrackModel  # noqa: E402
+from playchitect.gui.views import LibraryView, PlaylistsView  # noqa: E402
+from playchitect.gui.widgets.track_list import TrackModel  # noqa: E402
 from playchitect.utils.config import get_config  # noqa: E402
 
 logger = logging.getLogger(__name__)
@@ -113,9 +111,6 @@ class PlaychitectWindow(Adw.ApplicationWindow):
 
         # Main content stack
         self._view_stack = self._build_view_stack()
-
-        # Create cluster panel and track list (for backward compatibility)
-        self._build_cluster_panel_and_track_list()
 
         # OverlaySplitView with sidebar
         self._split_view = Adw.OverlaySplitView()
@@ -213,10 +208,10 @@ class PlaychitectWindow(Adw.ApplicationWindow):
         self._library_view.connect("track-selected", self._on_library_track_selected)
         stack.add_titled(self._library_view, "library", "Library")
 
-        # Playlists view (stub)
-        playlists_page = Gtk.Label(label="Playlists — coming soon")
-        playlists_page.set_vexpand(True)
-        stack.add_titled(playlists_page, "playlists", "Playlists")
+        # Playlists view (using new PlaylistsView)
+        self._playlists_view = PlaylistsView()
+        self._playlists_view.connect("cluster-selected", self._on_playlists_cluster_selected)
+        stack.add_titled(self._playlists_view, "playlists", "Playlists")
 
         # Set Builder view (stub)
         set_builder_page = Gtk.Label(label="Set Builder — coming soon")
@@ -230,69 +225,12 @@ class PlaychitectWindow(Adw.ApplicationWindow):
 
         return stack
 
-    def _build_cluster_panel_and_track_list(self) -> tuple[Gtk.Widget, Gtk.Widget]:
-        """Build the cluster panel and track list widgets.
-
-        Returns:
-            Tuple of (cluster_panel, track_list)
-        """
-        # Create paned layout for cluster panel and track list
-        paned = Gtk.Paned(orientation=Gtk.Orientation.HORIZONTAL)
-        paned.set_position(280)
-        paned.set_shrink_start_child(False)
-        paned.set_shrink_end_child(False)
-        paned.set_vexpand(True)
-
-        self.cluster_panel = ClusterViewPanel()
-        self.cluster_panel.set_size_request(220, -1)
-        self.cluster_panel.connect("cluster-selected", self._on_cluster_selected)
-        paned.set_start_child(self.cluster_panel)
-
-        self.track_list = TrackListWidget()
-        self.track_list.connect("preview-requested", self._on_preview_requested)
-        paned.set_end_child(self.track_list)
-
-        return paned
-
-    def _build_library_page(self) -> Gtk.Widget:
-        """Build the library page containing the scan/cluster UI."""
-        page_box = Gtk.Box(orientation=Gtk.Orientation.VERTICAL)
-        page_box.set_vexpand(True)
-
-        # Cluster button (moved from header to library page)
-        button_box = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL)
-        button_box.set_margin_start(12)
-        button_box.set_margin_end(12)
-        button_box.set_margin_top(12)
-        button_box.set_margin_bottom(6)
-
-        self._cluster_btn = Gtk.Button(label="Cluster")
-        self._cluster_btn.add_css_class("suggested-action")
-        self._cluster_btn.connect("clicked", self._on_cluster_clicked)
-        self._cluster_btn.set_sensitive(False)
-        button_box.append(self._cluster_btn)
-
-        page_box.append(button_box)
-
-        # Split pane: cluster panel (left) + track list (right)
-        paned = Gtk.Paned(orientation=Gtk.Orientation.HORIZONTAL)
-        paned.set_position(280)
-        paned.set_shrink_start_child(False)
-        paned.set_shrink_end_child(False)
-        paned.set_vexpand(True)
-
-        self.cluster_panel = ClusterViewPanel()
-        self.cluster_panel.set_size_request(220, -1)
-        self.cluster_panel.connect("cluster-selected", self._on_cluster_selected)
-        paned.set_start_child(self.cluster_panel)
-
-        self.track_list = TrackListWidget()
-        self.track_list.connect("preview-requested", self._on_preview_requested)
-        paned.set_end_child(self.track_list)
-
-        page_box.append(paned)
-
-        return page_box
+    def _on_playlists_cluster_selected(self, _view: PlaylistsView, cluster_id: object) -> None:
+        """Handle cluster selection from playlists view."""
+        logger.debug("Playlist cluster selected: %s", cluster_id)
+        # The playlists view already loads tracks internally
+        # Just update the title
+        self.set_title(f"Playchitect — Cluster {cluster_id}")
 
     def _on_nav_row_selected(self, _listbox: Gtk.ListBox, row: Gtk.ListBoxRow | None) -> None:
         """Handle navigation row selection to switch view stack pages."""
@@ -325,20 +263,6 @@ class PlaychitectWindow(Adw.ApplicationWindow):
         else:
             self._preview_chip.set_text("No preview")
             self._preview_chip.set_tooltip_text("Install GNOME Sushi for Quick Look support")
-
-    # ── Preview handler ───────────────────────────────────────────────────────
-
-    def _on_preview_requested(self, _widget: TrackListWidget) -> None:
-        """Handle spacebar / Quick Look — preview first selected track."""
-        paths = [Path(p) for p in self.track_list.get_selected_paths()]
-        result = self._previewer.preview_first(paths)
-
-        if result.success and result.filepath is not None:
-            name = result.filepath.stem
-            self.set_title(f"Playchitect — Previewing: {name}")
-            GLib.timeout_add(_PREVIEW_TITLE_TIMEOUT_MS, self._revert_title)
-        else:
-            logger.warning("Preview failed: %s", result.error)
 
     def _revert_title(self) -> bool:
         self.set_title(self._track_title)
@@ -386,11 +310,12 @@ class PlaychitectWindow(Adw.ApplicationWindow):
             GLib.idle_add(self._on_scan_error)
 
     def _on_scan_complete(self, tracks: list[TrackModel]) -> bool:
-        self.track_list.load_tracks(tracks)
+        """Handle scan completion - pass metadata to playlists view."""
         self._spinner.stop()
-        self._cluster_btn.set_sensitive(True)
         self._track_title = f"Playchitect — {len(tracks)} tracks"
         self.set_title(self._track_title)
+        # Pass metadata to playlists view for clustering
+        self._playlists_view.set_metadata(self._metadata_map)
         return False
 
     def _on_scan_error(self) -> bool:
@@ -398,18 +323,6 @@ class PlaychitectWindow(Adw.ApplicationWindow):
         self._track_title = "Playchitect — scan failed"
         self.set_title(self._track_title)
         return False
-
-    def _on_cluster_clicked(self, _btn: Gtk.Button) -> None:
-        """Perform clustering and sequencing on the scanned tracks."""
-        if not self._metadata_map:
-            return
-
-        self._spinner.start()
-        self._cluster_btn.set_sensitive(False)
-        self.set_title("Playchitect — analysing & clustering…")
-
-        # Perform in a thread to keep UI responsive
-        threading.Thread(target=self._cluster_worker, daemon=True).start()
 
     def _on_fresh_switch_toggled(self, switch: Gtk.Switch, _param: object) -> None:
         """Handle toggling of the 'Prefer fresh tracks' switch."""
@@ -458,18 +371,13 @@ class PlaychitectWindow(Adw.ApplicationWindow):
     def _on_cluster_complete(self) -> bool:
         """Update UI with clustering results."""
         self._spinner.stop()
-        self._cluster_btn.set_sensitive(True)
 
         # Enable arc dropdown and reset to "None"
         self._arc_dropdown.set_sensitive(True)
         self._arc_dropdown.set_selected(0)
 
-        stats = ClusterStats.from_results(self._clusters)
-        self.cluster_panel.load_clusters(stats)
-
-        # Apply generated names to cluster cards
-        if self._cluster_names:
-            self.cluster_panel.set_cluster_names(self._cluster_names)
+        # Load clusters into playlists view
+        self._playlists_view.load_clusters(self._clusters)
 
         self._track_title = f"Playchitect — {len(self._clusters)} clusters"
         self.set_title(self._track_title)
@@ -477,7 +385,6 @@ class PlaychitectWindow(Adw.ApplicationWindow):
 
     def _on_cluster_error(self) -> bool:
         self._spinner.stop()
-        self._cluster_btn.set_sensitive(True)
         self.set_title("Playchitect — clustering failed")
         return False
 
@@ -497,59 +404,11 @@ class PlaychitectWindow(Adw.ApplicationWindow):
             preset_name = preset.name
             self._clusters = apply_arc(self._original_clusters, preset)
 
-        # Update UI with reordered clusters
-        stats = ClusterStats.from_results(self._clusters)
-        self.cluster_panel.load_clusters(stats)
-
-        # Re-apply cluster names after arc selection
-        if self._cluster_names:
-            # Build updated names dict for the new cluster order
-            updated_names = {}
-            for cluster in self._clusters:
-                # Try to find original name by cluster_id
-                if cluster.cluster_id in self._cluster_names:
-                    updated_names[cluster.cluster_id] = self._cluster_names[cluster.cluster_id]
-                else:
-                    updated_names[cluster.cluster_id] = f"Cluster {cluster.cluster_id}"
-            self.cluster_panel.set_cluster_names(updated_names)
+        # Update UI with reordered clusters via playlists view
+        self._playlists_view.load_clusters(self._clusters)
 
         self._track_title = f"Playchitect — {len(self._clusters)} clusters ({preset_name})"
         self.set_title(self._track_title)
-
-    def _on_cluster_selected(self, _panel: ClusterViewPanel, cluster_id: object) -> None:
-        """Filter the track list to show only tracks in the selected cluster, in sequenced order."""
-        # Find the cluster result
-        cluster = next((c for c in self._clusters if str(c.cluster_id) == str(cluster_id)), None)
-        if not cluster:
-            return
-
-        # Map paths to TrackModel objects
-        # We'll re-extract from the original full list if needed, or maintain a lookup.
-        # For MVP, we'll just rebuild models for the cluster tracks in sequence.
-        cluster_tracks = []
-        for path in cluster.tracks:
-            meta = self._metadata_map.get(path)
-            if not meta:
-                continue
-
-            intensity = self._intensity_map.get(path)
-            model = TrackModel(
-                filepath=str(path),
-                title=meta.title or "",
-                artist=meta.artist or "",
-                bpm=meta.bpm or 0.0,
-                intensity=intensity.rms_energy if intensity else 0.0,
-                hardness=intensity.hardness if intensity else 0.0,
-                cluster=cluster.cluster_id if isinstance(cluster.cluster_id, int) else -1,
-                duration=meta.duration or 0.0,
-                audio_format=path.suffix,
-                mood=intensity.mood_label if intensity else "",
-            )
-            cluster_tracks.append(model)
-
-        self.track_list.load_tracks(cluster_tracks)
-        self.track_list._search_entry.set_text("")
-        self.set_title(f"Playchitect — Cluster {cluster_id}")
 
     def record_exported_tracks(self, track_paths: list[Path]) -> None:
         """Record exported tracks to play history.
@@ -567,7 +426,6 @@ class PlaychitectWindow(Adw.ApplicationWindow):
         count = store.get_n_items()
         self._track_title = f"Playchitect — {count} tracks"
         self.set_title(self._track_title)
-        self._cluster_btn.set_sensitive(count > 0)
 
     def _on_library_track_selected(self, view: LibraryView, track: object) -> None:
         """Handle track selection in library view."""
