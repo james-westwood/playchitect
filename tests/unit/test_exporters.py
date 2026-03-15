@@ -7,6 +7,7 @@ from __future__ import annotations
 
 import tempfile
 import xml.etree.ElementTree as ET
+from collections.abc import Generator
 from pathlib import Path
 
 import pytest
@@ -18,7 +19,7 @@ from playchitect.core.metadata_extractor import TrackMetadata
 
 
 @pytest.fixture
-def temp_output_dir() -> Path:
+def temp_output_dir() -> Generator[Path]:
     """Create a temporary output directory."""
     with tempfile.TemporaryDirectory() as tmpdir:
         yield Path(tmpdir)
@@ -171,8 +172,10 @@ class TestRekordboxXMLExporter:
         assert track1.get("TotalTime") == "240"
         assert track1.get("AverageBpm") == "128.00"
         assert track1.get("Tonality") == "8B"
-        assert track1.get("Location").startswith("file://localhost")
-        assert "/music/track1.mp3" in track1.get("Location")
+        location = track1.get("Location")
+        assert location is not None
+        assert location.startswith("file://localhost")
+        assert "/music/track1.mp3" in location
 
         # Verify second track
         track2 = tracks[1]
@@ -211,10 +214,13 @@ class TestRekordboxXMLExporter:
         root = tree.getroot()
 
         collection = root.find("COLLECTION")
+        assert collection is not None
         tracks = collection.findall("TRACK")
 
         # Should use filepath stem as title when no metadata
-        assert "track1" in tracks[0].get("Name")
+        track_name = tracks[0].get("Name")
+        assert track_name is not None
+        assert "track1" in track_name
         assert tracks[0].get("Artist") == ""
         assert tracks[0].get("TotalTime") == "0"
         assert tracks[0].get("Tonality") == ""
@@ -314,7 +320,9 @@ class TestTraktorNMLExporter:
         location1 = entry1.find("LOCATION")
         assert location1 is not None
         assert location1.get("FILE") == "track1.mp3"
-        assert "/music/" in location1.get("DIR")
+        dir_attr = location1.get("DIR")
+        assert dir_attr is not None
+        assert "/music/" in dir_attr
 
         tempo1 = entry1.find("TEMPO")
         assert tempo1 is not None
@@ -375,6 +383,7 @@ class TestTraktorNMLExporter:
         root = tree.getroot()
 
         collection = root.find("COLLECTION")
+        assert collection is not None
         entries = collection.findall("ENTRY")
 
         # Entry should still exist with PRIMARYKEY

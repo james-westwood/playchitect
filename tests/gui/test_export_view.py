@@ -316,7 +316,7 @@ class TestPublicAPI:
         clusters = []
         metadata = {}
 
-        view.set_clusters(clusters, metadata)  # type: ignore[arg-type]
+        view.set_clusters(clusters, metadata)
 
         assert view._clusters == clusters
         assert view._metadata_map == metadata
