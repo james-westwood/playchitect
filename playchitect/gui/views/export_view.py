@@ -25,7 +25,11 @@ from gi.repository import (  # type: ignore[unresolved-import]  # noqa: E402
 )
 
 from playchitect.core.export import CUEExporter, M3UExporter  # noqa: E402
-from playchitect.core.exporters import RekordboxXMLExporter, TraktorNMLExporter  # noqa: E402
+from playchitect.core.exporters import (  # noqa: E402
+    RekordboxXMLExporter,
+    TraktorNMLExporter,
+    sync_all_playlists,
+)
 from playchitect.utils.config import get_config  # noqa: E402
 
 if TYPE_CHECKING:
@@ -228,10 +232,11 @@ class ExportView(Gtk.Box):
         self._export_button.connect("clicked", self._on_export_clicked)
         action_box.append(self._export_button)
 
-        # Sync with Mixxx button (disabled)
+        # Sync with Mixxx button (enabled - requires config)
         self._sync_button = Gtk.Button(label="↺ Sync with Mixxx")
-        self._sync_button.set_sensitive(False)
-        self._sync_button.set_tooltip_text("Configure Mixxx database path in Preferences")
+        self._sync_button.set_sensitive(True)
+        self._sync_button.set_tooltip_text("Sync clusters as crates to Mixxx database")
+        self._sync_button.connect("clicked", self._on_sync_mixxx_clicked)
         action_box.append(self._sync_button)
 
         # Spacer
@@ -405,6 +410,72 @@ class ExportView(Gtk.Box):
         if toast_overlay is not None:
             toast = Adw.Toast.new(message)
             toast_overlay.add_toast(toast)
+
+    def _on_sync_mixxx_clicked(self, _button: Gtk.Button) -> None:
+        """Handle Sync with Mixxx button click."""
+        # Check if Mixxx DB path is configured
+        config = get_config()
+        mixxx_db_path = config.get("mixxx_db_path")
+
+        if not mixxx_db_path:
+            # Show alert dialog asking user to configure path
+            dialog = Adw.AlertDialog.new(
+                "Mixxx Database Not Configured",
+                "Please set the Mixxx database path in Preferences to enable synchronization.",
+            )
+            dialog.add_response("ok", "OK")
+            dialog.set_default_response("ok")
+            dialog.present(self.get_ancestor(Gtk.Window))
+            return
+
+        db_path = Path(mixxx_db_path)
+        if not db_path.exists():
+            dialog = Adw.AlertDialog.new(
+                "Mixxx Database Not Found",
+                f"The configured Mixxx database was not found:\n{db_path}\n\n"
+                "Please check the path in Preferences.",
+            )
+            dialog.add_response("ok", "OK")
+            dialog.set_default_response("ok")
+            dialog.present(self.get_ancestor(Gtk.Window))
+            return
+
+        # Run sync in background thread
+        self._sync_button.set_sensitive(False)
+        self._show_status("Syncing with Mixxx…", error=False)
+
+        thread = threading.Thread(
+            target=self._sync_mixxx_worker,
+            args=(db_path,),
+            daemon=True,
+        )
+        thread.start()
+
+    def _sync_mixxx_worker(self, db_path: Path) -> None:
+        """Background worker for Mixxx sync operation."""
+        try:
+            results = sync_all_playlists(db_path, self._clusters)
+            total_tracks = sum(results.values())
+            total_crates = len(results)
+            GLib.idle_add(
+                self._on_sync_complete, f"Synced {total_tracks} tracks to {total_crates} crates"
+            )
+        except Exception as e:
+            logger.exception("Mixxx sync failed")
+            GLib.idle_add(self._on_sync_error, str(e))
+
+    def _on_sync_complete(self, message: str) -> bool:
+        """Handle successful Mixxx sync completion."""
+        self._sync_button.set_sensitive(True)
+        self._show_status(message, error=False)
+        self._show_toast(message)
+        return False
+
+    def _on_sync_error(self, error_message: str) -> bool:
+        """Handle Mixxx sync error."""
+        self._sync_button.set_sensitive(True)
+        self._show_status(f"Sync failed: {error_message}", error=True)
+        return False
 
     def _get_cluster_id_from_dropdown_index(self, index: int) -> int | str:
         """Get cluster ID from dropdown index."""
