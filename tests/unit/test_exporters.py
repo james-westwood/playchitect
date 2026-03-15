@@ -454,11 +454,22 @@ class TestExportViewIntegration:
         import sys
         from unittest.mock import MagicMock
 
-        # Mock gi module to avoid import error
-        sys.modules["gi"] = MagicMock()
-        sys.modules["gi.repository"] = MagicMock()
+        # Save the original mocks from conftest.py if they exist
+        orig_gi = sys.modules.get("gi")
+        orig_gi_repo = sys.modules.get("gi.repository")
 
-        from playchitect.gui.views.export_view import FORMAT_REKORDBOX, FORMAT_TRAKTOR
+        try:
+            # Mock gi module to avoid import error
+            sys.modules["gi"] = MagicMock()
+            sys.modules["gi.repository"] = MagicMock()
 
-        assert FORMAT_REKORDBOX == "rekordbox"
-        assert FORMAT_TRAKTOR == "traktor"
+            from playchitect.gui.views.export_view import FORMAT_REKORDBOX, FORMAT_TRAKTOR
+
+            assert FORMAT_REKORDBOX == "rekordbox"
+            assert FORMAT_TRAKTOR == "traktor"
+        finally:
+            # Restore the original mocks so we don't break other tests
+            if orig_gi is not None:
+                sys.modules["gi"] = orig_gi
+            if orig_gi_repo is not None:
+                sys.modules["gi.repository"] = orig_gi_repo
