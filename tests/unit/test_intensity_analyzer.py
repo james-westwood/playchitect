@@ -154,7 +154,33 @@ class TestIntensityFeatures:
         # Should default to 0.0
         assert features.dynamic_range == 0.0
         assert features.energy_gradient == 0.0
-        assert features.drop_density == 0.0
+
+    def test_from_dict_timbre_texture_backward_compat(self) -> None:
+        """Test creating from old dictionary without timbre/texture fields."""
+        data = {
+            "filepath": "test.mp3",
+            "file_hash": "abc123",
+            "rms_energy": 0.5,
+            "brightness": 0.6,
+            "sub_bass_energy": 0.3,
+            "kick_energy": 0.7,
+            "bass_harmonics": 0.4,
+            "percussiveness": 0.8,
+            "onset_strength": 0.65,
+            "camelot_key": "8B",
+            "key_index": 0.0,
+            "dynamic_range": 0.5,
+            "energy_gradient": 0.1,
+            "drop_density": 0.2,
+        }
+
+        features = IntensityFeatures.from_dict(data)
+
+        # Should default to 0.0 for missing timbre/texture fields
+        assert features.spectral_flatness == 0.0
+        assert features.zero_crossing_rate == 0.0
+        assert features.mfcc_variance == 0.0
+        assert features.spectral_rolloff_85 == 0.0
 
 
 class TestHarmonicCompatibility:
@@ -580,6 +606,96 @@ class TestIntensityAnalyzer:
         # Sine wave should have zero drop density (no drops in steady tone)
         # Threshold is mean + 2*std; for steady signal, std ≈ 0, so no frames exceed threshold
         assert features.drop_density < 0.1
+
+    def test_timbre_texture_features_synthetic_audio(self, tmp_path: Path) -> None:
+        """Test timbre/texture features with synthetic sine-wave audio."""
+        sample_rate = 22050
+        duration = 2.0  # seconds
+        frequency = 440.0  # A4 note
+
+        # Generate sine wave
+        t = np.linspace(0, duration, int(sample_rate * duration))
+        audio = np.sin(2 * np.pi * frequency * t).astype(np.float32)
+
+        # Save as WAV
+        import soundfile as sf
+
+        test_file = tmp_path / "test_timbre.wav"
+        sf.write(test_file, audio, sample_rate)
+
+        # Analyze
+        analyzer = IntensityAnalyzer(sample_rate=sample_rate, cache_enabled=False)
+        features = analyzer.analyze(test_file)
+
+        # Verify timbre/texture features are in valid range [0, 1]
+        assert 0.0 <= features.spectral_flatness <= 1.0
+        assert 0.0 <= features.zero_crossing_rate <= 1.0
+        assert 0.0 <= features.mfcc_variance <= 1.0
+        assert 0.0 <= features.spectral_rolloff_85 <= 1.0
+
+        # Sine wave should have low spectral flatness (tonal, not noisy)
+        assert features.spectral_flatness < 0.5
+
+        # Sine wave should have low ZCR (smooth, few crossings)
+        assert features.zero_crossing_rate < 0.1
+
+    def test_timbre_texture_features_noisy_audio(self, tmp_path: Path) -> None:
+        """Test timbre/texture features with noisy/percussive audio."""
+        sample_rate = 22050
+        duration = 1.0
+
+        import soundfile as sf
+
+        # Percussive (white noise with sharp transients)
+        percussive = np.zeros(int(sample_rate * duration), dtype=np.float32)
+        # Add sharp transients
+        for i in range(0, len(percussive), sample_rate // 4):
+            if i + 1000 < len(percussive):
+                percussive[i : i + 1000] = np.random.randn(1000) * 0.5
+        percussive_file = tmp_path / "percussive_timbre.wav"
+        sf.write(percussive_file, percussive.astype(np.float32), sample_rate)
+
+        analyzer = IntensityAnalyzer(sample_rate=sample_rate, cache_enabled=False)
+        percussive_features = analyzer.analyze(percussive_file)
+
+        # Noisy/percussive audio should have high spectral flatness
+        assert percussive_features.spectral_flatness > 0.3
+
+        # Should still be in valid range
+        assert 0.0 <= percussive_features.zero_crossing_rate <= 1.0
+        assert 0.0 <= percussive_features.mfcc_variance <= 1.0
+        assert 0.0 <= percussive_features.spectral_rolloff_85 <= 1.0
+
+    def test_timbre_texture_cache_roundtrip(self, tmp_path: Path) -> None:
+        """Test that timbre/texture features are cached and loaded correctly."""
+        import soundfile as sf
+
+        cache_dir = tmp_path / "cache"
+        sample_rate = 22050
+        duration = 1.0
+        t = np.linspace(0, duration, int(sample_rate * duration))
+        audio = np.sin(2 * np.pi * 440 * t).astype(np.float32) * 0.5
+
+        test_file = tmp_path / "test_timbre_cache.wav"
+        sf.write(test_file, audio, sample_rate)
+
+        analyzer = IntensityAnalyzer(
+            sample_rate=sample_rate, cache_dir=cache_dir, cache_enabled=True
+        )
+
+        # First analysis - should create cache with timbre/texture info
+        features1 = analyzer.analyze(test_file)
+        assert hasattr(features1, "spectral_flatness")
+        assert hasattr(features1, "zero_crossing_rate")
+        assert hasattr(features1, "mfcc_variance")
+        assert hasattr(features1, "spectral_rolloff_85")
+
+        # Second analysis - should load from cache with timbre/texture info intact
+        features2 = analyzer.analyze(test_file)
+        assert features2.spectral_flatness == features1.spectral_flatness
+        assert features2.zero_crossing_rate == features1.zero_crossing_rate
+        assert features2.mfcc_variance == features1.mfcc_variance
+        assert features2.spectral_rolloff_85 == features1.spectral_rolloff_85
 
     def test_analyze_emits_no_audioread_or_soundfile_warnings(self, tmp_path: Path) -> None:
         """analyze() on a valid audio fixture must not emit WARNING-level log
