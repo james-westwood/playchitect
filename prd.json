@@ -277,7 +277,7 @@
       "owner": "ralph",
       "description": "Add energy flow sort controls to PlaylistsView (requires TASK-11 and TASK-05). (1) Add 'Gradient' and 'Drops/min' columns to the PlaylistsView track ColumnView: Gradient shows a \u2191/\u2193/\u2192 icon based on sign of `energy_gradient`; Drops/min shows `drop_density` formatted as a float. (2) Add a `Gtk.DropDown` labelled 'Sort by' to the PlaylistsView toolbar with options: 'Energy ramp (default)', 'Build to peak', 'Gradual descent', 'Alternating'. (3) In playchitect/core/sequencer.py, add `sequence_by_strategy(tracks: list[Path], features: dict[Path, IntensityFeatures], strategy: str) -> list[Path]` with strategies: 'ramp' (existing ramp sort by rms_energy ascending), 'build' (sort by energy_gradient descending so rising tracks first), 'descent' (sort by rms_energy descending), 'alternating' (interleave high/low energy). (4) Wire the DropDown selection to call `sequence_by_strategy` in the Generate Playlists handler. Add unit tests for each strategy.",
       "acceptance_criteria": "tests/unit/test_sequencer.py: each of the four strategies produces a different ordering on 6 synthetic tracks. PlaylistsView smoke test shows Sort DropDown with 4 options. `uv run pytest tests/ -v` passes.",
-      "completed": false,
+      "completed": true,
       "priority": 4,
       "note": "GitHub issue #39"
     },
