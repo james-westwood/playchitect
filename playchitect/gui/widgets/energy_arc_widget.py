@@ -8,6 +8,7 @@ before diving into individual cluster details.
 from __future__ import annotations
 
 import logging
+import math
 from typing import TYPE_CHECKING
 
 import gi
@@ -98,7 +99,7 @@ class EnergyArcWidget(Gtk.DrawingArea):
             center_y = height / 2.0
             color = _hex_to_rgba(_ARC_COLOR_HEX, 1.0)
             cr.set_source_rgba(*color)
-            cr.arc(center_x, center_y, _DOT_RADIUS, 0, 2 * 3.14159)
+            cr.arc(center_x, center_y, _DOT_RADIUS, 0, 2 * math.pi)
             cr.fill()
             return
 
@@ -146,5 +147,5 @@ class EnergyArcWidget(Gtk.DrawingArea):
         # Draw dots at each data point
         cr.set_source_rgba(*stroke_color)
         for x, y in points:
-            cr.arc(x, y, _DOT_RADIUS, 0, 2 * 3.14159)
+            cr.arc(x, y, _DOT_RADIUS, 0, 2 * math.pi)
             cr.fill()
