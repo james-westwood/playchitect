@@ -9,7 +9,7 @@ import gi
 gi.require_version("Adw", "1")
 gi.require_version("Gtk", "4.0")
 
-from gi.repository import Adw, GLib, Gtk  # type: ignore[unresolved-import]  # noqa: E402
+from gi.repository import Adw, Gio, GLib, Gtk  # type: ignore[unresolved-import]  # noqa: E402
 
 from playchitect.core.arc_sequencer import BUILTIN_PRESETS, apply_arc  # noqa: E402
 from playchitect.core.audio_scanner import AudioScanner  # noqa: E402
@@ -20,6 +20,7 @@ from playchitect.core.naming.playlist_namer import PlaylistNamer  # noqa: E402
 from playchitect.core.play_history import PlayHistory  # noqa: E402
 from playchitect.core.sequencer import Sequencer, sequence_fresh  # noqa: E402
 from playchitect.core.track_previewer import TrackPreviewer  # noqa: E402
+from playchitect.gui.preferences_window import PreferencesWindow  # noqa: E402
 from playchitect.gui.widgets.cluster_stats import ClusterStats  # noqa: E402
 from playchitect.gui.widgets.cluster_view import ClusterViewPanel  # noqa: E402
 from playchitect.gui.widgets.track_list import TrackListWidget, TrackModel  # noqa: E402
@@ -29,6 +30,12 @@ logger = logging.getLogger(__name__)
 
 # How long (ms) the "Previewing…" title stays before reverting.
 _PREVIEW_TITLE_TIMEOUT_MS: int = 3000
+
+# Sidebar navigation row indices
+_NAV_LIBRARY = 0
+_NAV_PLAYLISTS = 1
+_NAV_SET_BUILDER = 2
+_NAV_EXPORT = 3
 
 
 class PlaychitectWindow(Adw.ApplicationWindow):
@@ -46,6 +53,14 @@ class PlaychitectWindow(Adw.ApplicationWindow):
         self._playlist_namer = PlaylistNamer()
         self._cluster_names: dict[int | str, str] = {}
 
+        # ── State ─────────────────────────────────────────────────────────────
+        self._metadata_map: dict[Path, TrackMetadata] = {}
+        self._intensity_map: dict[Path, IntensityFeatures] = {}
+        self._clusters: list[ClusterResult] = []
+        self._original_clusters: list[ClusterResult] = []  # For arc reapplication
+        self._play_history = PlayHistory()
+        self._prefer_fresh: bool = False
+
         # ── Header bar ────────────────────────────────────────────────────────
         header = Adw.HeaderBar()
         self._spinner = Gtk.Spinner()
@@ -56,13 +71,6 @@ class PlaychitectWindow(Adw.ApplicationWindow):
         self._preview_chip.add_css_class("caption")
         self._update_preview_chip()
         header.pack_start(self._preview_chip)
-
-        # Cluster button
-        self._cluster_btn = Gtk.Button(label="Cluster")
-        self._cluster_btn.add_css_class("suggested-action")
-        self._cluster_btn.connect("clicked", self._on_cluster_clicked)
-        self._cluster_btn.set_sensitive(False)
-        header.pack_start(self._cluster_btn)
 
         # Arc selector DropDown
         arc_label = Gtk.Label(label="Arc:")
@@ -75,6 +83,7 @@ class PlaychitectWindow(Adw.ApplicationWindow):
         self._arc_dropdown = Gtk.DropDown(model=arc_model)
         self._arc_dropdown.set_selected(0)  # Default to "None"
         self._arc_dropdown.set_sensitive(False)  # Enabled after clustering
+        self._arc_dropdown.connect("notify::selected", self._on_arc_selected)
         header.pack_start(self._arc_dropdown)
 
         # Prefer fresh tracks switch
@@ -90,23 +99,157 @@ class PlaychitectWindow(Adw.ApplicationWindow):
 
         header.pack_start(fresh_box)
 
+        # Menu button (primary menu)
+        self._menu_button = Adw.MenuButton()
+        self._menu_button.set_icon_name("open-menu-symbolic")
+        self._menu_button.set_tooltip_text("Menu")
+        self._build_menu()
+        header.pack_end(self._menu_button)
+
+        # ── Main content: OverlaySplitView ─────────────────────────────────────
+        # Sidebar (navigation)
+        sidebar_content = self._build_sidebar()
+
+        # Main content stack
+        self._view_stack = self._build_view_stack()
+
+        # OverlaySplitView with sidebar
+        self._split_view = Adw.OverlaySplitView()
+        self._split_view.set_sidebar_width_fraction(0.18)
+        self._split_view.set_sidebar(sidebar_content)
+        self._split_view.set_content(self._view_stack)
+
+        # ── ToolbarView wrapper ────────────────────────────────────────────────
         toolbar_view = Adw.ToolbarView()
         toolbar_view.add_top_bar(header)
+        toolbar_view.set_content(self._split_view)
 
-        # ── State ─────────────────────────────────────────────────────────────
-        self._metadata_map: dict[Path, TrackMetadata] = {}
-        self._intensity_map: dict[Path, IntensityFeatures] = {}
-        self._clusters: list[ClusterResult] = []
-        self._original_clusters: list[ClusterResult] = []  # For arc reapplication
-        self._play_history = PlayHistory()
-        self._prefer_fresh: bool = False
-        self._arc_dropdown.connect("notify::selected", self._on_arc_selected)
+        self.set_content(toolbar_view)
 
-        # ── Split pane: cluster panel (left) + track list (right) ────────────
+        # Load default music directory after the window is shown
+        config = get_config()
+        music_path = config.get_test_music_path()
+        if music_path and music_path.is_dir():
+            GLib.idle_add(self._start_scan, music_path)
+
+    def _build_menu(self) -> None:
+        """Build the primary menu with app actions."""
+        menu = Gio.Menu()
+
+        # Open Folder
+        menu.append("Open Folder", "app.open-folder")
+
+        menu.append_section(None, Gio.Menu())  # Separator
+
+        # Preferences section
+        pref_section = Gio.Menu()
+        pref_section.append("Preferences", "app.preferences")
+        pref_section.append("Keyboard Shortcuts", "app.keyboard-shortcuts")
+        pref_section.append("About Playchitect", "app.about")
+        menu.append_section(None, pref_section)
+
+        self._menu_button.set_menu_model(menu)
+
+    def _build_sidebar(self) -> Gtk.Widget:
+        """Build the navigation sidebar with four views."""
+        sidebar_box = Gtk.Box(orientation=Gtk.Orientation.VERTICAL)
+        sidebar_box.set_margin_top(6)
+        sidebar_box.set_margin_bottom(6)
+        sidebar_box.set_margin_start(6)
+        sidebar_box.set_margin_end(6)
+
+        # ListBox for navigation
+        self._nav_list = Gtk.ListBox()
+        self._nav_list.add_css_class("navigation-sidebar")
+        self._nav_list.set_selection_mode(Gtk.SelectionMode.SINGLE)
+        self._nav_list.connect("row-selected", self._on_nav_row_selected)
+
+        # Navigation items: (icon-name, label)
+        nav_items = [
+            ("folder-music-symbolic", "Library"),
+            ("media-playlist-symbolic", "Playlists"),
+            ("view-list-symbolic", "Set Builder"),
+            ("document-send-symbolic", "Export"),
+        ]
+
+        for icon_name, label_text in nav_items:
+            row = Gtk.ListBoxRow()
+            row_box = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL, spacing=12)
+            row_box.set_margin_start(12)
+            row_box.set_margin_end(12)
+            row_box.set_margin_top(8)
+            row_box.set_margin_bottom(8)
+
+            icon = Gtk.Image.new_from_icon_name(icon_name)
+            icon.set_pixel_size(16)
+            row_box.append(icon)
+
+            label = Gtk.Label(label=label_text)
+            label.set_xalign(0.0)
+            label.set_hexpand(True)
+            row_box.append(label)
+
+            row.set_child(row_box)
+            self._nav_list.append(row)
+
+        # Select first row by default
+        self._nav_list.select_row(self._nav_list.get_row_at_index(0))
+
+        sidebar_box.append(self._nav_list)
+
+        return sidebar_box
+
+    def _build_view_stack(self) -> Adw.ViewStack:
+        """Build the main content view stack with four pages."""
+        stack = Adw.ViewStack()
+
+        # Library view (existing scan/cluster logic)
+        library_page = self._build_library_page()
+        stack.add_titled(library_page, "library", "Library")
+
+        # Playlists view (stub)
+        playlists_page = Gtk.Label(label="Playlists — coming soon")
+        playlists_page.set_vexpand(True)
+        stack.add_titled(playlists_page, "playlists", "Playlists")
+
+        # Set Builder view (stub)
+        set_builder_page = Gtk.Label(label="Set Builder — coming soon")
+        set_builder_page.set_vexpand(True)
+        stack.add_titled(set_builder_page, "set-builder", "Set Builder")
+
+        # Export view (stub)
+        export_page = Gtk.Label(label="Export — coming soon")
+        export_page.set_vexpand(True)
+        stack.add_titled(export_page, "export", "Export")
+
+        return stack
+
+    def _build_library_page(self) -> Gtk.Widget:
+        """Build the library page containing the scan/cluster UI."""
+        page_box = Gtk.Box(orientation=Gtk.Orientation.VERTICAL)
+        page_box.set_vexpand(True)
+
+        # Cluster button (moved from header to library page)
+        button_box = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL)
+        button_box.set_margin_start(12)
+        button_box.set_margin_end(12)
+        button_box.set_margin_top(12)
+        button_box.set_margin_bottom(6)
+
+        self._cluster_btn = Gtk.Button(label="Cluster")
+        self._cluster_btn.add_css_class("suggested-action")
+        self._cluster_btn.connect("clicked", self._on_cluster_clicked)
+        self._cluster_btn.set_sensitive(False)
+        button_box.append(self._cluster_btn)
+
+        page_box.append(button_box)
+
+        # Split pane: cluster panel (left) + track list (right)
         paned = Gtk.Paned(orientation=Gtk.Orientation.HORIZONTAL)
         paned.set_position(280)
         paned.set_shrink_start_child(False)
         paned.set_shrink_end_child(False)
+        paned.set_vexpand(True)
 
         self.cluster_panel = ClusterViewPanel()
         self.cluster_panel.set_size_request(220, -1)
@@ -117,14 +260,26 @@ class PlaychitectWindow(Adw.ApplicationWindow):
         self.track_list.connect("preview-requested", self._on_preview_requested)
         paned.set_end_child(self.track_list)
 
-        toolbar_view.set_content(paned)
-        self.set_content(toolbar_view)
+        page_box.append(paned)
 
-        # Load default music directory after the window is shown
-        config = get_config()
-        music_path = config.get_test_music_path()
-        if music_path and music_path.is_dir():
-            GLib.idle_add(self._start_scan, music_path)
+        return page_box
+
+    def _on_nav_row_selected(self, _listbox: Gtk.ListBox, row: Gtk.ListBoxRow | None) -> None:
+        """Handle navigation row selection to switch view stack pages."""
+        if row is None:
+            return
+
+        index = row.get_index()
+        page_names = ["library", "playlists", "set-builder", "export"]
+
+        if 0 <= index < len(page_names):
+            self._view_stack.set_visible_child_name(page_names[index])
+
+    def show_preferences(self) -> None:
+        """Show the preferences window."""
+        prefs = PreferencesWindow()
+        prefs.set_transient_for(self)
+        prefs.present()
 
     # ── Preview chip ──────────────────────────────────────────────────────────
 
