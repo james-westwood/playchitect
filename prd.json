@@ -145,7 +145,7 @@
       "owner": "ralph",
       "description": "Implement track compatibility scoring and next-track suggestions (requires TASK-09 for camelot_key). (1) Create playchitect/core/compatibility.py. Implement `compatibility_score(feat_a: IntensityFeatures, feat_b: IntensityFeatures) -> float`: weighted combination of four components: `bpm_score = max(0, 1 - abs(feat_a.bpm - feat_b.bpm) / 20)` (note: bpm is on TrackMetadata, not IntensityFeatures \u2014 accept both as `bpm_a: float, bpm_b: float` additional args OR use a `TrackInfo` typed-dict combining both); `key_score = 1.0 if harmonic_compatibility(feat_a.camelot_key, feat_b.camelot_key) else 0.0`; `energy_score = 1 - abs(feat_a.rms_energy - feat_b.rms_energy)`; `timbre_score = 1 - abs(feat_a.brightness - feat_b.brightness)`. Final: `0.3*bpm_score + 0.3*key_score + 0.25*energy_score + 0.15*timbre_score`. (2) Implement `next_track_suggestions(current_path: Path, current_features: IntensityFeatures, current_bpm: float, candidates: list[tuple[Path, IntensityFeatures, float]], n: int = 5) -> list[tuple[Path, float]]`: returns top-n (path, score) sorted descending. (3) In SetBuilderView, add a 'Next Track' `Gtk.Expander` below the block strip: when a track in the timeline is selected, show top-5 candidates as rows with title, artist, and score bar. (4) Add unit tests.",
       "acceptance_criteria": "tests/unit/test_compatibility.py: same BPM + compatible key + same energy returns score > 0.8. Incompatible key + large BPM diff returns score < 0.4. next_track_suggestions returns exactly n results sorted descending. `uv run pytest tests/ -v` passes.",
-      "completed": false,
+      "completed": true,
       "priority": 5,
       "note": "GitHub issue #100"
     },
