@@ -398,7 +398,7 @@ Implementation steps:
 4. Make ATOMIC commits — do not squash everything into one commit:
    - Commit A (source):   git add playchitect/ && git commit -m '[$TASK_ID] $TASK_TITLE: implement'
    - Commit B (tests):    git add tests/ && git commit -m '[$TASK_ID] $TASK_TITLE: add tests'
-   - Commit C (tracking): set \"completed\": true in prd.json for task $TASK_ID,
+   - Commit C (tracking): in prd.json, find ONLY the task with \"id\": \"$TASK_ID\" and set its \"completed\" field to true — do NOT modify any other task's \"completed\" field,
                           append to progress.txt: [$TODAY] [$TASK_ID] $TASK_TITLE: {one-line summary}
                           git add prd.json progress.txt && git commit -m '[$TASK_ID] $TASK_TITLE: mark complete'
 
