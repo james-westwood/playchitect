@@ -299,7 +299,7 @@
       "owner": "ralph",
       "description": "Add structural controls to PlaylistsView (requires TASK-15 and TASK-05). (1) Add a 'Vocals' filter row in the PlaylistsView toolbar: three `Gtk.ToggleButton` chips 'Any' (default), 'Instrumental' (vocal_presence < 0.3), 'Vocal' (vocal_presence > 0.6). Active chip filters the track list before clustering. (2) Add 'Intro' column to PlaylistsView ColumnView showing `intro_length_secs` formatted as 'Xs'. (3) Add a 'Sort by intro' option to the Sort DropDown (from TASK-12): 'Short intro first' (ascending intro_length_secs), 'Long intro first' (descending). (4) Wire vocal filter to reduce the input track list in the Generate Playlists handler by filtering on vocal_presence before passing to PlaylistClusterer. Add unit tests for the vocal filter logic.",
       "acceptance_criteria": "tests/unit/: vocal filter correctly partitions tracks by vocal_presence threshold. PlaylistsView smoke test shows the vocal chip row and Intro column. `uv run pytest tests/ -v` passes.",
-      "completed": false,
+      "completed": true,
       "priority": 4,
       "note": "GitHub issue #43"
     },

@@ -23,3 +23,4 @@
 [2026-03-15] [TASK-10] harmonic_mixing_gui_controls: implemented and merged (PR #146)
 [2026-03-15] [TASK-12] energy_flow_gui_controls: implemented and merged (PR #147)
 [2026-03-15] [TASK-14] timbre_texture_gui_controls: implemented and merged (PR #148)
+[2026-03-15] [TASK-16] structural_gui_controls: implemented and merged (PR #149)
