@@ -6,7 +6,6 @@ import pytest
 
 from playchitect.core.clustering import ClusterResult
 from playchitect.core.intensity_analyzer import IntensityFeatures
-from playchitect.core.metadata_extractor import TrackMetadata
 from playchitect.core.naming.vibe_profiler import (
     VibeProfile,
     bucket_bpm,
@@ -62,14 +61,6 @@ class TestComputeVibeProfile:
         features.mood_label = mood
         return features
 
-    def _make_metadata(self, filepath: Path, bpm: float = 125.0) -> TrackMetadata:
-        """Create TrackMetadata for testing."""
-        return TrackMetadata(
-            filepath=filepath,
-            bpm=bpm,
-            duration=300.0,
-        )
-
     def test_compute_vibe_profile_returns_correct_mean_bpm(self) -> None:
         """compute_vibe_profile on a 3-track cluster returns correct mean_bpm."""
         # Create 3 test tracks
@@ -106,13 +97,7 @@ class TestComputeVibeProfile:
             ),
         }
 
-        metadata = {
-            tracks[0]: self._make_metadata(tracks[0], bpm=124.0),
-            tracks[1]: self._make_metadata(tracks[1], bpm=125.0),
-            tracks[2]: self._make_metadata(tracks[2], bpm=126.0),
-        }
-
-        profile = compute_vibe_profile(cluster, features, metadata)
+        profile = compute_vibe_profile(cluster, features)
 
         # Assert mean_bpm matches cluster's pre-computed mean
         assert profile.mean_bpm == 125.0
@@ -134,9 +119,7 @@ class TestComputeVibeProfile:
             ),
         }
 
-        metadata = {t: self._make_metadata(t) for t in tracks}
-
-        profile = compute_vibe_profile(cluster, features, metadata)
+        profile = compute_vibe_profile(cluster, features)
 
         # Expected means: (0.3 + 0.5 + 0.7) / 3 = 0.5
         assert profile.mean_rms == pytest.approx(0.5, abs=1e-6)
@@ -156,9 +139,7 @@ class TestComputeVibeProfile:
             tracks[3]: self._make_features(tracks[3], mood="Ethereal"),
         }
 
-        metadata = {t: self._make_metadata(t) for t in tracks}
-
-        profile = compute_vibe_profile(cluster, features, metadata)
+        profile = compute_vibe_profile(cluster, features)
 
         # Dark appears twice, others once → Dark should be dominant
         assert profile.dominant_mood == "Dark"
@@ -170,10 +151,9 @@ class TestComputeVibeProfile:
         """Empty cluster should raise ValueError."""
         cluster = self._make_cluster([])
         features: dict[Path, IntensityFeatures] = {}
-        metadata: dict[Path, TrackMetadata] = {}
 
         with pytest.raises(ValueError, match="empty cluster"):
-            compute_vibe_profile(cluster, features, metadata)
+            compute_vibe_profile(cluster, features)
 
     def test_compute_vibe_profile_missing_features_raises(self) -> None:
         """Cluster with no matching features should raise ValueError."""
@@ -181,10 +161,9 @@ class TestComputeVibeProfile:
         cluster = self._make_cluster(tracks)
 
         features: dict[Path, IntensityFeatures] = {}
-        metadata = {tracks[0]: self._make_metadata(tracks[0])}
 
         with pytest.raises(ValueError, match="No intensity features"):
-            compute_vibe_profile(cluster, features, metadata)
+            compute_vibe_profile(cluster, features)
 
 
 class TestScoreSalience:
