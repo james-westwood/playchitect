@@ -16,7 +16,8 @@ from playchitect.core.audio_scanner import AudioScanner  # noqa: E402
 from playchitect.core.clustering import ClusterResult, PlaylistClusterer  # noqa: E402
 from playchitect.core.intensity_analyzer import IntensityAnalyzer, IntensityFeatures  # noqa: E402
 from playchitect.core.metadata_extractor import MetadataExtractor, TrackMetadata  # noqa: E402
-from playchitect.core.sequencer import Sequencer  # noqa: E402
+from playchitect.core.play_history import PlayHistory  # noqa: E402
+from playchitect.core.sequencer import Sequencer, sequence_fresh  # noqa: E402
 from playchitect.core.track_previewer import TrackPreviewer  # noqa: E402
 from playchitect.gui.widgets.cluster_stats import ClusterStats  # noqa: E402
 from playchitect.gui.widgets.cluster_view import ClusterViewPanel  # noqa: E402
@@ -71,6 +72,19 @@ class PlaychitectWindow(Adw.ApplicationWindow):
         self._arc_dropdown.set_sensitive(False)  # Enabled after clustering
         header.pack_start(self._arc_dropdown)
 
+        # Prefer fresh tracks switch
+        fresh_box = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL, spacing=6)
+        fresh_box.set_margin_start(12)
+        fresh_label = Gtk.Label(label="Fresh:")
+        fresh_box.append(fresh_label)
+
+        self._fresh_switch = Gtk.Switch()
+        self._fresh_switch.set_tooltip_text("Prioritize tracks not recently played")
+        self._fresh_switch.connect("notify::active", self._on_fresh_switch_toggled)
+        fresh_box.append(self._fresh_switch)
+
+        header.pack_start(fresh_box)
+
         toolbar_view = Adw.ToolbarView()
         toolbar_view.add_top_bar(header)
 
@@ -79,6 +93,8 @@ class PlaychitectWindow(Adw.ApplicationWindow):
         self._intensity_map: dict[Path, IntensityFeatures] = {}
         self._clusters: list[ClusterResult] = []
         self._original_clusters: list[ClusterResult] = []  # For arc reapplication
+        self._play_history = PlayHistory()
+        self._prefer_fresh: bool = False
         self._arc_dropdown.connect("notify::selected", self._on_arc_selected)
 
         # ── Split pane: cluster panel (left) + track list (right) ────────────
@@ -205,6 +221,11 @@ class PlaychitectWindow(Adw.ApplicationWindow):
         # Perform in a thread to keep UI responsive
         threading.Thread(target=self._cluster_worker, daemon=True).start()
 
+    def _on_fresh_switch_toggled(self, switch: Gtk.Switch, _param: object) -> None:
+        """Handle toggling of the 'Prefer fresh tracks' switch."""
+        self._prefer_fresh = switch.get_active()
+        logger.debug("Prefer fresh tracks: %s", self._prefer_fresh)
+
     def _cluster_worker(self) -> None:
         """Background worker for clustering."""
         try:
@@ -218,12 +239,20 @@ class PlaychitectWindow(Adw.ApplicationWindow):
             # Store original clusters for arc reapplication
             self._original_clusters = list(self._clusters)
 
-            # Sequence each cluster (default: ramp)
-            sequencer = Sequencer()
-            for cluster in self._clusters:
-                cluster.tracks = sequencer.sequence(
-                    cluster, self._metadata_map, self._intensity_map, mode="ramp"
-                )
+            # Sequence each cluster based on preference
+            if self._prefer_fresh:
+                # Use freshness-aware sequencing
+                for cluster in self._clusters:
+                    cluster.tracks = sequence_fresh(
+                        cluster.tracks, self._intensity_map, self._play_history
+                    )
+            else:
+                # Use default energy ramp sequencing
+                sequencer = Sequencer()
+                for cluster in self._clusters:
+                    cluster.tracks = sequencer.sequence(
+                        cluster, self._metadata_map, self._intensity_map, mode="ramp"
+                    )
 
             GLib.idle_add(self._on_cluster_complete)
         except Exception:
@@ -308,3 +337,14 @@ class PlaychitectWindow(Adw.ApplicationWindow):
         self.track_list.load_tracks(cluster_tracks)
         self.track_list._search_entry.set_text("")
         self.set_title(f"Playchitect — Cluster {cluster_id}")
+
+    def record_exported_tracks(self, track_paths: list[Path]) -> None:
+        """Record exported tracks to play history.
+
+        Args:
+            track_paths: List of paths that were exported.
+        """
+        for path in track_paths:
+            self._play_history.record(path)
+        self._play_history.save()
+        logger.info("Recorded %d tracks to play history", len(track_paths))
