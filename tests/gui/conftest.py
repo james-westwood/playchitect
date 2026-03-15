@@ -72,6 +72,15 @@ class _FakeGtkBase:
     def set_size_request(self, *_args: object) -> None:
         pass
 
+    def set_margin_start(self, *_args: object) -> None:
+        pass
+
+    def set_tooltip_text(self, *_args: object) -> None:
+        pass
+
+    def append(self, *_args: object) -> None:
+        pass
+
     def emit(self, *_args: object, **_kwargs: object) -> None:
         pass
 

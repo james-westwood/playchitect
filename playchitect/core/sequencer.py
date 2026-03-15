@@ -4,14 +4,20 @@ Creates cohesive DJ set narratives using intensity ramps and smart
 opener/closer placement.
 """
 
+from __future__ import annotations
+
 import logging
 from enum import StrEnum
 from pathlib import Path
+from typing import TYPE_CHECKING
 
 from playchitect.core.clustering import ClusterResult
 from playchitect.core.intensity_analyzer import IntensityFeatures
 from playchitect.core.metadata_extractor import TrackMetadata
 from playchitect.core.track_selector import TrackSelector
+
+if TYPE_CHECKING:
+    from playchitect.core.play_history import PlayHistory
 
 logger = logging.getLogger(__name__)
 
@@ -241,3 +247,59 @@ class Sequencer:
         )
 
         return [first] + remaining + [last]
+
+
+def sequence_fresh(
+    tracks: list[Path],
+    features: dict[Path, IntensityFeatures],
+    history: PlayHistory,
+) -> list[Path]:
+    """Sequence tracks prioritizing freshness and energy.
+
+    Sorts tracks by freshness_score * rms_energy descending,
+    excluding tracks with freshness score < 0.1.
+
+    Args:
+        tracks: List of track paths to sequence.
+        features: Mapping of path to IntensityFeatures (contains RMS energy).
+        history: PlayHistory instance for freshness scores.
+
+    Returns:
+        List of track paths sorted by freshness-weighted energy.
+
+    Raises:
+        ValueError: If a track is missing from the features dict.
+    """
+
+    # Calculate scores for all tracks
+    scored_tracks: list[tuple[Path, float]] = []
+
+    for track in tracks:
+        if track not in features:
+            raise ValueError(f"Missing features for track: {track}")
+
+        freshness = history.get_freshness_score(track)
+
+        # Skip tracks with low freshness score
+        if freshness < 0.1:
+            logger.debug(
+                "Excluding track %s due to low freshness score: %.3f", track.name, freshness
+            )
+            continue
+
+        rms_energy = features[track].rms_energy
+        combined_score = freshness * rms_energy
+        scored_tracks.append((track, combined_score))
+
+    # Sort by combined score descending
+    scored_tracks.sort(key=lambda x: x[1], reverse=True)
+
+    result = [track for track, _ in scored_tracks]
+
+    logger.info(
+        "Sequenced %d tracks using freshness priority (excluded %d)",
+        len(result),
+        len(tracks) - len(result),
+    )
+
+    return result
