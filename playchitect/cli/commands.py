@@ -14,6 +14,7 @@ from playchitect.core.export import CUEExporter, M3UExporter
 from playchitect.core.metadata_extractor import MetadataExtractor
 from playchitect.core.track_selector import TrackSelector
 from playchitect.utils.config import get_config
+from playchitect.utils.weight_config import WeightOverrides, load_weight_overrides
 
 # Configure logging
 logging.basicConfig(
@@ -115,6 +116,17 @@ def cli() -> None:
     default="fixed",
     help="Track sequencing mode: ramp (intensity build) or fixed (no change, default).",
 )
+@click.option(
+    "--weight-file",
+    type=click.Path(exists=True, path_type=Path),
+    default=None,
+    help="YAML file with user-specified feature weight overrides.",
+)
+@click.option(
+    "--learn-weights/--no-learn-weights",
+    default=True,
+    help="Apply EWKM per-cluster weight refinement (default: True).",
+)
 def scan(
     music_path: Path | None,
     output: Path | None,
@@ -132,6 +144,8 @@ def scan(
     cluster_mode: str,
     genre_map: Path | None,
     sequence_mode: str,
+    weight_file: Path | None,
+    learn_weights: bool,
 ) -> None:
     """
     Scan music directory and create intelligent playlists.
@@ -303,11 +317,19 @@ def scan(
                 f"Genre resolution: {known_count}/{len(genre_dict_resolved)} tracks assigned"
             )
 
+    # Load weight overrides if provided
+    weight_overrides: WeightOverrides | None = None
+    if weight_file:
+        weight_overrides = load_weight_overrides(weight_file)
+        click.echo(f"Loaded weight overrides from {weight_file}")
+
     # Perform clustering
     click.echo("\nClustering tracks...")
     clusterer = PlaylistClusterer(
         target_tracks_per_playlist=target_tracks,
         target_duration_per_playlist=target_duration,
+        weight_overrides=weight_overrides,
+        use_ewkm=learn_weights,
     )
 
     if intensity_dict:

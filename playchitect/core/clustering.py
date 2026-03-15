@@ -109,6 +109,7 @@ class PlaylistClusterer:
         max_clusters: int = 10,
         random_state: int = 42,
         weight_overrides: WeightOverrides | None = None,
+        use_ewkm: bool = True,
     ):
         """
         Initialize playlist clusterer.
@@ -120,6 +121,7 @@ class PlaylistClusterer:
             max_clusters: Maximum number of clusters to consider
             random_state: Random seed for reproducibility
             weight_overrides: Optional user-specified feature weight overrides
+            use_ewkm: Whether to apply EWKM per-cluster weight refinement
         """
         if target_tracks_per_playlist is None and target_duration_per_playlist is None:
             raise ValueError(
@@ -135,6 +137,7 @@ class PlaylistClusterer:
         self.random_state = random_state
         self.scaler = StandardScaler()
         self.weight_overrides = weight_overrides
+        self.use_ewkm = use_ewkm
 
     # ── Public API ─────────────────────────────────────────────────────────────
 
@@ -362,7 +365,7 @@ class PlaylistClusterer:
         per_cluster_importance: list[dict[str, float]] | None = None
 
         # EWKM applies only in the 8D intensity mode (not when embeddings are active)
-        if embedding_dict is None and use_ewkm and len(valid_paths) >= _MIN_TRACKS_EWKM:
+        if embedding_dict is None and self.use_ewkm and len(valid_paths) >= _MIN_TRACKS_EWKM:
             # EWKM operates in normalized (unweighted) space; de-weight centroids first
             w_sqrt = np.sqrt(profile.weights)
             centroids_norm = kmeans.cluster_centers_ / w_sqrt[np.newaxis, :]
