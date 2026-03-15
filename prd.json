@@ -288,7 +288,7 @@
       "owner": "ralph",
       "description": "Add timbre controls to PlaylistsView (requires TASK-13 and TASK-05). (1) Add a 'Texture' column to the PlaylistsView track ColumnView: a `Gtk.Label` showing 'Tonal' if spectral_flatness < 0.3, 'Mixed' if 0.3\u20130.6, 'Noisy' if > 0.6. (2) Add a 'Timbre similarity' `Gtk.Scale` (HORIZONTAL, range 0.0\u20131.0, value 0.0) in the PlaylistsView toolbar below the existing controls. (3) When value > 0, before clustering, multiply `mfcc_variance` and `spectral_flatness` into the feature weights: pass a `WeightOverrides` (from TASK-01) where `brightness` (proxy for timbre) gets weight multiplied by `(1 + slider_value * 2)`. Apply via `PlaylistClusterer`'s `weight_overrides` param. (4) Add smoke test asserting the Scale widget exists in PlaylistsView.",
       "acceptance_criteria": "tests/gui/test_playlists_view.py: PlaylistsView has a Gtk.Scale child. Texture column renders 'Tonal'/'Mixed'/'Noisy'. `uv run pytest tests/ -v` passes.",
-      "completed": false,
+      "completed": true,
       "priority": 4,
       "note": "GitHub issue #41"
     },
