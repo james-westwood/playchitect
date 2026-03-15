@@ -255,7 +255,7 @@
       "owner": "ralph",
       "description": "Add playlist size controls to PlaylistsView (TASK-05 must be done first). In the PlaylistsView toolbar (`Gtk.ActionBar`): (1) Add `Gtk.SpinButton` labelled 'Tracks per playlist' (range 5\u2013200, step 1, value 20, snap-to-ticks). (2) Add `Gtk.DropDown` with model ['tracks', 'minutes']. When 'minutes' selected, swap the SpinButton range to 30\u2013240, step 5, value 60. (3) Add `Gtk.SpinButton` labelled 'Playlists' (range 0\u201320, step 1, value 0; 0 means auto from elbow/silhouette). (4) In PlaylistClusterer (playchitect/core/clustering.py), the `scan` CLI command already passes `target_tracks` and `target_duration` \u2014 confirm the `cluster_by_features()` method accepts these; add `n_playlists: int | None = None` param that overrides auto-K selection when > 0. (5) Wire all three controls to the Generate Playlists button handler in PlaylistsView. Add unit tests in tests/unit/test_clustering.py for the new n_playlists param.",
       "acceptance_criteria": "tests/unit/test_clustering.py: cluster_by_features with n_playlists=3 returns exactly 3 clusters. PlaylistsView smoke test shows SpinButton and DropDown in toolbar. `uv run pytest tests/ -v` passes.",
-      "completed": false,
+      "completed": true,
       "priority": 3,
       "note": "GitHub issue #103 (MVP)"
     },
