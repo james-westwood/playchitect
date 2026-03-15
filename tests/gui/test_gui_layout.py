@@ -95,11 +95,13 @@ def bare_window() -> PlaychitectWindow:
     w._preview_chip = MagicMock()
     w._spinner = MagicMock()
     w._cluster_btn = MagicMock()
+    w._arc_dropdown = MagicMock()
     w.track_list = MagicMock()
     w.cluster_panel = MagicMock()
     w._metadata_map = {}
     w._intensity_map = {}
     w._clusters = []
+    w._original_clusters = []
     return w
 
 
@@ -129,6 +131,9 @@ class TestMainWindowSmoke:
 
     def test_track_title_default(self, window: PlaychitectWindow) -> None:
         assert window._track_title == "Playchitect"
+
+    def test_arc_dropdown_attribute_set(self, window: PlaychitectWindow) -> None:
+        assert hasattr(window, "_arc_dropdown")
 
 
 # ── Window-init call verification ─────────────────────────────────────────────

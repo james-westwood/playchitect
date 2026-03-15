@@ -11,6 +11,7 @@ gi.require_version("Gtk", "4.0")
 
 from gi.repository import Adw, GLib, Gtk  # type: ignore[unresolved-import]  # noqa: E402
 
+from playchitect.core.arc_sequencer import BUILTIN_PRESETS, apply_arc  # noqa: E402
 from playchitect.core.audio_scanner import AudioScanner  # noqa: E402
 from playchitect.core.clustering import ClusterResult, PlaylistClusterer  # noqa: E402
 from playchitect.core.intensity_analyzer import IntensityAnalyzer, IntensityFeatures  # noqa: E402
@@ -57,6 +58,19 @@ class PlaychitectWindow(Adw.ApplicationWindow):
         self._cluster_btn.set_sensitive(False)
         header.pack_start(self._cluster_btn)
 
+        # Arc selector DropDown
+        arc_label = Gtk.Label(label="Arc:")
+        arc_label.set_margin_start(8)
+        header.pack_start(arc_label)
+
+        # Create string list for dropdown: "None" + preset names
+        arc_names = ["None"] + [p.name for p in BUILTIN_PRESETS]
+        arc_model = Gtk.StringList.new(arc_names)
+        self._arc_dropdown = Gtk.DropDown(model=arc_model)
+        self._arc_dropdown.set_selected(0)  # Default to "None"
+        self._arc_dropdown.set_sensitive(False)  # Enabled after clustering
+        header.pack_start(self._arc_dropdown)
+
         toolbar_view = Adw.ToolbarView()
         toolbar_view.add_top_bar(header)
 
@@ -64,6 +78,8 @@ class PlaychitectWindow(Adw.ApplicationWindow):
         self._metadata_map: dict[Path, TrackMetadata] = {}
         self._intensity_map: dict[Path, IntensityFeatures] = {}
         self._clusters: list[ClusterResult] = []
+        self._original_clusters: list[ClusterResult] = []  # For arc reapplication
+        self._arc_dropdown.connect("notify::selected", self._on_arc_selected)
 
         # ── Split pane: cluster panel (left) + track list (right) ────────────
         paned = Gtk.Paned(orientation=Gtk.Orientation.HORIZONTAL)
@@ -199,6 +215,9 @@ class PlaychitectWindow(Adw.ApplicationWindow):
             clusterer = PlaylistClusterer(target_tracks_per_playlist=20)
             self._clusters = clusterer.cluster_by_features(self._metadata_map, self._intensity_map)
 
+            # Store original clusters for arc reapplication
+            self._original_clusters = list(self._clusters)
+
             # Sequence each cluster (default: ramp)
             sequencer = Sequencer()
             for cluster in self._clusters:
@@ -216,6 +235,10 @@ class PlaychitectWindow(Adw.ApplicationWindow):
         self._spinner.stop()
         self._cluster_btn.set_sensitive(True)
 
+        # Enable arc dropdown and reset to "None"
+        self._arc_dropdown.set_sensitive(True)
+        self._arc_dropdown.set_selected(0)
+
         stats = ClusterStats.from_results(self._clusters)
         self.cluster_panel.load_clusters(stats)
 
@@ -228,6 +251,28 @@ class PlaychitectWindow(Adw.ApplicationWindow):
         self._cluster_btn.set_sensitive(True)
         self.set_title("Playchitect — clustering failed")
         return False
+
+    def _on_arc_selected(self, dropdown: Gtk.DropDown, _param: object) -> None:
+        """Handle arc preset selection from dropdown."""
+        if not self._original_clusters:
+            return
+
+        selected_index = dropdown.get_selected()
+        preset_name = "Original"
+        if selected_index == 0:
+            # "None" selected - restore original cluster order
+            self._clusters = list(self._original_clusters)
+        else:
+            # Apply arc preset (index 0 is "None", so preset is at index-1)
+            preset = BUILTIN_PRESETS[selected_index - 1]
+            preset_name = preset.name
+            self._clusters = apply_arc(self._original_clusters, preset)
+
+        # Update UI with reordered clusters
+        stats = ClusterStats.from_results(self._clusters)
+        self.cluster_panel.load_clusters(stats)
+        self._track_title = f"Playchitect — {len(self._clusters)} clusters ({preset_name})"
+        self.set_title(self._track_title)
 
     def _on_cluster_selected(self, _panel: ClusterViewPanel, cluster_id: object) -> None:
         """Filter the track list to show only tracks in the selected cluster, in sequenced order."""
