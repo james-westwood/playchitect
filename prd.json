@@ -79,7 +79,7 @@
       "owner": "ralph",
       "description": "Add energy flow features to IntensityFeatures in playchitect/core/intensity_analyzer.py. (1) Add three new fields to `IntensityFeatures` dataclass: `dynamic_range: float` (0\u20131), `energy_gradient: float` (-1 to 1), `drop_density: float` (0\u20131, normalised drops/min). (2) In `analyze()`, after computing `rms_energy`, compute: `rms_frames = librosa.feature.rms(y=y, frame_length=2048, hop_length=512)[0]`; `dynamic_range = float(np.clip((rms_frames.max() - rms_frames.min()) / (_RMS_NORM_FACTOR + 1e-9), 0, 1))`; `energy_gradient`: fit `np.polyfit(np.arange(len(rms_frames)), rms_frames, 1)[0]`, normalise to [-1, 1] by clipping at \u00b10.001 then dividing; `drop_density`: count frames where `rms_frames > rms_frames.mean() + 2*rms_frames.std()` divided by track duration in minutes, normalise to [0, 1] by clipping at 10 drops/min. (3) Add `dynamic_range`, `energy_gradient`, `drop_density` to the JSON cache schema (add to `to_dict()` and `from_dict()`/constructor). (4) Update `to_feature_vector()` to NOT include these in the main feature vector (they are metadata, not clustering dimensions). (5) Update any cache loading code to handle old cache files missing these keys (default 0.0). Add unit tests.",
       "acceptance_criteria": "tests/unit/test_intensity_analyzer.py: a synthetic sine-wave y yields dynamic_range >= 0, energy_gradient is a float, drop_density >= 0. Old cache files missing new keys load without KeyError (default to 0.0). `uv run pytest tests/ -v` passes.",
-      "completed": false,
+      "completed": true,
       "priority": 4,
       "note": "GitHub issue #38"
     },
