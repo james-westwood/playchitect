@@ -95,6 +95,9 @@ class _FakeGtkBase:
     def set_size_request(self, *_args: object) -> None:
         pass
 
+    def set_has_frame(self, *_args: object) -> None:
+        pass
+
     def set_margin_start(self, *_args: object) -> None:
         pass
 
