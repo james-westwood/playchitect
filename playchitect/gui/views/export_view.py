@@ -25,10 +25,12 @@ from gi.repository import (  # type: ignore[unresolved-import]  # noqa: E402
 )
 
 from playchitect.core.export import CUEExporter, M3UExporter  # noqa: E402
+from playchitect.core.exporters import RekordboxXMLExporter, TraktorNMLExporter  # noqa: E402
 from playchitect.utils.config import get_config  # noqa: E402
 
 if TYPE_CHECKING:
     from playchitect.core.clustering import ClusterResult
+    from playchitect.core.intensity_analyzer import IntensityFeatures
     from playchitect.core.metadata_extractor import TrackMetadata
 
 logger = logging.getLogger(__name__)
@@ -66,6 +68,7 @@ class ExportView(Gtk.Box):
         # State
         self._clusters: list[ClusterResult] = []
         self._metadata_map: dict[Path, TrackMetadata] = {}
+        self._features_map: dict[Path, IntensityFeatures] = {}
         self._cluster_names: dict[int | str, str] = {}
 
         # Build UI sections
@@ -104,18 +107,16 @@ class ExportView(Gtk.Box):
         self._cue_button.set_group(self._m3u_button)
         radio_box.append(self._cue_button)
 
-        # Rekordbox XML (disabled)
+        # Rekordbox XML (enabled)
         self._rekordbox_button = Gtk.CheckButton(label="Rekordbox XML")
         self._rekordbox_button.set_group(self._m3u_button)
-        self._rekordbox_button.set_sensitive(False)
-        self._rekordbox_button.set_tooltip_text("Coming in a future release")
+        self._rekordbox_button.set_sensitive(True)
         radio_box.append(self._rekordbox_button)
 
-        # Traktor NML (disabled)
+        # Traktor NML (enabled)
         self._traktor_button = Gtk.CheckButton(label="Traktor NML")
         self._traktor_button.set_group(self._m3u_button)
-        self._traktor_button.set_sensitive(False)
-        self._traktor_button.set_tooltip_text("Coming in a future release")
+        self._traktor_button.set_sensitive(True)
         radio_box.append(self._traktor_button)
 
         # Serato crates (disabled)
@@ -342,6 +343,10 @@ class ExportView(Gtk.Box):
         """Determine the selected export format."""
         if self._cue_button.get_active():
             return FORMAT_CUE
+        if self._rekordbox_button.get_active():
+            return FORMAT_REKORDBOX
+        if self._traktor_button.get_active():
+            return FORMAT_TRAKTOR
         return FORMAT_M3U
 
     def _export_worker(
@@ -358,6 +363,12 @@ class ExportView(Gtk.Box):
             elif format_type == FORMAT_CUE:
                 exporter = CUEExporter(destination)
                 paths = exporter.export_clusters(clusters, self._metadata_map)
+            elif format_type == FORMAT_REKORDBOX:
+                exporter = RekordboxXMLExporter(destination)
+                paths = exporter.export_clusters(clusters, self._metadata_map, self._features_map)
+            elif format_type == FORMAT_TRAKTOR:
+                exporter = TraktorNMLExporter(destination)
+                paths = exporter.export_clusters(clusters, self._metadata_map, self._features_map)
             else:
                 raise ValueError(f"Unsupported format: {format_type}")
 
@@ -427,15 +438,18 @@ class ExportView(Gtk.Box):
         self,
         clusters: list[ClusterResult],
         metadata_map: dict[Path, TrackMetadata],
+        features_map: dict[Path, IntensityFeatures] | None = None,
     ) -> None:
         """Set the clusters and metadata for export.
 
         Args:
             clusters: List of ClusterResult objects to export
             metadata_map: Mapping of track paths to metadata
+            features_map: Optional mapping of track paths to intensity features
         """
         self._clusters = clusters
         self._metadata_map = metadata_map
+        self._features_map = features_map or {}
         self._update_cluster_dropdown()
 
     def set_cluster_names(self, names: dict[int | str, str]) -> None:
@@ -459,6 +473,7 @@ class ExportView(Gtk.Box):
         """Clear all state and reset to defaults."""
         self._clusters = []
         self._metadata_map = {}
+        self._features_map = {}
         self._cluster_names = {}
         self._update_cluster_dropdown()
         self._show_status("No export performed yet", error=False)
