@@ -342,18 +342,19 @@ EOF
         gh pr comment "$PR_NUMBER" --body "*Review skipped — merged automatically via \`--skip-review\`.*"
       fi
 
-      log "  Merging PR #$PR_NUMBER..."
-      gh pr merge "$PR_NUMBER" --auto --merge --delete-branch
-      log "  Waiting for CI and merge..."
+      log "  Waiting for CI to pass on PR #$PR_NUMBER..."
       for _wait in $(seq 1 60); do
         sleep 30
-        PR_STATE=$(gh pr view "$PR_NUMBER" --json state -q '.state' 2>/dev/null)
-        if [[ "$PR_STATE" == "MERGED" ]]; then log "  PR #$PR_NUMBER merged."; break; fi
         CI_STATUS=$(gh pr checks "$PR_NUMBER" --json state -q '.[].state' 2>/dev/null | sort -u | tr '\n' ' ')
         if echo "$CI_STATUS" | grep -q "FAILURE\|ERROR"; then
           log "  CI FAILED on PR #$PR_NUMBER — stopping."; exit 1
         fi
+        if echo "$CI_STATUS" | grep -qv "PENDING\|IN_PROGRESS\|QUEUED\|WAITING\|EXPECTED" && [[ -n "$CI_STATUS" ]]; then
+          log "  CI passed (check ${_wait}/60, ci=$CI_STATUS)"; break
+        fi
       done
+      log "  Merging PR #$PR_NUMBER..."
+      gh pr merge "$PR_NUMBER" --merge --delete-branch
       git checkout "$MAIN_BRANCH"
       git pull --ff-only origin "$MAIN_BRANCH"
       log "Iteration $ITERATION complete (resumed): [$TASK_ID] $TASK_TITLE | $PR_URL"
@@ -496,24 +497,22 @@ EOF
 
   # ── Merge ──────────────────────────────────────────────────────────────────
 
-  log "  Enabling auto-merge on PR #$PR_NUMBER (waits for CI to pass)..."
-  gh pr merge "$PR_NUMBER" --auto --merge --delete-branch
-
-  log "  Waiting for CI and merge..."
+  log "  Waiting for CI to pass on PR #$PR_NUMBER..."
   for _wait in $(seq 1 60); do
     sleep 30
-    PR_STATE=$(gh pr view "$PR_NUMBER" --json state -q '.state' 2>/dev/null)
-    if [[ "$PR_STATE" == "MERGED" ]]; then
-      log "  PR #$PR_NUMBER merged after ${_wait} checks."
-      break
-    fi
     CI_STATUS=$(gh pr checks "$PR_NUMBER" --json state -q '.[].state' 2>/dev/null | sort -u | tr '\n' ' ')
     if echo "$CI_STATUS" | grep -q "FAILURE\|ERROR"; then
       log "  CI FAILED on PR #$PR_NUMBER — stopping. Fix the failure and re-run ralph."
       exit 1
     fi
-    log "  Still waiting... (check ${_wait}/60, state=$PR_STATE, ci=$CI_STATUS)"
+    if echo "$CI_STATUS" | grep -qv "PENDING\|IN_PROGRESS\|QUEUED\|WAITING\|EXPECTED" && [[ -n "$CI_STATUS" ]]; then
+      log "  CI passed (check ${_wait}/60, ci=$CI_STATUS)"
+      break
+    fi
+    log "  Still waiting... (check ${_wait}/60, ci=$CI_STATUS)"
   done
+  log "  Merging PR #$PR_NUMBER..."
+  gh pr merge "$PR_NUMBER" --merge --delete-branch
 
   git checkout "$MAIN_BRANCH"
   git pull --ff-only origin "$MAIN_BRANCH"
