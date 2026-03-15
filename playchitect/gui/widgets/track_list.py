@@ -45,6 +45,7 @@ class TrackModel(GObject.Object):
     duration = GObject.Property(type=float, default=0.0)  # seconds
     audio_format = GObject.Property(type=str, default="")  # ".flac", ".mp3", …
     mood = GObject.Property(type=str, default="")  # Mood classification label
+    camelot_key = GObject.Property(type=str, default="")  # Camelot notation (e.g., '8B')
 
     def __init__(
         self,
@@ -58,6 +59,7 @@ class TrackModel(GObject.Object):
         duration: float = 0.0,
         audio_format: str = "",
         mood: str = "",
+        camelot_key: str = "",
     ) -> None:
         super().__init__()
         self.filepath = filepath
@@ -70,6 +72,7 @@ class TrackModel(GObject.Object):
         self.duration = duration
         self.audio_format = audio_format
         self.mood = mood
+        self.camelot_key = camelot_key
 
     @property
     def duration_str(self) -> str:
@@ -232,6 +235,8 @@ class TrackListWidget(Gtk.Box):
             ("Title", 220, True, "title"),
             ("Artist", 160, True, "artist"),
             ("BPM", 70, True, "bpm"),
+            ("Key", 50, True, "camelot_key"),
+            ("", 24, False, None),  # Compatibility dot column (no header)
             ("Mood", 90, True, "mood"),
             ("Hardness", 100, False, "hardness"),
             ("Cluster", 80, True, "cluster"),
@@ -242,6 +247,8 @@ class TrackListWidget(Gtk.Box):
             self._bind_title,
             self._bind_artist,
             self._bind_bpm,
+            self._bind_key,
+            self._bind_compat_dot,
             self._bind_mood,
             self._bind_intensity,
             self._bind_cluster,
@@ -250,9 +257,16 @@ class TrackListWidget(Gtk.Box):
 
         for (header, width, resizable, sort_attr), bind_fn in zip(col_specs, bind_fns):
             factory = Gtk.SignalListItemFactory()
-            factory.connect("setup", _setup_label)
-            factory.connect("bind", bind_fn)
-            factory.connect("unbind", _unbind_label)
+
+            # Use custom setup for compatibility dot (needs DrawingArea)
+            if bind_fn == self._bind_compat_dot:
+                factory.connect("setup", self._setup_compat_dot)
+                factory.connect("bind", bind_fn)
+                factory.connect("unbind", self._unbind_compat_dot)
+            else:
+                factory.connect("setup", _setup_label)
+                factory.connect("bind", bind_fn)
+                factory.connect("unbind", _unbind_label)
 
             col = Gtk.ColumnViewColumn(title=header, factory=factory)
             col.set_fixed_width(width)
@@ -314,6 +328,114 @@ class TrackListWidget(Gtk.Box):
         label: Gtk.Label = item.get_child()
         label.set_xalign(1.0)
         label.set_text(track.duration_str)
+
+    def _bind_key(self, _factory: Gtk.SignalListItemFactory, item: Gtk.ListItem) -> None:
+        track: TrackModel = item.get_item()
+        label: Gtk.Label = item.get_child()
+        label.set_xalign(0.5)
+        label.set_text(track.camelot_key or "—")
+
+    # ── Compatibility dot column ───────────────────────────────────────────────
+
+    def _setup_compat_dot(self, _factory: Gtk.SignalListItemFactory, item: Gtk.ListItem) -> None:
+        drawing_area = Gtk.DrawingArea()
+        drawing_area.set_size_request(16, 16)
+        drawing_area.set_draw_func(self._draw_compat_dot, None)
+        item.set_child(drawing_area)
+
+    def _unbind_compat_dot(self, _factory: Gtk.SignalListItemFactory, item: Gtk.ListItem) -> None:
+        drawing_area = item.get_child()
+        if isinstance(drawing_area, Gtk.DrawingArea):
+            drawing_area.set_draw_func(None, None)
+
+    def _bind_compat_dot(self, _factory: Gtk.SignalListItemFactory, item: Gtk.ListItem) -> None:
+        track: TrackModel = item.get_item()
+        drawing_area: Gtk.DrawingArea = item.get_child()
+
+        # Store track reference and queue redraw
+        drawing_area.track = track  # type: ignore[attr-defined]
+        drawing_area.queue_draw()
+
+    def _draw_compat_dot(
+        self,
+        area: Gtk.DrawingArea,
+        cr: object,  # cairo.Context
+        width: int,
+        height: int,
+        _data: object,
+    ) -> None:
+        """Draw a colored dot indicating harmonic compatibility with previous track.
+
+        Green: Compatible (same number or adjacent with same letter)
+        Amber/Yellow: Same number, different letter (mode switch)
+        Red: Incompatible
+        """
+        # Default to gray if no track data
+        track = getattr(area, "track", None)
+        if track is None:
+            self._draw_circle(cr, width, height, 0.7, 0.7, 0.7)  # Gray
+            return
+
+        # Get the list store to find previous track
+        store = self._store
+        n_items = store.get_n_items()
+        track_idx = -1
+
+        # Find this track's index
+        for i in range(n_items):
+            if store.get_item(i) == track:
+                track_idx = i
+                break
+
+        # First track or not found - no dot needed (invisible/gray)
+        if track_idx <= 0:
+            self._draw_circle(cr, width, height, 0.0, 0.0, 0.0, 0.0)  # Transparent
+            return
+
+        # Get previous track's key
+        prev_track = store.get_item(track_idx - 1)
+        prev_key = prev_track.camelot_key if prev_track else None
+        current_key = track.camelot_key
+
+        if not prev_key or not current_key:
+            self._draw_circle(cr, width, height, 0.7, 0.7, 0.7)  # Gray
+            return
+
+        # Calculate compatibility
+        from playchitect.core.intensity_analyzer import harmonic_compatibility
+
+        if harmonic_compatibility(current_key, prev_key):
+            # Check if it's same number different letter (amber) or full compatible (green)
+            if current_key[:-1] == prev_key[:-1] and current_key[-1] != prev_key[-1]:
+                # Same number, different letter = amber
+                self._draw_circle(cr, width, height, 1.0, 0.65, 0.0)  # Amber
+            else:
+                # Fully compatible = green
+                self._draw_circle(cr, width, height, 0.2, 0.8, 0.2)  # Green
+        else:
+            # Incompatible = red
+            self._draw_circle(cr, width, height, 0.9, 0.2, 0.2)  # Red
+
+    def _draw_circle(
+        self,
+        cr: object,
+        width: int,
+        height: int,
+        r: float,
+        g: float,
+        b: float,
+        a: float = 1.0,
+    ) -> None:
+        """Draw a filled circle in the center of the area."""
+        import math
+
+        center_x = width / 2.0
+        center_y = height / 2.0
+        radius = min(width, height) / 2.0 - 2  # 2px padding
+
+        cr.set_source_rgba(r, g, b, a)
+        cr.arc(center_x, center_y, radius, 0, 2 * math.pi)
+        cr.fill()
 
     # ── Keyboard shortcuts ────────────────────────────────────────────────────
 

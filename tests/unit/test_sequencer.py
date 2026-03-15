@@ -15,6 +15,7 @@ from playchitect.core.sequencer import (
     Sequencer,
     classify_five_rhythms_phase,
     sequence_five_rhythms,
+    sequence_harmonic,
 )
 
 
@@ -421,3 +422,116 @@ class TestFiveRhythms:
         assert result == [paths[0]]
         # Verify it was classified as Lyrical by checking it's in the result
         assert len(result) == 1
+
+
+class TestSequenceHarmonic:
+    """Test harmonic sequencing functionality."""
+
+    def _create_features(
+        self,
+        path: Path,
+        rms_energy: float,
+        camelot_key: str,
+    ) -> IntensityFeatures:
+        """Create IntensityFeatures with specified energy and key."""
+        return IntensityFeatures(
+            filepath=path,
+            file_hash=f"hash_{path.stem}",
+            rms_energy=rms_energy,
+            brightness=0.5,
+            sub_bass_energy=0.5,
+            kick_energy=0.5,
+            bass_harmonics=0.5,
+            percussiveness=0.5,
+            onset_strength=0.5,
+            camelot_key=camelot_key,
+            key_index=0.0,
+        )
+
+    def test_sequence_harmonic_empty_list(self):
+        """Test that empty list returns empty list."""
+        result = sequence_harmonic([], {})
+        assert result == []
+
+    def test_sequence_harmonic_single_track(self):
+        """Test that single track returns same track."""
+        path = Path("test.flac")
+        features = {path: self._create_features(path, 0.5, "8B")}
+
+        result = sequence_harmonic([path], features)
+        assert result == [path]
+
+    def test_sequence_harmonic_starts_with_highest_energy(self):
+        """Test that sequencing starts with highest energy track."""
+        paths = [Path(f"track_{i}.flac") for i in range(4)]
+        features = {
+            paths[0]: self._create_features(paths[0], 0.2, "8B"),  # Lowest
+            paths[1]: self._create_features(paths[1], 0.5, "8B"),
+            paths[2]: self._create_features(paths[2], 0.9, "8B"),  # Highest
+            paths[3]: self._create_features(paths[3], 0.4, "8B"),
+        }
+
+        result = sequence_harmonic(paths, features)
+
+        # Should start with highest energy
+        assert result[0] == paths[2]
+
+    def test_sequence_harmonic_prioritizes_key_compatibility(self):
+        """Test that adjacent tracks maximize harmonic compatibility."""
+        # 4 tracks with different keys
+        paths = [Path(f"track_{i}.flac") for i in range(4)]
+        features = {
+            paths[0]: self._create_features(paths[0], 0.9, "8B"),  # Highest energy, start here
+            paths[1]: self._create_features(paths[1], 0.5, "9B"),  # Compatible (adjacent number)
+            paths[2]: self._create_features(paths[2], 0.4, "8A"),  # Same number, diff letter
+            paths[3]: self._create_features(paths[3], 0.3, "2B"),  # Incompatible
+        }
+
+        result = sequence_harmonic(paths, features)
+
+        # Should start with highest energy (track_0 at 8B)
+        assert result[0] == paths[0]
+
+        # The second track should be the most compatible with 8B
+        # 9B has score 2 (same letter, adjacent number)
+        # 8A has score 1 (same number, diff letter)
+        # 2B has score 0 (incompatible)
+        assert result[1] == paths[1]  # 9B is most compatible
+
+    def test_sequence_harmonic_breaks_ties_by_energy_proximity(self):
+        """Test that ties in harmonic score are broken by energy proximity."""
+        paths = [Path(f"track_{i}.flac") for i in range(3)]
+        features = {
+            paths[0]: self._create_features(paths[0], 0.9, "8B"),  # Start here (highest)
+            paths[1]: self._create_features(paths[1], 0.5, "9B"),  # Energy diff 0.4
+            paths[2]: self._create_features(paths[2], 0.85, "9B"),  # Energy diff 0.05 (closer!)
+        }
+
+        result = sequence_harmonic(paths, features)
+
+        # Both 9B tracks have same harmonic score, but track_2 has closer energy
+        assert result[0] == paths[0]
+        assert result[1] == paths[2]  # Closer energy wins the tie
+
+    def test_sequence_harmonic_missing_features_raises(self):
+        """Test that missing features raises ValueError."""
+        paths = [Path("test.flac")]
+
+        with pytest.raises(ValueError, match="Missing features"):
+            sequence_harmonic(paths, {})
+
+    def test_sequence_harmonic_returns_all_tracks(self):
+        """Test that all tracks are returned in the result."""
+        paths = [Path(f"track_{i}.flac") for i in range(4)]
+        features = {
+            paths[0]: self._create_features(paths[0], 0.2, "1A"),
+            paths[1]: self._create_features(paths[1], 0.5, "5B"),
+            paths[2]: self._create_features(paths[2], 0.9, "12A"),
+            paths[3]: self._create_features(paths[3], 0.4, "8B"),
+        }
+
+        result = sequence_harmonic(paths, features)
+
+        # All tracks should be in result
+        assert len(result) == 4
+        assert set(result) == set(paths)
