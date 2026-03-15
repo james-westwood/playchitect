@@ -124,8 +124,8 @@ class LibraryView(Gtk.Box):
     """
 
     __gsignals__ = {
-        "scan-complete": (GObject.SignalFlags.RUN_FIRST, None, (GObject.Object,)),
-        "track-selected": (GObject.SignalFlags.RUN_FIRST, None, (GObject.Object,)),
+        "scan-complete": (GObject.SignalFlags.RUN_FIRST, None, (Gio.ListStore,)),
+        "track-selected": (GObject.SignalFlags.RUN_FIRST, None, (LibraryTrackModel,)),
     }
 
     # Format chips configuration
@@ -363,6 +363,10 @@ class LibraryView(Gtk.Box):
 
     def _start_scan(self, directory: Path) -> None:
         """Start background scanning of directory."""
+        # Prevent multiple concurrent scans
+        if self._scan_thread is not None and self._scan_thread.is_alive():
+            return
+
         self._spinner.set_visible(True)
         self._spinner.start()
         self._open_btn.set_sensitive(False)
@@ -444,9 +448,8 @@ class LibraryView(Gtk.Box):
 
         # Search filter (title and artist, case-insensitive)
         if self._search_text:
-            search_lower = self._search_text.lower()
-            title_match = search_lower in track.display_title.lower()
-            artist_match = search_lower in (track.artist or "").lower()
+            title_match = self._search_text in track.display_title.lower()
+            artist_match = self._search_text in (track.artist or "").lower()
             if not (title_match or artist_match):
                 return False
 

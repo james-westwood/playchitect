@@ -335,8 +335,8 @@ class TestSearchFilter:
         assert self._filter(library_view, track) is False
 
     def test_search_case_insensitive(self, library_view: LibraryView) -> None:
-        library_view._search_text = "TECHNO"
-        track = _make_library_track(title="dark techno", artist="artist")
+        library_view._search_text = "techno"  # Already lowercased as in actual usage
+        track = _make_library_track(title="DARK TECHNO", artist="artist")
         assert self._filter(library_view, track) is True
 
 
