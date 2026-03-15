@@ -35,7 +35,7 @@
       "owner": "ralph",
       "description": "playchitect/utils/warnings.py already exports `suppress_librosa_warnings`. Verify it is applied in both the single-file `IntensityAnalyzer.analyze()` path and the ProcessPoolExecutor worker `_analyze_worker()`. If not already applied inside the worker, add `with suppress_librosa_warnings():` around the `librosa.load` + feature-extraction calls inside `_analyze_worker`. Also apply the suppression inside `IntensityAnalyzer.analyze()` if it is not already there. Do NOT modify suppress_librosa_warnings itself. Add a test that calls `analyze()` on a real (non-corrupt) audio fixture and asserts no WARNING-level log records are emitted by the `audioread` or `soundfile` loggers.",
       "acceptance_criteria": "tests/unit/test_intensity_analyzer.py: analyze() on a valid fixture file emits no warnings from audioread/soundfile loggers. `uv run pytest tests/ -v` passes.",
-      "completed": false,
+      "completed": true,
       "priority": 1,
       "note": "GitHub issue #94"
     },
