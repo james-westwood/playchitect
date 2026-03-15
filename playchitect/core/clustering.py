@@ -192,6 +192,7 @@ class PlaylistClusterer:
         cluster_mode: str = _CLUSTER_MODE_SINGLE,
         genre_dict: dict[Path, str] | None = None,
         bpm_scaling: dict[Path, float] | None = None,
+        n_playlists: int | None = None,
     ) -> list[ClusterResult]:
         """
         Cluster tracks using BPM + 7 intensity features (8-dimensional).
@@ -230,6 +231,9 @@ class PlaylistClusterer:
                             per-genre and mixed-genre modes.
             bpm_scaling:    Optional per-path BPM scaling (e.g. for mixed-genre);
                             raw BPM * scale used in features, original for reporting.
+            n_playlists:    Optional override for number of clusters. When > 0,
+                            bypasses auto-K selection (elbow/silhouette) and uses
+                            this exact K value.
 
         Returns:
             List of ClusterResult objects sorted by BPM mean, each with
@@ -352,8 +356,15 @@ class PlaylistClusterer:
             weight_source = profile.source
 
         valid_meta = {p: metadata_dict[p] for p in valid_paths}
-        optimal_k = self._determine_optimal_k(features_for_kmeans, valid_meta, len(valid_paths))
-        logger.info(f"Using K={optimal_k} clusters (weight source: {weight_source})")
+
+        # Determine optimal K, respecting n_playlists override if provided
+        if n_playlists is not None and n_playlists > 0:
+            optimal_k = min(n_playlists, len(valid_paths))
+            optimal_k = max(self.min_clusters, optimal_k)
+            logger.info(f"Using K={optimal_k} clusters (n_playlists override)")
+        else:
+            optimal_k = self._determine_optimal_k(features_for_kmeans, valid_meta, len(valid_paths))
+            logger.info(f"Using K={optimal_k} clusters (weight source: {weight_source})")
 
         kmeans = KMeans(n_clusters=optimal_k, random_state=self.random_state, n_init=10)
         labels = kmeans.fit_predict(features_for_kmeans)
