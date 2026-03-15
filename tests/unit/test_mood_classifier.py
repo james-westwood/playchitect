@@ -2,8 +2,6 @@
 
 from pathlib import Path
 
-import pytest
-
 from playchitect.core.intensity_analyzer import IntensityFeatures
 from playchitect.core.mood_classifier import classify_mood
 
@@ -226,7 +224,8 @@ class TestMoodClassifier:
             ("Aggressive", self._make_features(percussiveness=0.75, onset_strength=0.65)),
             ("Dreamy", self._make_features(percussiveness=0.2, brightness=0.6)),
             ("Hypnotic", self._make_features(rms_energy=0.45, dynamic_range=0.2)),
-            # Groovy: needs percussive > 0.5 AND energy in 0.4-0.7 BUT energy outside Hypnotic range (0.3-0.6)
+            # Groovy: needs percussive > 0.5 AND energy in 0.4-0.7
+            # BUT energy outside Hypnotic range (0.3-0.6)
             ("Groovy", self._make_features(percussiveness=0.6, rms_energy=0.65, dynamic_range=0.5)),
             # Ethereal: avoid Dark by having brightness >= 0.3 OR vocal >= 0.3
             ("Ethereal", self._make_features(rms_energy=0.1, brightness=0.4, percussiveness=0.1)),
