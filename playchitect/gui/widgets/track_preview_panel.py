@@ -8,7 +8,6 @@ cached to disk for fast subsequent loads.
 from __future__ import annotations
 
 import hashlib
-import io
 import logging
 from pathlib import Path
 from typing import Any

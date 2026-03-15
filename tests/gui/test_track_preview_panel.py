@@ -9,7 +9,6 @@ from __future__ import annotations
 
 import sys
 from pathlib import Path
-from typing import Any
 from unittest.mock import MagicMock, patch
 
 import pytest
@@ -53,10 +52,8 @@ with patch.dict("os.environ", {"GST_PLUGIN_SYSTEM_PATH_1_0": ""}):
     from playchitect.gui.widgets.track_preview_panel import (
         TrackPreviewPanel,
         _ensure_cache_dir,
-        _extract_cover_art,
         _get_cache_path,
     )
-    from playchitect.gui.views.library_view import LibraryTrackModel
 
 
 class FakeLibraryTrackModel:
