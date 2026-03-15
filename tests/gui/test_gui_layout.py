@@ -47,7 +47,7 @@ _PATCHES = {
 
 
 def _patch_deps(monkeypatch: pytest.MonkeyPatch, launcher: str | None = None) -> None:
-    """Patch the four external deps so PlaychitectWindow.__init__ can run."""
+    """Patch the external deps so PlaychitectWindow.__init__ can run."""
     mock_previewer = MagicMock()
     mock_previewer.launcher_name.return_value = launcher
 
@@ -69,6 +69,10 @@ def _patch_deps(monkeypatch: pytest.MonkeyPatch, launcher: str | None = None) ->
     monkeypatch.setattr(
         "playchitect.gui.windows.main_window.get_config",
         MagicMock(return_value=mock_config),
+    )
+    monkeypatch.setattr(
+        "playchitect.gui.windows.main_window.PreferencesWindow",
+        MagicMock(return_value=MagicMock()),
     )
 
 
@@ -96,6 +100,10 @@ def bare_window() -> PlaychitectWindow:
     w._spinner = MagicMock()
     w._cluster_btn = MagicMock()
     w._arc_dropdown = MagicMock()
+    w._menu_button = MagicMock()
+    w._nav_list = MagicMock()
+    w._view_stack = MagicMock()
+    w._split_view = MagicMock()
     w.track_list = MagicMock()
     w.cluster_panel = MagicMock()
     w._metadata_map = {}
@@ -136,6 +144,18 @@ class TestMainWindowSmoke:
 
     def test_arc_dropdown_attribute_set(self, window: PlaychitectWindow) -> None:
         assert hasattr(window, "_arc_dropdown")
+
+    def test_menu_button_attribute_set(self, window: PlaychitectWindow) -> None:
+        assert hasattr(window, "_menu_button")
+
+    def test_nav_list_attribute_set(self, window: PlaychitectWindow) -> None:
+        assert hasattr(window, "_nav_list")
+
+    def test_view_stack_attribute_set(self, window: PlaychitectWindow) -> None:
+        assert hasattr(window, "_view_stack")
+
+    def test_split_view_attribute_set(self, window: PlaychitectWindow) -> None:
+        assert hasattr(window, "_split_view")
 
 
 # ── Window-init call verification ─────────────────────────────────────────────
@@ -202,6 +222,68 @@ class TestHIGCompliance:
         """After the split, the track list gets at least 50% of design width."""
         remaining = _DESIGN_WIDTH - _PANED_SPLIT_POSITION
         assert remaining >= _DESIGN_WIDTH // 2
+
+
+# ── Navigation sidebar ────────────────────────────────────────────────────────
+
+
+class TestNavigationSidebar:
+    """Navigation sidebar with four rows switches view stack pages."""
+
+    def test_nav_row_selected_switches_to_library(self, bare_window: PlaychitectWindow) -> None:
+        """Selecting row 0 switches to library page."""
+        mock_row = MagicMock()
+        mock_row.get_index.return_value = 0
+        bare_window._on_nav_row_selected(MagicMock(), mock_row)
+        bare_window._view_stack.set_visible_child_name.assert_called_once_with("library")
+
+    def test_nav_row_selected_switches_to_playlists(self, bare_window: PlaychitectWindow) -> None:
+        """Selecting row 1 switches to playlists page."""
+        mock_row = MagicMock()
+        mock_row.get_index.return_value = 1
+        bare_window._on_nav_row_selected(MagicMock(), mock_row)
+        bare_window._view_stack.set_visible_child_name.assert_called_once_with("playlists")
+
+    def test_nav_row_selected_switches_to_set_builder(self, bare_window: PlaychitectWindow) -> None:
+        """Selecting row 2 switches to set-builder page."""
+        mock_row = MagicMock()
+        mock_row.get_index.return_value = 2
+        bare_window._on_nav_row_selected(MagicMock(), mock_row)
+        bare_window._view_stack.set_visible_child_name.assert_called_once_with("set-builder")
+
+    def test_nav_row_selected_switches_to_export(self, bare_window: PlaychitectWindow) -> None:
+        """Selecting row 3 switches to export page."""
+        mock_row = MagicMock()
+        mock_row.get_index.return_value = 3
+        bare_window._on_nav_row_selected(MagicMock(), mock_row)
+        bare_window._view_stack.set_visible_child_name.assert_called_once_with("export")
+
+    def test_nav_row_selected_none_does_nothing(self, bare_window: PlaychitectWindow) -> None:
+        """Passing None row does nothing."""
+        bare_window._on_nav_row_selected(MagicMock(), None)
+        bare_window._view_stack.set_visible_child_name.assert_not_called()
+
+
+# ── Preferences window ──────────────────────────────────────────────────────────
+
+
+class TestPreferencesWindow:
+    """Preferences window can be shown from the main window."""
+
+    def test_show_preferences_creates_window(
+        self, bare_window: PlaychitectWindow, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        """show_preferences creates and presents a PreferencesWindow."""
+        mock_prefs = MagicMock()
+        monkeypatch.setattr(
+            "playchitect.gui.windows.main_window.PreferencesWindow",
+            MagicMock(return_value=mock_prefs),
+        )
+
+        bare_window.show_preferences()
+
+        mock_prefs.set_transient_for.assert_called_once_with(bare_window)
+        mock_prefs.present.assert_called_once()
 
 
 # ── Preview chip ──────────────────────────────────────────────────────────────

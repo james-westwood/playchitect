@@ -48,6 +48,21 @@ class _FakeGtkBase:
     def present(self) -> None:
         pass
 
+    def set_icon_name(self, *_args: object) -> None:
+        pass
+
+    def set_tooltip_text(self, *_args: object) -> None:
+        pass
+
+    def set_menu_model(self, *_args: object) -> None:
+        pass
+
+    def set_sidebar_width_fraction(self, *_args: object) -> None:
+        pass
+
+    def set_sidebar(self, *_args: object) -> None:
+        pass
+
     def set_content(self, *_args: object) -> None:
         pass
 
@@ -75,7 +90,88 @@ class _FakeGtkBase:
     def set_margin_start(self, *_args: object) -> None:
         pass
 
-    def set_tooltip_text(self, *_args: object) -> None:
+    def set_margin_top(self, *_args: object) -> None:
+        pass
+
+    def set_margin_bottom(self, *_args: object) -> None:
+        pass
+
+    def set_margin_end(self, *_args: object) -> None:
+        pass
+
+    def set_vexpand(self, *_args: object) -> None:
+        pass
+
+    def set_hexpand(self, *_args: object) -> None:
+        pass
+
+    def set_modal(self, *_args: object) -> None:
+        pass
+
+    def set_destroy_with_parent(self, *_args: object) -> None:
+        pass
+
+    def set_transient_for(self, *_args: object) -> None:
+        pass
+
+    def add_css_class(self, *_args: object) -> None:
+        pass
+
+    def set_sensitive(self, *_args: object) -> None:
+        pass
+
+    def set_pixel_size(self, *_args: object) -> None:
+        pass
+
+    def set_xalign(self, *_args: object) -> None:
+        pass
+
+    def set_subtitle(self, *_args: object) -> None:
+        pass
+
+    def add_suffix(self, *_args: object) -> None:
+        pass
+
+    def add(self, *_args: object) -> None:
+        pass
+
+    def set_selection_mode(self, *_args: object) -> None:
+        pass
+
+    def select_row(self, *_args: object) -> None:
+        pass
+
+    def get_row_at_index(self, *_args: object) -> None:
+        return None
+
+    def get_index(self, *_args: object) -> int:
+        return 0
+
+    def set_valign(self, *_args: object) -> None:
+        pass
+
+    def set_position(self, *_args: object) -> None:
+        pass
+
+    def set_shrink_start_child(self, *_args: object) -> None:
+        pass
+
+    def set_shrink_end_child(self, *_args: object) -> None:
+        pass
+
+    def set_start_child(self, *_args: object) -> None:
+        pass
+
+    def set_end_child(self, *_args: object) -> None:
+        pass
+
+    def set_child(self, *_args: object) -> None:
+        pass
+
+    def set_visible_child_name(self, *_args: object) -> None:
+        pass
+
+    def add_titled(self, *_args: object) -> None:
         pass
 
     def append(self, *_args: object) -> None:
@@ -89,6 +185,8 @@ _gtk_mock = MagicMock()
 _gtk_mock.Box = _FakeGtkBase
 _gtk_mock.ColumnView = _FakeGtkBase
 _gtk_mock.Frame = _FakeGtkBase  # ClusterCard base class
+_gtk_mock.ListBox = _FakeGtkBase
+_gtk_mock.ListBoxRow = _FakeGtkBase
 
 _adw_mock = MagicMock()
 _adw_mock.Application = _FakeGtkBase
@@ -96,6 +194,14 @@ _adw_mock.ApplicationWindow = _FakeGtkBase
 _adw_mock.HeaderBar = _FakeGtkBase
 _adw_mock.ToolbarView = _FakeGtkBase
 _adw_mock.AlertDialog = _FakeGtkBase
+_adw_mock.OverlaySplitView = _FakeGtkBase
+_adw_mock.ViewStack = _FakeGtkBase
+_adw_mock.ViewStackPage = _FakeGtkBase
+_adw_mock.MenuButton = _FakeGtkBase
+_adw_mock.PreferencesWindow = _FakeGtkBase
+_adw_mock.PreferencesPage = _FakeGtkBase
+_adw_mock.PreferencesGroup = _FakeGtkBase
+_adw_mock.ActionRow = _FakeGtkBase
 
 _pango_mock = MagicMock()
 _pango_mock.EllipsizeMode = MagicMock()
