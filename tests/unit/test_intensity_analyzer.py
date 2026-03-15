@@ -182,6 +182,35 @@ class TestIntensityFeatures:
         assert features.mfcc_variance == 0.0
         assert features.spectral_rolloff_85 == 0.0
 
+    def test_from_dict_structural_vocal_backward_compat(self) -> None:
+        """Test creating from old dictionary without structural/vocal fields."""
+        data = {
+            "filepath": "test.mp3",
+            "file_hash": "abc123",
+            "rms_energy": 0.5,
+            "brightness": 0.6,
+            "sub_bass_energy": 0.3,
+            "kick_energy": 0.7,
+            "bass_harmonics": 0.4,
+            "percussiveness": 0.8,
+            "onset_strength": 0.65,
+            "camelot_key": "8B",
+            "key_index": 0.0,
+            "dynamic_range": 0.5,
+            "energy_gradient": 0.1,
+            "drop_density": 0.2,
+            "spectral_flatness": 0.3,
+            "zero_crossing_rate": 0.2,
+            "mfcc_variance": 0.4,
+            "spectral_rolloff_85": 0.5,
+        }
+
+        features = IntensityFeatures.from_dict(data)
+
+        # Should default to 0.0 for missing structural/vocal fields
+        assert features.vocal_presence == 0.0
+        assert features.intro_length_secs == 0.0
+
 
 class TestHarmonicCompatibility:
     """Test harmonic compatibility function."""
@@ -746,6 +775,137 @@ class TestIntensityAnalyzer:
             f"Expected no WARNING-level log records from audioread/soundfile/librosa "
             f"loggers, but got: {[r.getMessage() for r in warning_records]}"
         )
+
+
+class TestStructuralVocalFeatures:
+    """Test structural and vocal features."""
+
+    def test_vocal_presence_with_harmonic_mid_range(self, tmp_path: Path) -> None:
+        """Synthetic audio with loud harmonic mid-range (200-800Hz) yields vocal_presence > 0."""
+        import soundfile as sf
+
+        sample_rate = 22050
+        duration = 2.0
+        t = np.linspace(0, duration, int(sample_rate * duration))
+
+        # Create harmonic content in vocal range (440Hz and 880Hz, both in 200-800Hz)
+        # Use sine waves for pure harmonic content
+        audio = (
+            np.sin(2 * np.pi * 440 * t) * 0.4  # A4 - in vocal range
+            + np.sin(2 * np.pi * 220 * t) * 0.3  # A3 - in vocal range
+        )
+        audio = audio.astype(np.float32)
+
+        test_file = tmp_path / "test_vocal.wav"
+        sf.write(test_file, audio, sample_rate)
+
+        analyzer = IntensityAnalyzer(sample_rate=sample_rate, cache_enabled=False)
+        features = analyzer.analyze(test_file)
+
+        # Should have vocal presence > 0
+        assert features.vocal_presence > 0.0
+        assert 0.0 <= features.vocal_presence <= 1.0
+
+    def test_vocal_presence_no_vocal_range_content(self, tmp_path: Path) -> None:
+        """Audio without 200-800Hz content should have low vocal presence."""
+        import soundfile as sf
+
+        sample_rate = 22050
+        duration = 2.0
+        t = np.linspace(0, duration, int(sample_rate * duration))
+
+        # Create low bass content only (below vocal range)
+        audio = (
+            np.sin(2 * np.pi * 50 * t) * 0.5  # Sub-bass, below vocal range
+            + np.sin(2 * np.pi * 100 * t) * 0.5  # Kick, below vocal range
+        )
+        audio = audio.astype(np.float32)
+
+        test_file = tmp_path / "test_no_vocal.wav"
+        sf.write(test_file, audio, sample_rate)
+
+        analyzer = IntensityAnalyzer(sample_rate=sample_rate, cache_enabled=False)
+        features = analyzer.analyze(test_file)
+
+        # Should have very low vocal presence
+        assert features.vocal_presence < 0.3
+
+    def test_intro_length_with_silent_prefix(self, tmp_path: Path) -> None:
+        """Silent prefix followed by loud portion yields intro_length_secs > 0."""
+        import soundfile as sf
+
+        sample_rate = 22050
+        # Create audio with silent intro then loud content
+        silent_duration = 1.0  # 1 second of silence
+        loud_duration = 2.0  # 2 seconds of loud content
+
+        # Silent prefix (zeros)
+        silent_samples = int(sample_rate * silent_duration)
+        silent = np.zeros(silent_samples, dtype=np.float32)
+
+        # Loud portion (sine wave at high amplitude)
+        t = np.linspace(0, loud_duration, int(sample_rate * loud_duration))
+        loud = np.sin(2 * np.pi * 440 * t).astype(np.float32) * 0.8
+
+        # Concatenate
+        audio = np.concatenate([silent, loud])
+
+        test_file = tmp_path / "test_intro.wav"
+        sf.write(test_file, audio, sample_rate)
+
+        analyzer = IntensityAnalyzer(sample_rate=sample_rate, cache_enabled=False)
+        features = analyzer.analyze(test_file)
+
+        # Should detect intro length > 0 (approximately 1 second, with some tolerance)
+        assert features.intro_length_secs > 0.5
+        assert features.intro_length_secs < 1.5
+
+    def test_intro_length_no_intro(self, tmp_path: Path) -> None:
+        """Audio that starts loud immediately should have intro_length_secs ≈ 0."""
+        import soundfile as sf
+
+        sample_rate = 22050
+        duration = 2.0
+        t = np.linspace(0, duration, int(sample_rate * duration))
+
+        # Loud from the start
+        audio = np.sin(2 * np.pi * 440 * t).astype(np.float32) * 0.8
+
+        test_file = tmp_path / "test_no_intro.wav"
+        sf.write(test_file, audio, sample_rate)
+
+        analyzer = IntensityAnalyzer(sample_rate=sample_rate, cache_enabled=False)
+        features = analyzer.analyze(test_file)
+
+        # Should have intro length ≈ 0
+        assert features.intro_length_secs < 0.2
+
+    def test_structural_vocal_cache_roundtrip(self, tmp_path: Path) -> None:
+        """Test that structural/vocal features are cached and loaded correctly."""
+        import soundfile as sf
+
+        cache_dir = tmp_path / "cache"
+        sample_rate = 22050
+        duration = 1.0
+        t = np.linspace(0, duration, int(sample_rate * duration))
+        audio = np.sin(2 * np.pi * 440 * t).astype(np.float32) * 0.5
+
+        test_file = tmp_path / "test_structural_vocal_cache.wav"
+        sf.write(test_file, audio, sample_rate)
+
+        analyzer = IntensityAnalyzer(
+            sample_rate=sample_rate, cache_dir=cache_dir, cache_enabled=True
+        )
+
+        # First analysis - should create cache with structural/vocal info
+        features1 = analyzer.analyze(test_file)
+        assert hasattr(features1, "vocal_presence")
+        assert hasattr(features1, "intro_length_secs")
+
+        # Second analysis - should load from cache with structural/vocal info intact
+        features2 = analyzer.analyze(test_file)
+        assert features2.vocal_presence == features1.vocal_presence
+        assert features2.intro_length_secs == features1.intro_length_secs
 
 
 class TestIntegration:
