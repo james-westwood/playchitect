@@ -330,6 +330,8 @@ class TestClusterByFeaturesWeighted:
                 bass_harmonics=float(rng.uniform(0.2, 0.7)),
                 percussiveness=float(rng.uniform(0.5, 0.95)),
                 onset_strength=float(rng.uniform(0.4, 0.8)),
+                camelot_key="8B",
+                key_index=0.0,
             )
         return meta, intensity
 

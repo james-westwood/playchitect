@@ -46,6 +46,8 @@ class TestSequencer:
                 bass_harmonics=0.5,
                 percussiveness=0.2 * i,
                 onset_strength=0.2 * i,
+                camelot_key="8B",
+                key_index=0.0,
             )
 
         return cluster, metadata_dict, intensity_dict
@@ -105,6 +107,8 @@ class TestSequencer:
             bass_harmonics=0.5,
             percussiveness=0.5,
             onset_strength=0.5,
+            camelot_key="8B",
+            key_index=0.0,
         )
 
         # score = 0.4*0.5 + 0.2*0.5 + 0.2*0.5 + 0.2*0.5 = 0.5
@@ -155,6 +159,8 @@ class TestSequencer:
                 bass_harmonics=0.5,
                 percussiveness=0.5,
                 onset_strength=0.5,
+                camelot_key="8B",
+                key_index=0.0,
             )
             for p in paths
         }
@@ -203,6 +209,8 @@ class TestSequencer:
                 bass_harmonics=0.5,
                 percussiveness=0.5,
                 onset_strength=0.5,
+                camelot_key="8B",
+                key_index=0.0,
             )
             for p in paths
         }

@@ -28,11 +28,15 @@ class TestIntensityFeatures:
             bass_harmonics=0.4,
             percussiveness=0.8,
             onset_strength=0.65,
+            camelot_key="8B",
+            key_index=0.0,
         )
 
         assert features.rms_energy == 0.5
         assert features.brightness == 0.6
         assert features.kick_energy == 0.7
+        assert features.camelot_key == "8B"
+        assert features.key_index == 0.0
 
     def test_to_feature_vector(self) -> None:
         """Test conversion to feature vector."""
@@ -46,6 +50,8 @@ class TestIntensityFeatures:
             bass_harmonics=0.4,
             percussiveness=0.8,
             onset_strength=0.65,
+            camelot_key="8B",
+            key_index=0.0,
         )
 
         vector = features.to_feature_vector()
@@ -72,6 +78,8 @@ class TestIntensityFeatures:
             bass_harmonics=0.4,
             percussiveness=0.8,
             onset_strength=0.65,
+            camelot_key="8B",
+            key_index=0.0,
         )
 
         data = features.to_dict()
@@ -79,9 +87,34 @@ class TestIntensityFeatures:
         assert isinstance(data, dict)
         assert data["filepath"] == "test.mp3"
         assert data["rms_energy"] == 0.5
+        assert data["camelot_key"] == "8B"
+        assert data["key_index"] == 0.0
 
     def test_from_dict(self) -> None:
         """Test creating from dictionary."""
+        data = {
+            "filepath": "test.mp3",
+            "file_hash": "abc123",
+            "rms_energy": 0.5,
+            "brightness": 0.6,
+            "sub_bass_energy": 0.3,
+            "kick_energy": 0.7,
+            "bass_harmonics": 0.4,
+            "percussiveness": 0.8,
+            "onset_strength": 0.65,
+            "camelot_key": "3B",
+            "key_index": 1.0,
+        }
+
+        features = IntensityFeatures.from_dict(data)
+
+        assert features.rms_energy == 0.5
+        assert features.filepath == Path("test.mp3")
+        assert features.camelot_key == "3B"
+        assert features.key_index == 1.0
+
+    def test_from_dict_backward_compat(self) -> None:
+        """Test creating from old dictionary without harmonic fields."""
         data = {
             "filepath": "test.mp3",
             "file_hash": "abc123",
@@ -96,8 +129,153 @@ class TestIntensityFeatures:
 
         features = IntensityFeatures.from_dict(data)
 
-        assert features.rms_energy == 0.5
-        assert features.filepath == Path("test.mp3")
+        # Should default to 8B (C major)
+        assert features.camelot_key == "8B"
+        assert features.key_index == 0.0
+
+
+class TestHarmonicCompatibility:
+    """Test harmonic compatibility function."""
+
+    def test_same_number_compatible(self) -> None:
+        """Same Camelot number with different letter is compatible."""
+        from playchitect.core.intensity_analyzer import harmonic_compatibility
+
+        assert harmonic_compatibility("8A", "8B") is True
+        assert harmonic_compatibility("3A", "3B") is True
+
+    def test_adjacent_number_same_letter_compatible(self) -> None:
+        """Adjacent numbers with same letter are compatible."""
+        from playchitect.core.intensity_analyzer import harmonic_compatibility
+
+        assert harmonic_compatibility("8B", "9B") is True
+        assert harmonic_compatibility("8B", "7B") is True
+        assert harmonic_compatibility("1B", "12B") is True  # Wrap around
+        assert harmonic_compatibility("12B", "1B") is True  # Wrap around
+
+    def test_incompatible_keys(self) -> None:
+        """Non-adjacent keys are incompatible."""
+        from playchitect.core.intensity_analyzer import harmonic_compatibility
+
+        assert harmonic_compatibility("8B", "1B") is False
+        assert harmonic_compatibility("8B", "3B") is False
+        assert harmonic_compatibility("8A", "10B") is False
+
+    def test_invalid_key_format(self) -> None:
+        """Invalid key format raises ValueError."""
+        from playchitect.core.intensity_analyzer import harmonic_compatibility
+
+        with pytest.raises(ValueError):
+            harmonic_compatibility("8", "9B")
+
+        with pytest.raises(ValueError):
+            harmonic_compatibility("8X", "9B")
+
+        with pytest.raises(ValueError):
+            harmonic_compatibility("13B", "9B")
+
+
+class TestKeyDetection:
+    """Test key detection in IntensityAnalyzer."""
+
+    def test_synthetic_chroma_bin_0_returns_8b(self, tmp_path: Path) -> None:
+        """Synthetic chroma with max at bin 0 should return 8B (C major)."""
+        from unittest.mock import patch
+
+        import numpy as np
+
+        # Create synthetic chroma where bin 0 (C) is dominant
+        synthetic_chroma = np.zeros((12, 100))
+        synthetic_chroma[0, :] = 1.0  # Bin 0 is max
+        synthetic_chroma[1:, :] = 0.1  # Others are low
+
+        with patch(
+            "playchitect.core.intensity_analyzer.librosa.feature.chroma_cqt",
+            return_value=synthetic_chroma,
+        ):
+            analyzer = IntensityAnalyzer(sample_rate=22050, cache_enabled=False)
+            camelot_key, key_index = analyzer._calculate_key(np.zeros(1000), 22050)
+
+        assert camelot_key == "8B"
+        assert key_index == 0.0
+
+    def test_synthetic_chroma_bin_1_returns_3b(self, tmp_path: Path) -> None:
+        """Synthetic chroma with max at bin 1 should return 3B (C# major)."""
+        from unittest.mock import patch
+
+        import numpy as np
+
+        # Create synthetic chroma where bin 1 (C#) is dominant
+        synthetic_chroma = np.zeros((12, 100))
+        synthetic_chroma[1, :] = 1.0  # Bin 1 is max
+        synthetic_chroma[0, :] = 0.1
+        synthetic_chroma[2:, :] = 0.1
+
+        with patch(
+            "playchitect.core.intensity_analyzer.librosa.feature.chroma_cqt",
+            return_value=synthetic_chroma,
+        ):
+            analyzer = IntensityAnalyzer(sample_rate=22050, cache_enabled=False)
+            camelot_key, key_index = analyzer._calculate_key(np.zeros(1000), 22050)
+
+        assert camelot_key == "3B"
+        assert key_index == 1.0
+
+    def test_cache_roundtrip_includes_camelot_key(self, tmp_path: Path) -> None:
+        """JSON cache round-trip preserves camelot_key."""
+        import soundfile as sf
+
+        cache_dir = tmp_path / "cache"
+        sample_rate = 22050
+        duration = 1.0
+        t = np.linspace(0, duration, int(sample_rate * duration))
+        audio = np.sin(2 * np.pi * 440 * t).astype(np.float32) * 0.5
+
+        test_file = tmp_path / "test_key.wav"
+        sf.write(test_file, audio, sample_rate)
+
+        analyzer = IntensityAnalyzer(
+            sample_rate=sample_rate, cache_dir=cache_dir, cache_enabled=True
+        )
+
+        # First analysis - should create cache with key info
+        features1 = analyzer.analyze(test_file)
+        assert hasattr(features1, "camelot_key")
+        assert features1.camelot_key in [
+            "1B",
+            "2B",
+            "3B",
+            "4B",
+            "5B",
+            "6B",
+            "7B",
+            "8B",
+            "9B",
+            "10B",
+            "11B",
+            "12B",
+        ]
+
+        # Second analysis - should load from cache with key info intact
+        features2 = analyzer.analyze(test_file)
+        assert features2.camelot_key == features1.camelot_key
+        assert features2.key_index == features1.key_index
+
+    def test_all_camelot_keys_mapped(self) -> None:
+        """Verify all 12 chroma bins map to valid Camelot keys."""
+        from playchitect.core.intensity_analyzer import _CHROMA_TO_CAMELOT
+
+        assert len(_CHROMA_TO_CAMELOT) == 12
+
+        for i in range(12):
+            assert i in _CHROMA_TO_CAMELOT
+            camelot_key, key_index = _CHROMA_TO_CAMELOT[i]
+            # Verify format: number (1-12) + letter (A or B)
+            assert len(camelot_key) >= 2
+            assert camelot_key[-1] in ("A", "B")
+            number = int(camelot_key[:-1])
+            assert 1 <= number <= 12
+            assert key_index == float(i)
 
 
 class TestIntensityAnalyzer:
@@ -448,6 +626,8 @@ def _make_fixture_features(filepath: Path) -> IntensityFeatures:
         bass_harmonics=0.4,
         percussiveness=0.8,
         onset_strength=0.65,
+        camelot_key="8B",
+        key_index=0.0,
     )
 
 
