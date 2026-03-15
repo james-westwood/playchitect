@@ -156,7 +156,7 @@
       "owner": "ralph",
       "description": "Implement history-aware 'Fresh Tracks' sequencing. (1) Create playchitect/core/play_history.py. Implement `PlayHistory` class: `__init__(history_path: Path = Path.home() / '.cache' / 'playchitect' / 'play_history.json')`. Methods: `load() -> None` (reads JSON dict `{path_str: {times_used: int, last_used: str ISO8601}}`; creates empty if missing); `record(track_path: Path) -> None` (increment times_used, set last_used to today); `get_freshness_score(track_path: Path) -> float` (1.0 if never used; otherwise `max(0.0, 1.0 - log(times_used + 1) / log(31)) * days_decay` where `days_decay = min(1.0, days_since_use / 30.0)`); `save() -> None`. (2) In playchitect/core/sequencer.py, add `sequence_fresh(tracks: list[Path], features: dict[Path, IntensityFeatures], history: PlayHistory) -> list[Path]`: sort by `history.get_freshness_score(p) * rms_energy` descending, excluding tracks with score < 0.1. (3) In PlaylistsView, add a 'Prefer fresh tracks' `Gtk.Switch` to the toolbar. When on, call `sequence_fresh`. After export, call `history.record()` for each exported track. (4) Add unit tests for PlayHistory.",
       "acceptance_criteria": "tests/unit/test_play_history.py: freshness_score for unseen track is 1.0. After record() called once, score is < 1.0. After 30 days (mock date), score approaches 1.0 again. sequence_fresh excludes tracks with score < 0.1. `uv run pytest tests/ -v` passes.",
-      "completed": false,
+      "completed": true,
       "priority": 6,
       "note": "GitHub issue #83"
     },
