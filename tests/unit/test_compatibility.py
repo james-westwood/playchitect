@@ -6,8 +6,6 @@ verifying the weighted combination of BPM, key, energy, and timbre scores.
 
 from pathlib import Path
 
-import pytest
-
 from playchitect.core.compatibility import compatibility_score, next_track_suggestions
 from playchitect.core.intensity_analyzer import IntensityFeatures
 
@@ -175,7 +173,7 @@ class TestCompatibilityScore:
 
         # 30 BPM diff: score = max(0, 1 - 30/20) = 0.0 (clamped)
         score_30 = compatibility_score(features_a, features_b, bpm_a=128.0, bpm_b=158.0)
-        assert score_30 == score_20, f"BPM diff > 20 should be clamped to 0"
+        assert score_30 == score_20, "BPM diff > 20 should be clamped to 0"
 
     def test_key_score_same_number(self) -> None:
         """Same Camelot number (different letter) is compatible."""

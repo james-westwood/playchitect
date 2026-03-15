@@ -7,9 +7,12 @@ timeline management, and next-track suggestions.
 from __future__ import annotations
 
 from pathlib import Path
-from typing import Any
 
 import gi
+
+from playchitect.core.compatibility import compatibility_score
+from playchitect.core.intensity_analyzer import IntensityFeatures
+from playchitect.core.metadata_extractor import TrackMetadata
 
 gi.require_version("Gtk", "4.0")
 gi.require_version("Adw", "1")
@@ -19,10 +22,6 @@ from gi.repository import (  # type: ignore[unresolved-import]  # noqa: E402
     Gtk,
     Pango,
 )
-
-from playchitect.core.compatibility import compatibility_score
-from playchitect.core.intensity_analyzer import IntensityFeatures
-from playchitect.core.metadata_extractor import TrackMetadata
 
 
 class SetBuilderView(Gtk.Box):

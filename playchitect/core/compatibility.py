@@ -10,7 +10,6 @@ from pathlib import Path
 
 from playchitect.core.intensity_analyzer import IntensityFeatures, harmonic_compatibility
 
-
 # Weight constants for compatibility score components
 _BPM_WEIGHT: float = 0.3
 _KEY_WEIGHT: float = 0.3
