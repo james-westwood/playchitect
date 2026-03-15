@@ -10,8 +10,6 @@ from pathlib import Path
 from typing import TYPE_CHECKING
 from unittest.mock import MagicMock, patch
 
-from gi.repository import Gtk  # type: ignore[unresolved-import]
-
 if TYPE_CHECKING:
     from playchitect.gui.views.export_view import ExportView
 
@@ -226,11 +224,7 @@ class TestDestinationSection:
         """Test that destination entry defaults to ~/Music/Playlists."""
         from playchitect.gui.views.export_view import DEFAULT_EXPORT_DIR
 
-        view = _make_view()
-        expected_default = str(DEFAULT_EXPORT_DIR)
-
-        # The view should set this as the text
-        # In a real instance, we check the actual entry text
+        # Verify the default export directory is ~/Music/Playlists
         assert DEFAULT_EXPORT_DIR == Path.home() / "Music" / "Playlists"
 
     def test_destination_entry_has_text(self):
