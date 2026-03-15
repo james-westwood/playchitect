@@ -11,6 +11,7 @@ from typing import TYPE_CHECKING
 from unittest.mock import MagicMock, patch
 
 from gi.repository import Gtk  # type: ignore[unresolved-import]
+
 from playchitect.gui.widgets.cluster_stats import ClusterStats
 
 if TYPE_CHECKING:

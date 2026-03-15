@@ -30,11 +30,9 @@ gi.require_version("Gtk", "4.0")
 gi.require_version("Adw", "1")
 
 from gi.repository import (  # type: ignore[unresolved-import]  # noqa: E402
-    Adw,
     GLib,
     GObject,
     Gtk,
-    Pango,
 )
 
 from playchitect.core.clustering import ClusterResult, PlaylistClusterer  # noqa: E402
