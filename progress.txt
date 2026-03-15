@@ -11,3 +11,4 @@
 [2026-03-15] [TASK-20] five_rhythms_sequencing: implemented and merged (PR #134)
 [2026-03-15] [TASK-22] compatibility_and_next_track: implemented and merged (PR #135)
 [2026-03-15] [TASK-27] history_aware_sequencing: implemented and merged (PR #136)
+[2026-03-15] [TASK-29] vibe_profiling_salience_scoring: implemented and merged (PR #137)
