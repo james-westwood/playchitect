@@ -39,7 +39,7 @@ MAX_ITERATIONS=10
 SKIP_REVIEW=false
 MODEL_MODE="random"  # random | claude | gemini | opencode
 RESUME=false
-OPENCODE_MODEL="opencode/claude-sonnet-4-6"  # override with --opencode-model
+OPENCODE_MODEL="opencode/kimi-k2.5"  # override with --opencode-model
 
 while [[ $# -gt 0 ]]; do
   case "$1" in
