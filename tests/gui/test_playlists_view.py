@@ -84,6 +84,10 @@ def _make_view() -> PlaylistsView:
     view._sort_dropdown = MagicMock()
     # TASK-14: Timbre similarity scale
     view._timbre_scale = MagicMock()
+    # TASK-16: Vocal filter buttons
+    view._vocal_btn_any = MagicMock()
+    view._vocal_btn_instrumental = MagicMock()
+    view._vocal_btn_vocal = MagicMock()
     return view
 
 
@@ -420,3 +424,179 @@ class TestTimbreControls:
         view = _make_view()
         assert hasattr(view, "_timbre_scale")
         assert view._timbre_scale is not None
+
+
+class TestVocalFilterControls:
+    """Tests for the vocal filter controls (TASK-16)."""
+
+    def test_toolbar_has_vocal_filter_buttons(self):
+        """Verify PlaylistsView has vocal filter ToggleButton chips."""
+        view = _make_view()
+        assert hasattr(view, "_vocal_btn_any")
+        assert hasattr(view, "_vocal_btn_instrumental")
+        assert hasattr(view, "_vocal_btn_vocal")
+        assert view._vocal_btn_any is not None
+        assert view._vocal_btn_instrumental is not None
+        assert view._vocal_btn_vocal is not None
+
+    def test_any_button_is_default_active(self):
+        """Verify 'Any' vocal filter button is active by default (via mocked state)."""
+        from unittest.mock import MagicMock, patch
+
+        from playchitect.gui.views.playlists_view import PlaylistsView
+
+        with (
+            patch("playchitect.gui.views.playlists_view.Gtk.Box") as mock_box,
+            patch("playchitect.gui.views.playlists_view.Gtk.ActionBar") as mock_action,
+            patch("playchitect.gui.views.playlists_view.Gtk.Button") as mock_button,
+            patch("playchitect.gui.views.playlists_view.Gtk.ToggleButton") as mock_toggle,
+            patch("playchitect.gui.views.playlists_view.Gtk.SpinButton") as mock_spin,
+            patch("playchitect.gui.views.playlists_view.Gtk.DropDown") as mock_dropdown,
+            patch("playchitect.gui.views.playlists_view.Gtk.StringList") as mock_stringlist,
+            patch("playchitect.gui.views.playlists_view.Gtk.Switch") as mock_switch,
+            patch("playchitect.gui.views.playlists_view.Gtk.Scale") as mock_scale,
+            patch("playchitect.gui.views.playlists_view.TrackListWidget") as mock_tracklist,
+            patch("playchitect.gui.views.playlists_view.Gtk.Spinner") as mock_spinner,
+            patch("playchitect.gui.views.playlists_view.Gtk.Label") as mock_label,
+            patch("playchitect.gui.views.playlists_view.Gtk.Paned") as mock_paned,
+            patch("playchitect.gui.views.playlists_view.Gtk.ListBox") as mock_listbox,
+            patch("playchitect.gui.views.playlists_view.Gtk.ScrolledWindow") as mock_scroll,
+            patch("playchitect.gui.views.playlists_view.Gtk.Separator") as mock_sep,
+        ):
+            # Setup mock returns
+            mock_action.return_value = MagicMock()
+            mock_button.return_value = MagicMock()
+            mock_spinner.return_value = MagicMock()
+            mock_label.return_value = MagicMock()
+            mock_paned.return_value = MagicMock()
+            mock_listbox.return_value = MagicMock()
+            mock_scroll.return_value = MagicMock()
+            mock_sep.return_value = MagicMock()
+            mock_tracklist.return_value = MagicMock()
+            mock_box.return_value = MagicMock()
+            mock_spin.return_value = MagicMock()
+            mock_dropdown.return_value = MagicMock()
+            mock_stringlist.new.return_value = MagicMock()
+            mock_switch.return_value = MagicMock()
+            mock_scale.return_value = MagicMock()
+
+            # Create toggle button mocks to capture their creation
+            toggle_mocks = []
+
+            def capture_toggle(*args, **kwargs):
+                mock = MagicMock()
+                toggle_mocks.append((args, kwargs, mock))
+                return mock
+
+            mock_toggle.side_effect = capture_toggle
+
+            _ = PlaylistsView()
+
+            # Find the "Any" toggle button (should be first vocal filter button)
+            any_btn = None
+            for args, kwargs, mock in toggle_mocks:
+                if kwargs.get("label") == "Any":
+                    any_btn = mock
+                    break
+
+            assert any_btn is not None, "ToggleButton with label='Any' not found"
+            # Verify set_active(True) was called
+            any_btn.set_active.assert_any_call(True)
+        """Verify 'Any' vocal filter button is active by default."""
+        from unittest.mock import MagicMock, patch
+
+        from playchitect.gui.views.playlists_view import PlaylistsView
+
+        with (
+            patch("playchitect.gui.views.playlists_view.Gtk.Box") as mock_box,
+            patch("playchitect.gui.views.playlists_view.Gtk.ActionBar") as mock_action,
+            patch("playchitect.gui.views.playlists_view.Gtk.Button") as mock_button,
+            patch("playchitect.gui.views.playlists_view.Gtk.ToggleButton") as mock_toggle,
+            patch("playchitect.gui.views.playlists_view.Gtk.SpinButton") as mock_spin,
+            patch("playchitect.gui.views.playlists_view.Gtk.DropDown") as mock_dropdown,
+            patch("playchitect.gui.views.playlists_view.Gtk.StringList") as mock_stringlist,
+            patch("playchitect.gui.views.playlists_view.Gtk.Switch") as mock_switch,
+            patch("playchitect.gui.views.playlists_view.Gtk.Scale") as mock_scale,
+            patch("playchitect.gui.views.playlists_view.TrackListWidget") as mock_tracklist,
+            patch("playchitect.gui.views.playlists_view.Gtk.Spinner") as mock_spinner,
+            patch("playchitect.gui.views.playlists_view.Gtk.Label") as mock_label,
+            patch("playchitect.gui.views.playlists_view.Gtk.Paned") as mock_paned,
+            patch("playchitect.gui.views.playlists_view.Gtk.ListBox") as mock_listbox,
+            patch("playchitect.gui.views.playlists_view.Gtk.ScrolledWindow") as mock_scroll,
+            patch("playchitect.gui.views.playlists_view.Gtk.Separator") as mock_sep,
+        ):
+            # Setup mock returns
+            mock_action.return_value = MagicMock()
+            mock_button.return_value = MagicMock()
+            mock_spinner.return_value = MagicMock()
+            mock_label.return_value = MagicMock()
+            mock_paned.return_value = MagicMock()
+            mock_listbox.return_value = MagicMock()
+            mock_scroll.return_value = MagicMock()
+            mock_sep.return_value = MagicMock()
+            mock_tracklist.return_value = MagicMock()
+            mock_box.return_value = MagicMock()
+            mock_spin.return_value = MagicMock()
+            mock_dropdown.return_value = MagicMock()
+            mock_stringlist.new.return_value = MagicMock()
+            mock_switch.return_value = MagicMock()
+            mock_scale.return_value = MagicMock()
+
+            # Create toggle button mocks to capture their creation
+            toggle_mocks = []
+
+            def capture_toggle(*args, **kwargs):
+                mock = MagicMock()
+                toggle_mocks.append((args, kwargs, mock))
+                return mock
+
+            mock_toggle.side_effect = capture_toggle
+
+            _ = PlaylistsView()
+
+            # Find the "Any" toggle button (should be first vocal filter button)
+            any_btn = None
+            for args, kwargs, mock in toggle_mocks:
+                if kwargs.get("label") == "Any":
+                    any_btn = mock
+                    break
+
+            assert any_btn is not None, "ToggleButton with label='Any' not found"
+            # Verify set_active(True) was called
+            any_btn.set_active.assert_any_call(True)
+
+
+class TestIntroColumn:
+    """Tests for the Intro column in TrackListWidget (TASK-16)."""
+
+    def test_track_model_has_intro_property(self):
+        """Verify TrackModel has intro_length_secs property."""
+        from playchitect.gui.widgets.track_list import TrackModel
+
+        model = TrackModel(
+            filepath="/test/track.mp3",
+            intro_length_secs=15.5,
+        )
+        assert hasattr(model, "intro_length_secs")
+        assert model.intro_length_secs == 15.5
+
+    def test_track_model_intro_formatted(self):
+        """Verify TrackModel formats intro_length_secs as 'Xs'."""
+        from playchitect.gui.widgets.track_list import TrackModel
+
+        model = TrackModel(
+            filepath="/test/track.mp3",
+            intro_length_secs=12.7,
+        )
+        assert model.intro_formatted == "12s"
+
+    def test_track_model_has_vocal_presence_property(self):
+        """Verify TrackModel has vocal_presence property."""
+        from playchitect.gui.widgets.track_list import TrackModel
+
+        model = TrackModel(
+            filepath="/test/track.mp3",
+            vocal_presence=0.75,
+        )
+        assert hasattr(model, "vocal_presence")
+        assert model.vocal_presence == 0.75
