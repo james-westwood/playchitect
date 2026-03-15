@@ -21,7 +21,7 @@ from playchitect.core.play_history import PlayHistory  # noqa: E402
 from playchitect.core.sequencer import Sequencer, sequence_fresh  # noqa: E402
 from playchitect.core.track_previewer import TrackPreviewer  # noqa: E402
 from playchitect.gui.preferences_window import PreferencesWindow  # noqa: E402
-from playchitect.gui.views import LibraryView, PlaylistsView  # noqa: E402
+from playchitect.gui.views import ExportView, LibraryView, PlaylistsView  # noqa: E402
 from playchitect.gui.widgets.track_list import TrackModel  # noqa: E402
 from playchitect.utils.config import get_config  # noqa: E402
 
@@ -218,10 +218,9 @@ class PlaychitectWindow(Adw.ApplicationWindow):
         set_builder_page.set_vexpand(True)
         stack.add_titled(set_builder_page, "set-builder", "Set Builder")
 
-        # Export view (stub)
-        export_page = Gtk.Label(label="Export — coming soon")
-        export_page.set_vexpand(True)
-        stack.add_titled(export_page, "export", "Export")
+        # Export view
+        self._export_view = ExportView()
+        stack.add_titled(self._export_view, "export", "Export")
 
         return stack
 
@@ -379,6 +378,10 @@ class PlaychitectWindow(Adw.ApplicationWindow):
         # Load clusters into playlists view
         self._playlists_view.load_clusters(self._clusters)
 
+        # Load clusters into export view
+        self._export_view.set_clusters(self._clusters, self._metadata_map)
+        self._export_view.set_cluster_names(self._cluster_names)
+
         self._track_title = f"Playchitect — {len(self._clusters)} clusters"
         self.set_title(self._track_title)
         return False
@@ -406,6 +409,9 @@ class PlaychitectWindow(Adw.ApplicationWindow):
 
         # Update UI with reordered clusters via playlists view
         self._playlists_view.load_clusters(self._clusters)
+
+        # Also update export view with new clusters
+        self._export_view.set_clusters(self._clusters, self._metadata_map)
 
         self._track_title = f"Playchitect — {len(self._clusters)} clusters ({preset_name})"
         self.set_title(self._track_title)

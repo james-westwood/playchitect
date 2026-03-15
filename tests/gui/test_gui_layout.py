@@ -105,6 +105,7 @@ def bare_window() -> PlaychitectWindow:
     w._split_view = MagicMock()
     w._playlists_view = MagicMock()
     w._library_view = MagicMock()
+    w._export_view = MagicMock()
     w._metadata_map = {}
     w._intensity_map = {}
     w._clusters = []
