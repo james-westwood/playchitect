@@ -21,7 +21,12 @@ from playchitect.core.play_history import PlayHistory  # noqa: E402
 from playchitect.core.sequencer import Sequencer, sequence_fresh  # noqa: E402
 from playchitect.core.track_previewer import TrackPreviewer  # noqa: E402
 from playchitect.gui.preferences_window import PreferencesWindow  # noqa: E402
-from playchitect.gui.views import ExportView, LibraryView, PlaylistsView  # noqa: E402
+from playchitect.gui.views import (  # noqa: E402
+    ExportView,
+    LibraryView,
+    PlaylistsView,
+    SetBuilderView,
+)
 from playchitect.gui.views.library_view import LibraryTrackModel  # noqa: E402
 from playchitect.gui.widgets.track_list import TrackModel  # noqa: E402
 from playchitect.gui.widgets.track_preview_panel import TrackPreviewPanel  # noqa: E402
@@ -229,10 +234,10 @@ class PlaychitectWindow(Adw.ApplicationWindow):
         self._playlists_view.connect("cluster-selected", self._on_playlists_cluster_selected)
         stack.add_titled(self._playlists_view, "playlists", "Playlists")
 
-        # Set Builder view (stub)
-        set_builder_page = Gtk.Label(label="Set Builder — coming soon")
-        set_builder_page.set_vexpand(True)
-        stack.add_titled(set_builder_page, "set-builder", "Set Builder")
+        # Set Builder view
+        self._set_builder_view = SetBuilderView()
+        self._set_builder_view.load_library(self._metadata_map, self._intensity_map)
+        stack.add_titled(self._set_builder_view, "set-builder", "Set Builder")
 
         # Export view
         self._export_view = ExportView()
@@ -393,6 +398,11 @@ class PlaychitectWindow(Adw.ApplicationWindow):
 
         # Load clusters into playlists view
         self._playlists_view.load_clusters(self._clusters)
+
+        # Load clusters into set builder view
+        self._set_builder_view.load_clusters(
+            self._clusters, self._metadata_map, self._intensity_map
+        )
 
         # Load clusters into export view
         self._export_view.set_clusters(self._clusters, self._metadata_map)
