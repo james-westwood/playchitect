@@ -49,6 +49,8 @@ class TrackModel(GObject.Object):
     # TASK-12: Energy flow features for GUI columns
     energy_gradient = GObject.Property(type=float, default=0.0)  # -1 to 1
     drop_density = GObject.Property(type=float, default=0.0)  # 0 to 1
+    # TASK-14: Timbre/texture feature for GUI column
+    spectral_flatness = GObject.Property(type=float, default=0.0)  # 0-1 (texture/noisiness)
 
     def __init__(
         self,
@@ -65,6 +67,7 @@ class TrackModel(GObject.Object):
         camelot_key: str = "",
         energy_gradient: float = 0.0,
         drop_density: float = 0.0,
+        spectral_flatness: float = 0.0,
     ) -> None:
         super().__init__()
         self.filepath = filepath
@@ -80,6 +83,7 @@ class TrackModel(GObject.Object):
         self.camelot_key = camelot_key
         self.energy_gradient = energy_gradient
         self.drop_density = drop_density
+        self.spectral_flatness = spectral_flatness
 
     @property
     def duration_str(self) -> str:
@@ -110,6 +114,16 @@ class TrackModel(GObject.Object):
         # drop_density is normalized to [0, 1] with 10 drops/min = 1.0
         drops_per_min = self.drop_density * 10.0
         return f"{drops_per_min:.1f}"
+
+    @property
+    def texture_label(self) -> str:
+        """Return texture label based on spectral_flatness value."""
+        if self.spectral_flatness < 0.3:
+            return "Tonal"
+        elif self.spectral_flatness <= 0.6:
+            return "Mixed"
+        else:
+            return "Noisy"
 
     @property
     def display_title(self) -> str:
@@ -262,6 +276,7 @@ class TrackListWidget(Gtk.Box):
             ("Key", 50, True, "camelot_key"),
             ("", 24, False, None),  # Compatibility dot column (no header)
             ("Mood", 90, True, "mood"),
+            ("Texture", 70, False, None),  # TASK-14: Texture column
             ("Hardness", 100, False, "hardness"),
             ("Gradient", 60, False, None),  # TASK-12: Energy gradient indicator
             ("Drops/min", 70, True, "drop_density"),  # TASK-12: Drop density
@@ -276,6 +291,7 @@ class TrackListWidget(Gtk.Box):
             self._bind_key,
             self._bind_compat_dot,
             self._bind_mood,
+            self._bind_texture,  # TASK-14
             self._bind_intensity,
             self._bind_gradient,  # TASK-12
             self._bind_drop_density,  # TASK-12
@@ -338,6 +354,13 @@ class TrackListWidget(Gtk.Box):
         track: TrackModel = item.get_item()
         label: Gtk.Label = item.get_child()
         label.set_text(track.mood or "—")
+
+    # TASK-14: Texture column bind method
+    def _bind_texture(self, _factory: Gtk.SignalListItemFactory, item: Gtk.ListItem) -> None:
+        track: TrackModel = item.get_item()
+        label: Gtk.Label = item.get_child()
+        label.set_text(track.texture_label)
+        label.set_tooltip_text(f"Spectral flatness: {track.spectral_flatness:.3f}")
 
     def _bind_intensity(self, _factory: Gtk.SignalListItemFactory, item: Gtk.ListItem) -> None:
         track: TrackModel = item.get_item()

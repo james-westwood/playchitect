@@ -41,6 +41,7 @@ from playchitect.core.metadata_extractor import TrackMetadata  # noqa: E402
 from playchitect.gui.widgets.cluster_stats import ClusterStats  # noqa: E402
 from playchitect.gui.widgets.track_list import TrackListWidget, TrackModel  # noqa: E402
 from playchitect.utils.config import get_config  # noqa: E402
+from playchitect.utils.weight_config import WeightOverrides  # noqa: E402
 
 logger = logging.getLogger(__name__)
 
@@ -225,6 +226,26 @@ class PlaylistsView(Gtk.Box):
 
         self._action_bar.pack_start(sort_box)
 
+        # TASK-14: Timbre similarity scale
+        timbre_box = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL, spacing=6)
+        timbre_box.set_margin_start(12)
+        timbre_label = Gtk.Label(label="Timbre similarity:")
+        timbre_box.append(timbre_label)
+
+        self._timbre_scale = Gtk.Scale(orientation=Gtk.Orientation.HORIZONTAL)
+        self._timbre_scale.set_range(0.0, 1.0)
+        self._timbre_scale.set_value(0.0)
+        self._timbre_scale.set_digits(2)
+        self._timbre_scale.set_draw_value(True)
+        self._timbre_scale.set_value_pos(Gtk.PositionType.RIGHT)
+        self._timbre_scale.set_tooltip_text(
+            "Increase to prioritize timbral similarity in clustering"
+        )
+        self._timbre_scale.set_size_request(120, -1)
+        timbre_box.append(self._timbre_scale)
+
+        self._action_bar.pack_start(timbre_box)
+
         # Right: Spinner (hidden while idle)
         self._spinner = Gtk.Spinner()
         self._spinner.set_visible(False)
@@ -405,17 +426,34 @@ class PlaylistsView(Gtk.Box):
             n_playlists = int(self._playlists_spin.get_value())
             n_playlists = n_playlists if n_playlists > 0 else None
 
+            # TASK-14: Read timbre similarity value and create weight overrides
+            timbre_value = self._timbre_scale.get_value()
+            weight_overrides = None
+            if timbre_value > 0:
+                # Multiply brightness weight by (1 + slider_value * 2)
+                brightness_multiplier = 1.0 + timbre_value * 2.0
+                weight_overrides = WeightOverrides(brightness=brightness_multiplier)
+                logger.debug(
+                    "Applying timbre weight override: brightness * %.2f", brightness_multiplier
+                )
+
             # Analyze intensities
             analyzer = IntensityAnalyzer(cache_dir=cache_dir)
             self._intensity_map = analyzer.analyze_batch(list(self._metadata_map.keys()))
 
-            # Create clusterer based on unit selection
+            # Create clusterer based on unit selection with optional weight overrides
             if unit_selected == 0:
                 # Tracks mode
-                clusterer = PlaylistClusterer(target_tracks_per_playlist=size_value)
+                clusterer = PlaylistClusterer(
+                    target_tracks_per_playlist=size_value,
+                    weight_overrides=weight_overrides,
+                )
             else:
                 # Minutes mode
-                clusterer = PlaylistClusterer(target_duration_per_playlist=size_value)
+                clusterer = PlaylistClusterer(
+                    target_duration_per_playlist=size_value,
+                    weight_overrides=weight_overrides,
+                )
 
             # Cluster by features with optional n_playlists override
             self._clusters = clusterer.cluster_by_features(
@@ -543,6 +581,7 @@ class PlaylistsView(Gtk.Box):
                 camelot_key=intensity.camelot_key if intensity else "",
                 energy_gradient=intensity.energy_gradient if intensity else 0.0,  # TASK-12
                 drop_density=intensity.drop_density if intensity else 0.0,  # TASK-12
+                spectral_flatness=intensity.spectral_flatness if intensity else 0.0,  # TASK-14
             )
             tracks.append(model)
 
