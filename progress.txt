@@ -17,3 +17,4 @@
 [2026-03-15] [TASK-03] four_view_navigation_sidebar: implemented and merged (PR #140)
 [2026-03-15] [TASK-04] library_view: implemented and merged (PR #141)
 [2026-03-15] [TASK-05] playlists_view: implemented and merged (PR #142)
+[2026-03-15] [TASK-06] export_view: implemented and merged (PR #143)
