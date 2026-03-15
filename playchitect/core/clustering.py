@@ -27,6 +27,7 @@ from playchitect.core.weighting import (
     ewkm_refine,
     select_weights,
 )
+from playchitect.utils.weight_config import WeightOverrides, apply_weight_overrides
 
 logger = logging.getLogger(__name__)
 
@@ -107,6 +108,7 @@ class PlaylistClusterer:
         min_clusters: int = 2,
         max_clusters: int = 10,
         random_state: int = 42,
+        weight_overrides: WeightOverrides | None = None,
     ):
         """
         Initialize playlist clusterer.
@@ -117,6 +119,7 @@ class PlaylistClusterer:
             min_clusters: Minimum number of clusters to consider
             max_clusters: Maximum number of clusters to consider
             random_state: Random seed for reproducibility
+            weight_overrides: Optional user-specified feature weight overrides
         """
         if target_tracks_per_playlist is None and target_duration_per_playlist is None:
             raise ValueError(
@@ -131,6 +134,7 @@ class PlaylistClusterer:
         self.max_clusters = max_clusters
         self.random_state = random_state
         self.scaler = StandardScaler()
+        self.weight_overrides = weight_overrides
 
     # ── Public API ─────────────────────────────────────────────────────────────
 
@@ -332,6 +336,17 @@ class PlaylistClusterer:
             profile: WeightProfile = select_weights(
                 features_normalized, genre=genre, random_state=self.random_state
             )
+            # Apply user-specified weight overrides if provided
+            if self.weight_overrides is not None:
+                profile = WeightProfile(
+                    weights=apply_weight_overrides(
+                        profile.weights, self.weight_overrides, FEATURE_NAMES
+                    ),
+                    source=f"{profile.source}+override",
+                    genre=profile.genre,
+                    n_tracks=profile.n_tracks,
+                    ci_width=profile.ci_width,
+                )
             w_sqrt = np.sqrt(profile.weights)
             features_for_kmeans = features_normalized * w_sqrt[np.newaxis, :]
             weight_source = profile.source
