@@ -281,7 +281,7 @@ class TestApplyWeightOverrides:
 
         # This won't raise during apply, but will simply not find the feature
         # if the names don't match
-        result = apply_weight_overrides(weights, overrides, FEATURE_NAMES)
+        apply_weight_overrides(weights, overrides, FEATURE_NAMES)
         # No error, just doesn't find 'bpm' in first 5 custom features
 
     def test_apply_invalid_ndim_raises(self) -> None:
