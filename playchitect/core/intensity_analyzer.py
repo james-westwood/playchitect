@@ -176,6 +176,12 @@ class IntensityFeatures:
     energy_gradient: float = 0.0  # Trend of energy over time (-1 to 1)
     drop_density: float = 0.0  # Normalised drops per minute (0-1)
 
+    # Timbre/texture features (metadata, not clustering dimensions)
+    spectral_flatness: float = 0.0  # Noisiness vs tonal (0-1)
+    zero_crossing_rate: float = 0.0  # Noisiness / high-freq content (0-1)
+    mfcc_variance: float = 0.0  # Spectral shape complexity (0-1)
+    spectral_rolloff_85: float = 0.0  # Frequency where 85% energy is below (0-1)
+
     @property
     def hardness(self) -> float:
         """
@@ -250,6 +256,15 @@ class IntensityFeatures:
             data["energy_gradient"] = 0.0
         if "drop_density" not in data:
             data["drop_density"] = 0.0
+        # Handle old cache files missing timbre/texture fields
+        if "spectral_flatness" not in data:
+            data["spectral_flatness"] = 0.0
+        if "zero_crossing_rate" not in data:
+            data["zero_crossing_rate"] = 0.0
+        if "mfcc_variance" not in data:
+            data["mfcc_variance"] = 0.0
+        if "spectral_rolloff_85" not in data:
+            data["spectral_rolloff_85"] = 0.0
         return cls(**data)
 
 
@@ -361,6 +376,12 @@ class IntensityAnalyzer:
                     y
                 )
 
+                # Compute timbre/texture features
+                spectral_flatness = self._calculate_spectral_flatness(y)
+                zcr = self._calculate_zero_crossing_rate(y)
+                mfcc_var = self._calculate_mfcc_variance(y, self.sample_rate)
+                sr_85 = self._calculate_spectral_rolloff_85(y, self.sample_rate)
+
             except Exception as e:
                 # Re-raise as ValueError with context for analyze_batch to catch
                 raise ValueError(f"Failed to analyze {filepath.name}: {e}") from e
@@ -380,6 +401,10 @@ class IntensityAnalyzer:
             dynamic_range=dynamic_range,
             energy_gradient=energy_gradient,
             drop_density=drop_density,
+            spectral_flatness=spectral_flatness,
+            zero_crossing_rate=zcr,
+            mfcc_variance=mfcc_var,
+            spectral_rolloff_85=sr_85,
         )
 
         # Cache results
@@ -594,6 +619,70 @@ class IntensityAnalyzer:
             drop_density = 0.0
 
         return dynamic_range, energy_gradient, drop_density
+
+    def _calculate_spectral_flatness(self, y: np.ndarray) -> float:
+        """
+        Calculate spectral flatness (noisiness vs tonal).
+
+        Args:
+            y: Audio time series
+
+        Returns:
+            Normalized spectral flatness (0-1), clipped at 0.5
+        """
+        flatness = float(np.mean(librosa.feature.spectral_flatness(y=y)))
+        # Normalize to [0, 1] by clipping at 0.5 and dividing
+        return float(np.clip(flatness / 0.5, 0.0, 1.0))
+
+    def _calculate_zero_crossing_rate(self, y: np.ndarray) -> float:
+        """
+        Calculate zero crossing rate (noisiness indicator).
+
+        Args:
+            y: Audio time series
+
+        Returns:
+            Normalized ZCR (0-1), clipped at 0.5
+        """
+        zcr = float(np.mean(librosa.feature.zero_crossing_rate(y=y)[0]))
+        # Normalize to [0, 1] by clipping at 0.5 and dividing
+        return float(np.clip(zcr / 0.5, 0.0, 1.0))
+
+    def _calculate_mfcc_variance(self, y: np.ndarray, sr: int) -> float:
+        """
+        Calculate MFCC variance (spectral shape complexity).
+
+        Args:
+            y: Audio time series
+            sr: Sample rate
+
+        Returns:
+            Normalized MFCC variance (0-1), divided by 100 and clipped
+        """
+        mfccs = librosa.feature.mfcc(y=y, sr=sr, n_mfcc=13)
+        # Calculate variance along time axis for each MFCC coefficient
+        variances = np.var(mfccs, axis=1)
+        # Mean variance across all coefficients
+        mfcc_var = float(np.mean(variances))
+        # Normalize to [0, 1] by dividing by 100 and clipping
+        return float(np.clip(mfcc_var / 100.0, 0.0, 1.0))
+
+    def _calculate_spectral_rolloff_85(self, y: np.ndarray, sr: int) -> float:
+        """
+        Calculate spectral rolloff at 85% (frequency below which 85% of energy resides).
+
+        Args:
+            y: Audio time series
+            sr: Sample rate
+
+        Returns:
+            Normalized rolloff (0-1), normalized to Nyquist frequency (sr/2)
+        """
+        rolloff = librosa.feature.spectral_rolloff(y=y, sr=sr, roll_percent=0.85)[0]
+        rolloff_mean = float(np.mean(rolloff))
+        # Normalize to [0, 1] by dividing by Nyquist frequency (sr/2)
+        nyquist = sr / 2.0
+        return float(np.clip(rolloff_mean / nyquist, 0.0, 1.0))
 
     def _compute_file_hash(self, filepath: Path) -> str:
         """
