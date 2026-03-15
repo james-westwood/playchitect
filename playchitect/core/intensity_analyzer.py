@@ -87,6 +87,7 @@ def harmonic_compatibility(key_a: str, key_b: str) -> bool:
 # Normalization constants
 _RMS_NORM_FACTOR: float = 0.3  # Typical peak RMS for normalized audio
 _ONSET_NORM_FACTOR: float = 10.0  # Typical peak onset strength envelope mean
+_MAX_GRADIENT_RMS_PER_FRAME: float = 0.001  # Max expected RMS change per frame for gradient
 
 # Frequency band limits (Hz) — optimized for techno/electronic music
 _FREQ_SUB_BASS_LOW: int = 20
@@ -566,9 +567,11 @@ class IntensityAnalyzer:
         # Energy gradient: trend of RMS over time, normalized to [-1, 1]
         if len(rms_frames) > 1:
             gradient = np.polyfit(np.arange(len(rms_frames)), rms_frames, 1)[0]
-            # Clip at ±0.001 then divide to normalize
-            gradient_clipped = np.clip(gradient, -0.001, 0.001)
-            energy_gradient = float(gradient_clipped / 0.001)
+            # Clip at ±_MAX_GRADIENT_RMS_PER_FRAME then divide to normalize
+            gradient_clipped = np.clip(
+                gradient, -_MAX_GRADIENT_RMS_PER_FRAME, _MAX_GRADIENT_RMS_PER_FRAME
+            )
+            energy_gradient = float(gradient_clipped / _MAX_GRADIENT_RMS_PER_FRAME)
         else:
             energy_gradient = 0.0
 
