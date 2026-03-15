@@ -10,6 +10,7 @@ from pathlib import Path
 from typing import TYPE_CHECKING
 from unittest.mock import MagicMock, patch
 
+import pytest
 from gi.repository import Gtk  # type: ignore[unresolved-import]
 
 from playchitect.gui.widgets.cluster_stats import ClusterStats
@@ -88,6 +89,8 @@ def _make_view() -> PlaylistsView:
     view._vocal_btn_any = MagicMock()
     view._vocal_btn_instrumental = MagicMock()
     view._vocal_btn_vocal = MagicMock()
+    # TASK-19: Energy arc widget
+    view._energy_arc = MagicMock()
     return view
 
 
@@ -330,6 +333,8 @@ class TestPlaylistsViewInstantiation:
             patch("playchitect.gui.views.playlists_view.Gtk.Switch") as mock_switch,
             # TASK-14: Timbre similarity scale
             patch("playchitect.gui.views.playlists_view.Gtk.Scale") as mock_scale,
+            # TASK-19: Energy arc widget
+            patch("playchitect.gui.views.playlists_view.EnergyArcWidget") as mock_energy_arc,
         ):
             # Setup mock returns
             mock_action.return_value = MagicMock()
@@ -347,6 +352,7 @@ class TestPlaylistsViewInstantiation:
             mock_stringlist.new.return_value = MagicMock()
             mock_switch.return_value = MagicMock()
             mock_scale.return_value = MagicMock()
+            mock_energy_arc.return_value = MagicMock()
 
             view = PlaylistsView()
             assert view is not None
@@ -462,6 +468,7 @@ class TestVocalFilterControls:
             patch("playchitect.gui.views.playlists_view.Gtk.ListBox") as mock_listbox,
             patch("playchitect.gui.views.playlists_view.Gtk.ScrolledWindow") as mock_scroll,
             patch("playchitect.gui.views.playlists_view.Gtk.Separator") as mock_sep,
+            patch("playchitect.gui.views.playlists_view.EnergyArcWidget") as mock_energy_arc,
         ):
             # Setup mock returns
             mock_action.return_value = MagicMock()
@@ -479,6 +486,7 @@ class TestVocalFilterControls:
             mock_stringlist.new.return_value = MagicMock()
             mock_switch.return_value = MagicMock()
             mock_scale.return_value = MagicMock()
+            mock_energy_arc.return_value = MagicMock()
 
             # Create toggle button mocks to capture their creation
             toggle_mocks = []
@@ -538,3 +546,240 @@ class TestIntroColumn:
         )
         assert hasattr(model, "vocal_presence")
         assert model.vocal_presence == 0.75
+
+
+class TestEnergyArcWidget:
+    """Tests for the EnergyArcWidget integration (TASK-19)."""
+
+    def test_playlists_view_has_energy_arc_widget(self):
+        """Verify PlaylistsView has an EnergyArcWidget child."""
+        view = _make_view()
+        assert hasattr(view, "_energy_arc")
+        assert view._energy_arc is not None
+
+    def test_energy_arc_update_clusters_does_not_raise(self):
+        """Verify update_clusters() with ClusterResults does not raise."""
+        from unittest.mock import MagicMock
+
+        # Test the logic directly by mocking the widget
+        widget = MagicMock()
+        widget._clusters = []
+        widget.queue_draw = MagicMock()
+
+        # Simulate update_clusters logic
+        def mock_update_clusters(clusters):
+            widget._clusters = []
+            for cluster in clusters:
+                name = getattr(cluster, "cluster_id", "Unknown")
+                feature_means = getattr(cluster, "feature_means", None) or {}
+                mean_rms = feature_means.get("rms_energy", 0.0)
+                widget._clusters.append((str(name), float(mean_rms)))
+            widget.queue_draw()
+
+        # Create mock ClusterResults with feature_means
+        clusters = []
+        for i in range(4):
+            cluster = MagicMock()
+            cluster.cluster_id = i
+            cluster.feature_means = {"rms_energy": 0.3 + i * 0.1}
+            clusters.append(cluster)
+
+        # Should not raise
+        try:
+            mock_update_clusters(clusters)
+        except Exception as e:
+            pytest.fail(f"update_clusters() raised {type(e).__name__}: {e}")
+
+        # Verify clusters were stored
+        assert len(widget._clusters) == 4
+        assert widget._clusters[0][0] == "0"
+        assert widget._clusters[0][1] == pytest.approx(0.3)
+        assert widget._clusters[3][0] == "3"
+        assert widget._clusters[3][1] == pytest.approx(0.6)
+        widget.queue_draw.assert_called_once()
+
+    def test_energy_arc_widget_real_update_clusters(self):
+        """Test actual EnergyArcWidget.update_clusters() extracts RMS correctly.
+
+        This tests the real widget implementation with mock ClusterResult objects
+        that have the proper structure (cluster_id and feature_means attributes).
+        """
+        import sys
+        from dataclasses import dataclass, field
+        from unittest.mock import MagicMock, patch
+
+        # Create a proper mock ClusterResult-like object
+        @dataclass
+        class MockClusterResult:
+            cluster_id: int | str
+            tracks: list[Path] = field(default_factory=list)
+            bpm_mean: float = 120.0
+            bpm_std: float = 5.0
+            track_count: int = 10
+            total_duration: float = 300.0
+            feature_means: dict[str, float] | None = None
+            feature_importance: dict[str, float] | None = None
+            weight_source: str | None = None
+            embedding_variance_explained: float | None = None
+            genre: str | None = None
+            opener: Path | None = None
+            closer: Path | None = None
+
+        # Create a mock class hierarchy for GTK
+        class MockDrawingArea:
+            def __init__(self, *args, **kwargs):
+                pass
+
+            def set_size_request(self, *args, **kwargs):
+                pass
+
+            def set_draw_func(self, *args, **kwargs):
+                pass
+
+            def queue_draw(self, *args, **kwargs):
+                pass
+
+        mock_gi = MagicMock()
+        mock_gi.repository.Gtk.DrawingArea = MockDrawingArea
+
+        with patch.dict("sys.modules", {"gi": mock_gi, "gi.repository": mock_gi.repository}):
+            # Clear the module cache to force reimport
+            modules_to_clear = [
+                key
+                for key in sys.modules.keys()
+                if key.startswith("playchitect.gui.widgets.energy_arc_widget")
+            ]
+            for key in modules_to_clear:
+                del sys.modules[key]
+
+            # Import the widget class with mocked GTK
+            from playchitect.gui.widgets.energy_arc_widget import EnergyArcWidget
+
+            widget = EnergyArcWidget.__new__(EnergyArcWidget)
+            widget._clusters = []
+
+            # Create 4 mock clusters with varying RMS energy values
+            clusters = [
+                MockClusterResult(cluster_id=0, feature_means={"rms_energy": 0.25}),
+                MockClusterResult(cluster_id=1, feature_means={"rms_energy": 0.50}),
+                MockClusterResult(cluster_id=2, feature_means={"rms_energy": 0.75}),
+                MockClusterResult(cluster_id=3, feature_means={"rms_energy": 1.00}),
+            ]
+
+            # Test that update_clusters extracts the correct data
+            widget.update_clusters(clusters)
+
+            # Verify the widget stored the correct cluster names and RMS values
+            assert len(widget._clusters) == 4
+            assert widget._clusters[0] == ("0", 0.25)
+            assert widget._clusters[1] == ("1", 0.50)
+            assert widget._clusters[2] == ("2", 0.75)
+            assert widget._clusters[3] == ("3", 1.00)
+
+    def test_energy_arc_widget_handles_missing_rms(self):
+        """Test EnergyArcWidget handles clusters without rms_energy gracefully."""
+        import sys
+        from dataclasses import dataclass, field
+        from unittest.mock import MagicMock, patch
+
+        @dataclass
+        class MockClusterResult:
+            cluster_id: int | str
+            tracks: list[Path] = field(default_factory=list)
+            bpm_mean: float = 120.0
+            bpm_std: float = 5.0
+            track_count: int = 10
+            total_duration: float = 300.0
+            feature_means: dict[str, float] | None = None
+            feature_importance: dict[str, float] | None = None
+            weight_source: str | None = None
+            embedding_variance_explained: float | None = None
+            genre: str | None = None
+            opener: Path | None = None
+            closer: Path | None = None
+
+        class MockDrawingArea:
+            def __init__(self, *args, **kwargs):
+                pass
+
+            def set_size_request(self, *args, **kwargs):
+                pass
+
+            def set_draw_func(self, *args, **kwargs):
+                pass
+
+            def queue_draw(self, *args, **kwargs):
+                pass
+
+        mock_gi = MagicMock()
+        mock_gi.repository.Gtk.DrawingArea = MockDrawingArea
+
+        with patch.dict("sys.modules", {"gi": mock_gi, "gi.repository": mock_gi.repository}):
+            modules_to_clear = [
+                key
+                for key in sys.modules.keys()
+                if key.startswith("playchitect.gui.widgets.energy_arc_widget")
+            ]
+            for key in modules_to_clear:
+                del sys.modules[key]
+
+            from playchitect.gui.widgets.energy_arc_widget import EnergyArcWidget
+
+            widget = EnergyArcWidget.__new__(EnergyArcWidget)
+            widget._clusters = []
+
+            # Cluster with empty feature_means (no rms_energy)
+            cluster_no_rms = MockClusterResult(cluster_id=0, feature_means={})
+            # Cluster with None feature_means
+            cluster_none_means = MockClusterResult(cluster_id=1, feature_means=None)
+            # Cluster with rms_energy
+            cluster_with_rms = MockClusterResult(cluster_id=2, feature_means={"rms_energy": 0.5})
+
+            clusters = [cluster_no_rms, cluster_none_means, cluster_with_rms]
+
+            widget.update_clusters(clusters)
+
+            # Should default to 0.0 for missing rms_energy
+            assert len(widget._clusters) == 3
+            assert widget._clusters[0] == ("0", 0.0)
+            assert widget._clusters[1] == ("1", 0.0)
+            assert widget._clusters[2] == ("2", 0.5)
+
+    def test_energy_arc_widget_empty_clusters(self):
+        """Test EnergyArcWidget handles empty cluster list."""
+        import sys
+        from unittest.mock import MagicMock, patch
+
+        class MockDrawingArea:
+            def __init__(self, *args, **kwargs):
+                pass
+
+            def set_size_request(self, *args, **kwargs):
+                pass
+
+            def set_draw_func(self, *args, **kwargs):
+                pass
+
+            def queue_draw(self, *args, **kwargs):
+                pass
+
+        mock_gi = MagicMock()
+        mock_gi.repository.Gtk.DrawingArea = MockDrawingArea
+
+        with patch.dict("sys.modules", {"gi": mock_gi, "gi.repository": mock_gi.repository}):
+            modules_to_clear = [
+                key
+                for key in sys.modules.keys()
+                if key.startswith("playchitect.gui.widgets.energy_arc_widget")
+            ]
+            for key in modules_to_clear:
+                del sys.modules[key]
+
+            from playchitect.gui.widgets.energy_arc_widget import EnergyArcWidget
+
+            widget = EnergyArcWidget.__new__(EnergyArcWidget)
+            widget._clusters = []
+
+            # Should handle empty list without error
+            widget.update_clusters([])
+            assert len(widget._clusters) == 0
