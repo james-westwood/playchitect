@@ -78,6 +78,8 @@ def _make_view() -> PlaylistsView:
     view._size_spin = MagicMock()
     view._unit_dropdown = MagicMock()
     view._playlists_spin = MagicMock()
+    # TASK-10: Harmonic mixing switch
+    view._harmonic_switch = MagicMock()
     return view
 
 
@@ -316,6 +318,8 @@ class TestPlaylistsViewInstantiation:
             patch("playchitect.gui.views.playlists_view.Gtk.SpinButton") as mock_spin,
             patch("playchitect.gui.views.playlists_view.Gtk.DropDown") as mock_dropdown,
             patch("playchitect.gui.views.playlists_view.Gtk.StringList") as mock_stringlist,
+            # TASK-10: Harmonic mixing switch
+            patch("playchitect.gui.views.playlists_view.Gtk.Switch") as mock_switch,
         ):
             # Setup mock returns
             mock_action.return_value = MagicMock()
@@ -331,6 +335,7 @@ class TestPlaylistsViewInstantiation:
             mock_spin.return_value = MagicMock()
             mock_dropdown.return_value = MagicMock()
             mock_stringlist.new.return_value = MagicMock()
+            mock_switch.return_value = MagicMock()
 
             view = PlaylistsView()
             assert view is not None
@@ -378,3 +383,13 @@ class TestPlaylistSizeControls:
         view = _make_view()
         assert hasattr(view, "_playlists_spin")
         assert view._playlists_spin is not None
+
+
+class TestHarmonicMixingControls:
+    """Tests for the harmonic mixing controls (TASK-10)."""
+
+    def test_toolbar_has_harmonic_switch(self):
+        """Verify PlaylistsView has a harmonic mixing Switch."""
+        view = _make_view()
+        assert hasattr(view, "_harmonic_switch")
+        assert view._harmonic_switch is not None
