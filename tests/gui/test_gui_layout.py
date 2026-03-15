@@ -102,6 +102,8 @@ def bare_window() -> PlaychitectWindow:
     w._intensity_map = {}
     w._clusters = []
     w._original_clusters = []
+    w._playlist_namer = MagicMock()
+    w._cluster_names = {}
     return w
 
 
