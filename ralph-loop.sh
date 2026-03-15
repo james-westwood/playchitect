@@ -364,7 +364,8 @@ EOF
       log "  Merging PR #$PR_NUMBER..."
       gh pr merge "$PR_NUMBER" --merge --delete-branch
       git checkout "$MAIN_BRANCH"
-      git pull --ff-only origin "$MAIN_BRANCH"
+      git fetch origin "$MAIN_BRANCH"
+      git reset --hard "origin/$MAIN_BRANCH"
       log "  Updating task tracking (prd.json + progress.txt)..."
       python3 - <<PYEOF
 import json
@@ -386,9 +387,11 @@ PYEOF
       log "  Branch exists but no PR — resuming coding on existing branch."
     fi
   else
-    # Fresh start
+    # Fresh start — fetch + reset --hard ensures local main matches remote
+    # exactly regardless of any divergence from previous iterations.
     git checkout "$MAIN_BRANCH"
-    git pull --ff-only origin "$MAIN_BRANCH" 2>/dev/null || true
+    git fetch origin "$MAIN_BRANCH"
+    git reset --hard "origin/$MAIN_BRANCH"
     git checkout -b "$BRANCH"
   fi
 
@@ -692,8 +695,14 @@ Fix steps:
   log "  Merging PR #$PR_NUMBER..."
   gh pr merge "$PR_NUMBER" --merge --delete-branch
 
+  # Use fetch + reset --hard instead of pull --ff-only. After gh pr merge,
+  # the remote main has the new merge commit but our local main may have
+  # diverged (e.g. a previous iteration's tracking commit didn't push cleanly,
+  # or set -euo pipefail killed us mid-push leaving local ahead of remote).
+  # reset --hard is unconditional — it always makes local match remote exactly.
   git checkout "$MAIN_BRANCH"
-  git pull --ff-only origin "$MAIN_BRANCH"
+  git fetch origin "$MAIN_BRANCH"
+  git reset --hard "origin/$MAIN_BRANCH"
 
   # ── Orchestrator-owned task tracking ──────────────────────────────────────
   # The AI coder no longer touches prd.json or progress.txt — we do it here,
