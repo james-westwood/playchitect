@@ -332,7 +332,7 @@
       "owner": "ralph",
       "description": "Implement the full Interactive Set Builder Workspace in SetBuilderView (requires TASK-21, TASK-22). (1) Timeline lane: a `Gtk.Box(HORIZONTAL, spacing=4)` inside a `Gtk.ScrolledWindow(HORIZONTAL)`. Each track in the set is represented by a `TrackCard(Gtk.Frame)` widget showing: 2-char sequence number, title (truncated), BPM, a coloured energy mini-bar, and a transition indicator dot (green/amber/red via compatibility_score with next track). Drag-and-drop reorder: use `Gtk.DragSource` + `Gtk.DropTarget` with `GdkContentProvider` carrying the track index. On drop, swap positions and recalculate transition indicators. (2) Left browser panel: a compact `Gtk.ColumnView` showing all library tracks (Title, Artist, BPM) \u2014 double-click adds to timeline. Filter by energy block (chips matching EnergyBlock names). (3) [Auto-fill] button: from the last track in the timeline, call `next_track_suggestions` greedily (add best candidate not already in set, repeat until timeline has 20 tracks or no candidates remain). (4) [Export Set] button: write the timeline order as an M3U file using `M3UExporter`. (5) Footer `Gtk.StatusBar`: total duration (sum of track durations), mean BPM, mean rms_energy. Add smoke tests.",
       "acceptance_criteria": "tests/gui/test_set_builder_view.py: SetBuilderView instantiates. TrackCard renders with title and BPM. Auto-fill adds tracks. Export Set button is present. Footer labels exist. `uv run pytest tests/ -v` passes.",
-      "completed": false,
+      "completed": true,
       "priority": 5,
       "note": "GitHub issue #101 (MVP)"
     },
