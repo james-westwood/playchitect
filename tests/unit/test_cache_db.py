@@ -31,6 +31,8 @@ def _make_features(
         bass_harmonics=harmonics,
         percussiveness=perc,
         onset_strength=onset,
+        camelot_key="8B",
+        key_index=0.0,
     )
 
 

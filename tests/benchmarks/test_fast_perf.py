@@ -172,6 +172,8 @@ class TestFastPerformanceChecks:
                 bass_harmonics=random.random(),
                 percussiveness=random.random(),
                 onset_strength=random.random(),
+                camelot_key="8B",
+                key_index=0.0,
             )
             for p in paths
         }
