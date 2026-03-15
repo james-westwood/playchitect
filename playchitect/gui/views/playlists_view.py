@@ -195,6 +195,20 @@ class PlaylistsView(Gtk.Box):
 
         self._action_bar.pack_start(controls_box)
 
+        # Center: Harmonic mixing control
+        harmonic_box = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL, spacing=6)
+        harmonic_box.set_margin_start(12)
+        harmonic_label = Gtk.Label(label="Harmonic mixing")
+        harmonic_box.append(harmonic_label)
+
+        self._harmonic_switch = Gtk.Switch()
+        self._harmonic_switch.set_valign(Gtk.Align.CENTER)
+        self._harmonic_switch.set_tooltip_text("Enable harmonic key sequencing")
+        self._harmonic_switch.connect("notify::active", self._on_harmonic_switch_toggled)
+        harmonic_box.append(self._harmonic_switch)
+
+        self._action_bar.pack_start(harmonic_box)
+
         # Right: Spinner (hidden while idle)
         self._spinner = Gtk.Spinner()
         self._spinner.set_visible(False)
@@ -356,6 +370,13 @@ class PlaylistsView(Gtk.Box):
             self._size_spin.set_increments(5, 15)
             self._size_spin.set_value(60)
 
+    def _on_harmonic_switch_toggled(self, switch: Gtk.Switch, _param: object) -> None:
+        """Handle harmonic mixing switch toggle - reload tracks with new sequencing."""
+        # Reload current cluster tracks if one is selected
+        if self._selected_cluster_id is not None:
+            self._load_tracks_for_cluster(self._selected_cluster_id)
+            logger.info("Harmonic mixing %s", "enabled" if switch.get_active() else "disabled")
+
     def _generate_worker(self) -> None:
         """Background worker for intensity analysis and clustering."""
         try:
@@ -452,9 +473,23 @@ class PlaylistsView(Gtk.Box):
             self._track_list.clear()
             return
 
+        # Apply harmonic sequencing if switch is enabled
+        track_order = cluster.tracks
+        if self._harmonic_switch.get_active():
+            from playchitect.core.sequencer import sequence_harmonic
+
+            try:
+                track_order = sequence_harmonic(
+                    list(cluster.tracks),
+                    self._intensity_map,
+                )
+            except (ValueError, KeyError) as e:
+                logger.warning("Harmonic sequencing failed: %s", e)
+                # Fall back to original order
+
         # Build track models
         tracks: list[TrackModel] = []
-        for path in cluster.tracks:
+        for path in track_order:
             meta = self._metadata_map.get(path)
             if not meta:
                 continue
@@ -471,6 +506,7 @@ class PlaylistsView(Gtk.Box):
                 duration=meta.duration or 0.0,
                 audio_format=path.suffix,
                 mood=intensity.mood_label if intensity else "",
+                camelot_key=intensity.camelot_key if intensity else "",
             )
             tracks.append(model)
 

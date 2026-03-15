@@ -303,3 +303,110 @@ def sequence_fresh(
     )
 
     return result
+
+
+def _harmonic_score(key_a: str, key_b: str) -> int:
+    """Calculate harmonic compatibility score between two Camelot keys.
+
+    Returns:
+        Score from 0-2 where:
+        - 2: Compatible (same number or adjacent with same letter)
+        - 1: Same number, different letter (mode switch - acceptable)
+        - 0: Incompatible
+    """
+    if key_a == key_b:
+        return 2  # Same key
+
+    try:
+        num_a, letter_a = int(key_a[:-1]), key_a[-1]
+        num_b, letter_b = int(key_b[:-1]), key_b[-1]
+    except (ValueError, IndexError):
+        return 0
+
+    # Same number, different letter = mode switch (score 1)
+    if num_a == num_b and letter_a != letter_b:
+        return 1
+
+    # Same letter with adjacent numbers (including wrap-around 12->1)
+    if letter_a == letter_b:
+        diff = abs(num_a - num_b)
+        if diff == 1 or diff == 11:
+            return 2
+
+    return 0
+
+
+def sequence_harmonic(
+    tracks: list[Path],
+    features: dict[Path, IntensityFeatures],
+) -> list[Path]:
+    """Sequence tracks using greedy nearest-Camelot-neighbour approach.
+
+    Starts from the track with highest energy, then repeatedly picks the next
+    track with the highest harmonic compatibility score. Ties are broken by
+    energy proximity (prefer tracks with similar RMS energy).
+
+    Args:
+        tracks: List of track paths to sequence.
+        features: Mapping of path to IntensityFeatures (contains camelot_key).
+
+    Returns:
+        List of track paths in harmonic sequence order.
+
+    Raises:
+        ValueError: If a track is missing from the features dict or has no key.
+    """
+    if not tracks:
+        return []
+
+    # Validate all tracks have features
+    for track in tracks:
+        if track not in features:
+            raise ValueError(f"Missing features for track: {track}")
+
+    if len(tracks) == 1:
+        return tracks
+
+    # Start with highest energy track
+    remaining = set(tracks)
+    current = max(remaining, key=lambda t: features[t].rms_energy)
+    result = [current]
+    remaining.remove(current)
+
+    while remaining:
+        current_key = features[current].camelot_key
+        current_energy = features[current].rms_energy
+
+        # Find best next track by harmonic score, then energy proximity
+        best_track: Path | None = None
+        best_score = -1
+        best_energy_diff = float("inf")
+
+        for candidate in remaining:
+            candidate_key = features[candidate].camelot_key
+            candidate_energy = features[candidate].rms_energy
+
+            score = _harmonic_score(current_key, candidate_key)
+            energy_diff = abs(current_energy - candidate_energy)
+
+            # Prefer higher score, then lower energy difference
+            if score > best_score or (score == best_score and energy_diff < best_energy_diff):
+                best_track = candidate
+                best_score = score
+                best_energy_diff = energy_diff
+
+        if best_track is None:
+            # Fallback: shouldn't happen but handle gracefully
+            best_track = remaining.pop()
+        else:
+            remaining.remove(best_track)
+
+        result.append(best_track)
+        current = best_track
+
+    logger.info(
+        "Sequenced %d tracks using harmonic mixing (starting with highest energy)",
+        len(result),
+    )
+
+    return result
