@@ -310,7 +310,7 @@
       "owner": "ralph",
       "description": "Implement the energy arc sparkline above the cluster sidebar in PlaylistsView (requires TASK-18 and TASK-05). Create playchitect/gui/widgets/energy_arc_widget.py with `EnergyArcWidget(Gtk.DrawingArea)`. (1) Constructor accepts nothing; expose `update_clusters(clusters: list[ClusterResult]) -> None`. (2) In the `draw` signal handler (connected via `self.set_draw_func`), given a list of (name, mean_rms) pairs: compute x positions evenly spaced; compute y positions from mean_rms normalised 0\u20131 relative to min/max; draw using `cairo.Context`: a filled polygon under the curve (RGBA with 30% alpha), a stroke over the top, and small circle dots at each data point. Colour: use a single `#6B9BDF` blue tone. (3) Minimum height 80px, set via `self.set_size_request(-1, 80)`. (4) In PlaylistsView, place `EnergyArcWidget` above the cluster `Gtk.ListBox`. Call `update_clusters()` after each Generate Playlists completion. (5) Add smoke test asserting `EnergyArcWidget` exists as a child of PlaylistsView.",
       "acceptance_criteria": "tests/gui/test_playlists_view.py: PlaylistsView contains an EnergyArcWidget child. update_clusters() with a list of 4 ClusterResults does not raise. `uv run pytest tests/ -v` passes.",
-      "completed": false,
+      "completed": true,
       "priority": 4,
       "note": "GitHub issue #85"
     },
