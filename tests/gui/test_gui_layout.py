@@ -67,6 +67,10 @@ def _patch_deps(monkeypatch: pytest.MonkeyPatch, launcher: str | None = None) ->
         MagicMock(return_value=MagicMock()),
     )
     monkeypatch.setattr(
+        "playchitect.gui.windows.main_window.SetBuilderView",
+        MagicMock(return_value=MagicMock()),
+    )
+    monkeypatch.setattr(
         "playchitect.gui.windows.main_window.get_config",
         MagicMock(return_value=mock_config),
     )
@@ -105,6 +109,7 @@ def bare_window() -> PlaychitectWindow:
     w._split_view = MagicMock()
     w._playlists_view = MagicMock()
     w._library_view = MagicMock()
+    w._set_builder_view = MagicMock()
     w._export_view = MagicMock()
     w._metadata_map = {}
     w._intensity_map = {}
