@@ -21,6 +21,7 @@ from playchitect.core.play_history import PlayHistory  # noqa: E402
 from playchitect.core.sequencer import Sequencer, sequence_fresh  # noqa: E402
 from playchitect.core.track_previewer import TrackPreviewer  # noqa: E402
 from playchitect.gui.preferences_window import PreferencesWindow  # noqa: E402
+from playchitect.gui.views import LibraryView  # noqa: E402
 from playchitect.gui.widgets.cluster_stats import ClusterStats  # noqa: E402
 from playchitect.gui.widgets.cluster_view import ClusterViewPanel  # noqa: E402
 from playchitect.gui.widgets.track_list import TrackListWidget, TrackModel  # noqa: E402
@@ -113,6 +114,9 @@ class PlaychitectWindow(Adw.ApplicationWindow):
         # Main content stack
         self._view_stack = self._build_view_stack()
 
+        # Create cluster panel and track list (for backward compatibility)
+        self._build_cluster_panel_and_track_list()
+
         # OverlaySplitView with sidebar
         self._split_view = Adw.OverlaySplitView()
         self._split_view.set_sidebar_width_fraction(0.18)
@@ -203,9 +207,11 @@ class PlaychitectWindow(Adw.ApplicationWindow):
         """Build the main content view stack with four pages."""
         stack = Adw.ViewStack()
 
-        # Library view (existing scan/cluster logic)
-        library_page = self._build_library_page()
-        stack.add_titled(library_page, "library", "Library")
+        # Library view (using new LibraryView)
+        self._library_view = LibraryView()
+        self._library_view.connect("scan-complete", self._on_library_scan_complete)
+        self._library_view.connect("track-selected", self._on_library_track_selected)
+        stack.add_titled(self._library_view, "library", "Library")
 
         # Playlists view (stub)
         playlists_page = Gtk.Label(label="Playlists — coming soon")
@@ -223,6 +229,30 @@ class PlaychitectWindow(Adw.ApplicationWindow):
         stack.add_titled(export_page, "export", "Export")
 
         return stack
+
+    def _build_cluster_panel_and_track_list(self) -> tuple[Gtk.Widget, Gtk.Widget]:
+        """Build the cluster panel and track list widgets.
+
+        Returns:
+            Tuple of (cluster_panel, track_list)
+        """
+        # Create paned layout for cluster panel and track list
+        paned = Gtk.Paned(orientation=Gtk.Orientation.HORIZONTAL)
+        paned.set_position(280)
+        paned.set_shrink_start_child(False)
+        paned.set_shrink_end_child(False)
+        paned.set_vexpand(True)
+
+        self.cluster_panel = ClusterViewPanel()
+        self.cluster_panel.set_size_request(220, -1)
+        self.cluster_panel.connect("cluster-selected", self._on_cluster_selected)
+        paned.set_start_child(self.cluster_panel)
+
+        self.track_list = TrackListWidget()
+        self.track_list.connect("preview-requested", self._on_preview_requested)
+        paned.set_end_child(self.track_list)
+
+        return paned
 
     def _build_library_page(self) -> Gtk.Widget:
         """Build the library page containing the scan/cluster UI."""
@@ -531,3 +561,15 @@ class PlaychitectWindow(Adw.ApplicationWindow):
             self._play_history.record(path)
         self._play_history.save()
         logger.info("Recorded %d tracks to play history", len(track_paths))
+
+    def _on_library_scan_complete(self, view: LibraryView, store: Gio.ListStore) -> None:
+        """Handle library view scan completion."""
+        count = store.get_n_items()
+        self._track_title = f"Playchitect — {count} tracks"
+        self.set_title(self._track_title)
+        self._cluster_btn.set_sensitive(count > 0)
+
+    def _on_library_track_selected(self, view: LibraryView, track: object) -> None:
+        """Handle track selection in library view."""
+        # TODO: Implement track preview or details view
+        logger.debug("Track selected: %s", getattr(track, "display_title", track))
