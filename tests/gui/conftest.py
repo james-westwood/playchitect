@@ -181,6 +181,9 @@ class _FakeGtkBase:
     def set_valign(self, *_args: object) -> None:
         pass
 
+    def set_halign(self, *_args: object) -> None:
+        pass
+
     def set_position(self, *_args: object) -> None:
         pass
 
@@ -207,6 +210,12 @@ class _FakeGtkBase:
 
     def emit(self, *_args: object, **_kwargs: object) -> None:
         pass
+
+    def set_visible(self, *_args: object) -> None:
+        pass
+
+    def get_visible(self, *_args: object) -> bool:
+        return True
 
 
 _gtk_mock = MagicMock()
