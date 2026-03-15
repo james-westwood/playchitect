@@ -79,7 +79,7 @@ def compute_vibe_profile(
         raise ValueError("Cannot compute vibe profile for empty cluster")
 
     # Collect feature values for tracks in this cluster
-    cluster_features: list["IntensityFeatures"] = []
+    cluster_features: list[IntensityFeatures] = []
     for track_path in cluster.tracks:
         if track_path in features:
             cluster_features.append(features[track_path])
