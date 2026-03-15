@@ -5,3 +5,4 @@
 [2026-03-15] [TASK-02] cli_weight_flags: implemented and merged (PR #128)
 [2026-03-15] [TASK-11] energy_flow_features: implemented and merged (PR #129)
 [2026-03-15] [TASK-13] timbre_texture_features: implemented and merged (PR #130)
+[2026-03-15] [TASK-15] structural_vocal_features: implemented and merged (PR #131)

@@ -101,7 +101,7 @@
       "owner": "ralph",
       "description": "Add structural/vocal features to IntensityFeatures (requires TASK-11 baseline pattern). (1) Add two new metadata fields (not in feature vector): `vocal_presence: float` (0\u20131), `intro_length_secs: float` (seconds). (2) In `analyze()`: for `vocal_presence`, run `librosa.effects.hpss(y)` to get `y_harmonic`; compute `harmonic_spec = np.abs(librosa.stft(y_harmonic))`; find frequency bins for 200\u2013800Hz using `librosa.fft_frequencies(sr=sr)`; `vocal_energy = harmonic_spec[vocal_bins].sum()`; `total_harmonic_energy = harmonic_spec.sum() + 1e-9`; `vocal_presence = float(np.clip(vocal_energy / total_harmonic_energy * 10, 0, 1))` (scale factor 10 because vocal band is a subset). For `intro_length_secs`: use `rms_frames` (already computed in energy_gradient step \u2014 share computation); `threshold = 0.5 * np.mean(rms_frames)`; `intro_frames = np.argmax(rms_frames > threshold)`; `intro_length_secs = float(intro_frames * 512 / sr)`. (3) Add to JSON cache, handle missing keys as 0.0. Add unit tests.",
       "acceptance_criteria": "tests/unit/test_intensity_analyzer.py: synthetic y with a loud harmonic mid-range yields vocal_presence > 0. Silent prefix followed by loud portion yields intro_length_secs > 0. `uv run pytest tests/ -v` passes.",
-      "completed": false,
+      "completed": true,
       "priority": 4,
       "note": "GitHub issue #42"
     },
