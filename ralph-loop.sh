@@ -412,6 +412,42 @@ Rules:
 
   run_coder "$CODER" "$CODER_PROMPT" 2>&1 | tee -a "$LOG_FILE"
 
+  # ── Pre-commit gate (catch lint/format failures before CI sees them) ────────
+
+  MAX_PRECOMMIT_ROUNDS=2
+  for _pc_round in $(seq 1 $MAX_PRECOMMIT_ROUNDS); do
+    log "  Running pre-commit gate (round $_pc_round/$MAX_PRECOMMIT_ROUNDS)..."
+    PRECOMMIT_OUTPUT=$(uv run pre-commit run --all-files 2>&1 || true)
+    if echo "$PRECOMMIT_OUTPUT" | grep -q "^.*Failed$\|hook id:"; then
+      log "  Pre-commit failed (round $_pc_round) — invoking coder to fix..."
+      echo "$PRECOMMIT_OUTPUT" | tee -a "$LOG_FILE"
+      if [[ $_pc_round -lt $MAX_PRECOMMIT_ROUNDS ]]; then
+        PRECOMMIT_FIX_PROMPT="You are the CODER who just implemented task [$TASK_ID] $TASK_TITLE for the playchitect project.
+
+Pre-commit checks have failed. Fix every issue listed below, then run pre-commit again to confirm it passes.
+
+Pre-commit output:
+---
+$PRECOMMIT_OUTPUT
+---
+
+Fix steps:
+1. Fix all flagged issues in the listed files
+2. Run: uv run pre-commit run --all-files  — must exit 0
+3. Run: uv run pytest tests/ -v  — must still pass
+4. Stage and commit the fixes: git add -u && git commit -m '[$TASK_ID] $TASK_TITLE: fix pre-commit failures'
+
+Do NOT push."
+        run_coder "$CODER" "$PRECOMMIT_FIX_PROMPT" 2>&1 | tee -a "$LOG_FILE"
+      else
+        log "  Pre-commit still failing after $MAX_PRECOMMIT_ROUNDS rounds — pushing anyway (CI will catch it)."
+      fi
+    else
+      log "  Pre-commit gate passed."
+      break
+    fi
+  done
+
   # ── Push and open PR ───────────────────────────────────────────────────────
 
   log "  Pushing $BRANCH..."
@@ -537,22 +573,82 @@ Do NOT push. Do NOT open a new PR. Fix only the issues raised — do not refacto
     log "  Final review verdict: $REVIEW_VERDICT"
   fi
 
-  # ── Merge ──────────────────────────────────────────────────────────────────
+  # ── CI wait + fix loop ─────────────────────────────────────────────────────
 
-  log "  Waiting for CI to pass on PR #$PR_NUMBER..."
-  for _wait in $(seq 1 60); do
-    sleep 30
-    CI_STATUS=$(gh pr checks "$PR_NUMBER" --json state -q '.[].state' 2>/dev/null | sort -u | tr '\n' ' ')
-    if echo "$CI_STATUS" | grep -q "FAILURE\|ERROR"; then
-      log "  CI FAILED on PR #$PR_NUMBER — stopping. Fix the failure and re-run ralph."
-      exit 1
+  MAX_CI_FIX_ROUNDS=2
+  CI_PASSED=false
+
+  for _ci_fix_round in $(seq 0 $MAX_CI_FIX_ROUNDS); do
+    if [[ $_ci_fix_round -gt 0 ]]; then
+      log "  CI fix round $_ci_fix_round/$MAX_CI_FIX_ROUNDS — waiting for CI to re-run..."
     fi
-    if echo "$CI_STATUS" | grep -qv "PENDING\|IN_PROGRESS\|QUEUED\|WAITING\|EXPECTED" && [[ -n "$CI_STATUS" ]]; then
-      log "  CI passed (check ${_wait}/60, ci=$CI_STATUS)"
+
+    log "  Waiting for CI on PR #$PR_NUMBER..."
+    CI_FINAL_STATUS=""
+    for _wait in $(seq 1 60); do
+      sleep 30
+      CI_STATUS=$(gh pr checks "$PR_NUMBER" --json state -q '.[].state' 2>/dev/null | sort -u | tr '\n' ' ')
+      if echo "$CI_STATUS" | grep -q "FAILURE\|ERROR"; then
+        CI_FINAL_STATUS="FAILED"
+        break
+      fi
+      if [[ -n "$CI_STATUS" ]] && ! echo "$CI_STATUS" | grep -q "PENDING\|IN_PROGRESS\|QUEUED\|WAITING\|EXPECTED"; then
+        CI_FINAL_STATUS="PASSED"
+        break
+      fi
+      log "  Still waiting... (check ${_wait}/60, ci=$CI_STATUS)"
+    done
+
+    if [[ "$CI_FINAL_STATUS" == "PASSED" ]]; then
+      log "  CI passed."
+      CI_PASSED=true
       break
     fi
-    log "  Still waiting... (check ${_wait}/60, ci=$CI_STATUS)"
+
+    if [[ "$CI_FINAL_STATUS" == "FAILED" ]]; then
+      if [[ $_ci_fix_round -ge $MAX_CI_FIX_ROUNDS ]]; then
+        log "  CI still failing after $MAX_CI_FIX_ROUNDS fix round(s) — stopping. Manual fix required."
+        exit 1
+      fi
+
+      log "  CI FAILED — fetching failure log and invoking coder to fix (round $_ci_fix_round)..."
+      CI_RUN_ID=$(gh run list --branch "$BRANCH" --limit 1 --json databaseId -q '.[0].databaseId' 2>/dev/null)
+      CI_FAILURE_LOG=$(gh run view "$CI_RUN_ID" --log-failed 2>/dev/null | tail -100)
+
+      CI_FIX_PROMPT="You are the CODER who implemented task [$TASK_ID] $TASK_TITLE for the playchitect project.
+
+The CI pipeline has failed on the pull request. Fix every issue shown in the failure log below.
+
+CI failure log:
+---
+$CI_FAILURE_LOG
+---
+
+Fix steps:
+1. Read the failure log carefully and identify the root cause
+2. Fix the failing files
+3. Run: uv run pre-commit run --all-files  — must exit 0
+4. Run: uv run pytest tests/ -v  — must pass
+5. Stage and commit fixes: git add -u && git commit -m '[$TASK_ID] $TASK_TITLE: fix CI failure'
+6. Do NOT push — the orchestrator will push."
+
+      git checkout "$BRANCH"
+      run_coder "$CODER" "$CI_FIX_PROMPT" 2>&1 | tee -a "$LOG_FILE"
+      log "  Pushing CI fixes to $BRANCH..."
+      git push origin "$BRANCH"
+    fi
+
+    if [[ -z "$CI_FINAL_STATUS" ]]; then
+      log "  CI timed out after 30 minutes — stopping."
+      exit 1
+    fi
   done
+
+  if [[ "$CI_PASSED" != "true" ]]; then
+    log "  CI did not pass — stopping."
+    exit 1
+  fi
+
   log "  Merging PR #$PR_NUMBER..."
   gh pr merge "$PR_NUMBER" --merge --delete-branch
 
