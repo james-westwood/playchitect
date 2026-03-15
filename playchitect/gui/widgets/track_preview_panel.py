@@ -39,6 +39,7 @@ try:
 except ImportError:
     GdkPixbuf = None  # type: ignore[misc]
 
+from playchitect.core.vibe_tags import VibeTagStore  # noqa: E402
 from playchitect.gui.views.library_view import LibraryTrackModel  # noqa: E402
 
 logger = logging.getLogger(__name__)
@@ -135,11 +136,13 @@ class TrackPreviewPanel(Gtk.Box):
         self._is_playing = False
         self._duration_ns = 0
         self._seek_timeout_id: int | None = None
+        self._tag_store = VibeTagStore()
 
         # Build UI sections
         self._build_cover_art_section()
         self._build_metadata_section()
         self._build_info_pills_section()
+        self._build_tags_section()
         self._build_controls_section()
 
         # Initialize GStreamer pipeline
@@ -224,6 +227,153 @@ class TrackPreviewPanel(Gtk.Box):
         pills_box.append(self._format_pill)
 
         self.append(pills_box)
+
+    def _build_tags_section(self) -> None:
+        """Build the vibe tags section with FlowBox chips and entry."""
+        # Tags container
+        tags_box = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=8)
+        tags_box.set_margin_top(12)
+
+        # Section label
+        tags_label = Gtk.Label()
+        tags_label.set_xalign(0.0)
+        tags_label.add_css_class("caption")
+        tags_label.add_css_class("dim-label")
+        tags_label.set_text("Vibe Tags")
+        tags_box.append(tags_label)
+
+        # FlowBox for tag chips
+        self._tags_flowbox = Gtk.FlowBox()
+        self._tags_flowbox.set_selection_mode(Gtk.SelectionMode.NONE)
+        self._tags_flowbox.set_column_spacing(6)
+        self._tags_flowbox.set_row_spacing(6)
+        self._tags_flowbox.set_homogeneous(False)
+        self._tags_flowbox.set_max_children_per_line(10)
+        tags_box.append(self._tags_flowbox)
+
+        # Entry with completion for adding tags
+        entry_box = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL, spacing=6)
+
+        self._tag_entry = Gtk.Entry()
+        self._tag_entry.set_placeholder_text("Add tag...")
+        self._tag_entry.set_hexpand(True)
+        self._tag_entry.connect("activate", self._on_tag_entry_activate)
+
+        # Set up auto-completion
+        self._setup_tag_completion()
+
+        entry_box.append(self._tag_entry)
+
+        # Add button
+        add_btn = Gtk.Button.new_from_icon_name("list-add-symbolic")
+        add_btn.set_tooltip_text("Add tag")
+        add_btn.connect("clicked", self._on_add_tag_clicked)
+        entry_box.append(add_btn)
+
+        tags_box.append(entry_box)
+
+        self.append(tags_box)
+
+    def _setup_tag_completion(self) -> None:
+        """Set up entry completion for tag suggestions."""
+        completion = Gtk.EntryCompletion()
+        completion.set_inline_completion(True)
+        completion.set_popup_completion(True)
+
+        # Create list store for completion (single column of strings)
+        self._completion_model = Gtk.ListStore.new([str])  # type: ignore[misc]
+        completion.set_model(self._completion_model)
+        completion.set_text_column(0)
+
+        self._tag_entry.set_completion(completion)
+
+    def _update_tag_completion(self) -> None:
+        """Update completion model with all available tags."""
+        self._completion_model.clear()
+        for tag in self._tag_store.all_tags():
+            self._completion_model.append([tag])
+
+    def _create_tag_chip(self, tag: str) -> Gtk.Button:
+        """Create a tag chip button with dismiss functionality."""
+        # Create a horizontal box with tag text and dismiss button
+        chip_box = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL, spacing=4)
+        chip_box.set_margin_start(8)
+        chip_box.set_margin_end(4)
+        chip_box.set_margin_top(2)
+        chip_box.set_margin_bottom(2)
+
+        # Tag label
+        label = Gtk.Label(label=tag)
+        chip_box.append(label)
+
+        # Dismiss button (×)
+        dismiss_btn = Gtk.Button.new_from_icon_name("window-close-symbolic")
+        dismiss_btn.add_css_class("small-button")
+        dismiss_btn.set_has_frame(False)
+        dismiss_btn.set_tooltip_text(f"Remove '{tag}'")
+        dismiss_btn.connect("clicked", lambda _btn, t=tag: self._on_remove_tag(t))
+        chip_box.append(dismiss_btn)
+
+        # Create the main button to hold the box
+        chip = Gtk.Button()
+        chip.set_child(chip_box)
+        chip.add_css_class("tag-chip")
+        chip.add_css_class("pill")
+
+        return chip
+
+    def _refresh_tags_display(self) -> None:
+        """Refresh the tags FlowBox display for current track."""
+        # Clear existing tags
+        while True:
+            child = self._tags_flowbox.get_first_child()
+            if child is None:
+                break
+            self._tags_flowbox.remove(child)
+
+        if self._current_track is None:
+            return
+
+        # Get tags for current track
+        track_path = Path(self._current_track.filepath)
+        tags = self._tag_store.get_tags(track_path)
+
+        # Add chip for each tag
+        for tag in tags:
+            chip = self._create_tag_chip(tag)
+            self._tags_flowbox.append(chip)
+
+        # Update completion suggestions
+        self._update_tag_completion()
+
+    def _on_tag_entry_activate(self, entry: Gtk.Entry) -> None:
+        """Handle Enter key in tag entry."""
+        self._on_add_tag_clicked(None)
+
+    def _on_add_tag_clicked(self, _btn: Gtk.Button | None) -> None:
+        """Add tag from entry to current track."""
+        if self._current_track is None:
+            return
+
+        tag = self._tag_entry.get_text().strip()
+        if not tag:
+            return
+
+        track_path = Path(self._current_track.filepath)
+        self._tag_store.add_tag(track_path, tag)
+
+        # Clear entry and refresh display
+        self._tag_entry.set_text("")
+        self._refresh_tags_display()
+
+    def _on_remove_tag(self, tag: str) -> None:
+        """Remove tag from current track."""
+        if self._current_track is None:
+            return
+
+        track_path = Path(self._current_track.filepath)
+        self._tag_store.remove_tag(track_path, tag)
+        self._refresh_tags_display()
 
     def _create_pill(self, text: str) -> Gtk.Label:
         """Create a pill-style label with the 'pill' CSS class."""
@@ -540,6 +690,9 @@ class TrackPreviewPanel(Gtk.Box):
         # Key (would be extracted from metadata if available)
         key = self._extract_key(track.filepath)
         self._key_pill.set_text(key if key else "—")
+
+        # Refresh tags display
+        self._refresh_tags_display()
 
         # Set up GStreamer source
         if self._playbin is not None and Gst is not None:
