@@ -365,7 +365,7 @@
       "owner": "ralph",
       "description": "Implement Rekordbox XML library import. (1) Create playchitect/core/importers/__init__.py and playchitect/core/importers/rekordbox_import.py. Implement `parse_rekordbox_xml(xml_path: Path) -> list[dict]`: parse the XML using `xml.etree.ElementTree`; iterate `COLLECTION/TRACK` elements; extract: `location` (strip `file://localhost` prefix), `bpm` (float), `key_rekordbox` (str, the Tonality attr), `cue_points` (list of dicts from `POSITION_MARK` children: `{name, position_ms, type}`). Return list of dicts with these keys. Implement `rekordbox_key_to_camelot(key_str: str) -> str` mapping Rekordbox key names (e.g. '6A', '4B', 'Cm', 'G#m') to Camelot strings. (2) Add CLI subcommand `import-rekordbox` to playchitect/cli/commands.py: `@cli.command() def import_rekordbox(xml_path: Path) -> None` \u2014 calls `parse_rekordbox_xml`, prints a summary table of imported tracks. (3) In the app menu (`Adw.MenuButton` from TASK-03) add a 'Import from Rekordbox\u2026' menu item connected to a file picker dialog; on accept call `parse_rekordbox_xml` in a thread. (4) Add a fixture file tests/fixtures/rekordbox_mini.xml (5-track minimal Rekordbox XML). Add unit tests.",
       "acceptance_criteria": "tests/unit/test_rekordbox_import.py: parse_rekordbox_xml on rekordbox_mini.xml returns 5 dicts with correct keys. rekordbox_key_to_camelot('6A') returns '6A'. `playchitect import-rekordbox --help` shows the command. `uv run pytest tests/ -v` passes.",
-      "completed": false,
+      "completed": true,
       "priority": 6,
       "note": "GitHub issue #86"
     },
