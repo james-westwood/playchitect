@@ -353,10 +353,32 @@ EOF
           log "  CI passed (check ${_wait}/60, ci=$CI_STATUS)"; break
         fi
       done
+      # Same pre-merge guard and orchestrator tracking as the main path
+      PRD_CHANGES=$(gh pr diff "$PR_NUMBER" -- prd.json 2>/dev/null \
+        | grep '^+.*"completed": true' | wc -l)
+      if [[ "$PRD_CHANGES" -gt 1 ]]; then
+        log "  ABORT: coder marked $PRD_CHANGES tasks complete in prd.json (expected 0). Closing PR #$PR_NUMBER."
+        gh pr close "$PR_NUMBER" --comment "Closing: coder incorrectly modified prd.json (marked $PRD_CHANGES tasks complete). The orchestrator owns prd.json."
+        exit 1
+      fi
       log "  Merging PR #$PR_NUMBER..."
       gh pr merge "$PR_NUMBER" --merge --delete-branch
       git checkout "$MAIN_BRANCH"
       git pull --ff-only origin "$MAIN_BRANCH"
+      log "  Updating task tracking (prd.json + progress.txt)..."
+      python3 - <<PYEOF
+import json
+with open("prd.json") as f:
+    prd = json.load(f)
+next(t for t in prd["tasks"] if t["id"] == "$TASK_ID")["completed"] = True
+with open("prd.json", "w") as f:
+    json.dump(prd, f, indent=2)
+    f.write("\n")
+PYEOF
+      echo "[$TODAY] [$TASK_ID] $TASK_TITLE: implemented and merged (PR #$PR_NUMBER)" >> progress.txt
+      git add prd.json progress.txt
+      git commit -m "[$TASK_ID] $TASK_TITLE: mark complete"
+      git push origin "$MAIN_BRANCH"
       log "Iteration $ITERATION complete (resumed): [$TASK_ID] $TASK_TITLE | $PR_URL"
       sleep 2
       continue
@@ -382,6 +404,10 @@ Run \`git log --oneline\` to see what commits exist. Do NOT redo work that is al
 Pick up from where the previous run left off."
   fi
 
+  # The coder's job is ONLY to write code and tests — two commits, nothing more.
+  # prd.json and progress.txt are owned by this orchestrator script, not the AI.
+  # Letting the AI touch prd.json risks it bulk-marking unrelated tasks complete
+  # (seen in the wild with kimi-k2.5), which silently kills the rest of the loop.
   CODER_PROMPT="You are the CODER implementing task [$TASK_ID] $TASK_TITLE for the playchitect project. Another AI will review your work — write clean, production-quality code.
 $RESUME_NOTE
 
@@ -395,14 +421,12 @@ Implementation steps:
 1. Write source files under playchitect/ (core logic) or tests/ (tests)
 2. Run tests and fix any failures: uv run pytest tests/ -v
 3. Run pre-commit and fix all failures: uv run pre-commit run --all-files
-4. Make ATOMIC commits — do not squash everything into one commit:
-   - Commit A (source):   git add playchitect/ && git commit -m '[$TASK_ID] $TASK_TITLE: implement'
-   - Commit B (tests):    git add tests/ && git commit -m '[$TASK_ID] $TASK_TITLE: add tests'
-   - Commit C (tracking): in prd.json, find ONLY the task with \"id\": \"$TASK_ID\" and set its \"completed\" field to true — do NOT modify any other task's \"completed\" field,
-                          append to progress.txt: [$TODAY] [$TASK_ID] $TASK_TITLE: {one-line summary}
-                          git add prd.json progress.txt && git commit -m '[$TASK_ID] $TASK_TITLE: mark complete'
+4. Make exactly TWO commits — no more, no fewer:
+   - Commit A (source): git add playchitect/ && git commit -m '[$TASK_ID] $TASK_TITLE: implement'
+   - Commit B (tests):  git add tests/ && git commit -m '[$TASK_ID] $TASK_TITLE: add tests'
 
-Do NOT push. Do NOT create a PR. The orchestrator handles that.
+Do NOT push. Do NOT create a PR. Do NOT touch prd.json or progress.txt — the
+orchestrator handles all of that after your PR is merged.
 
 Rules:
 - Never implement any task with \"owner\": \"human\"
@@ -649,11 +673,52 @@ Fix steps:
     exit 1
   fi
 
+  # ── Pre-merge prd.json guard ───────────────────────────────────────────────
+  # AI coders sometimes "helpfully" mark multiple tasks complete in one edit
+  # (seen with kimi-k2.5 bulk-completing all 30 tasks). Catch this before it
+  # poisons the orchestrator's source of truth and silently ends the loop early.
+  # We fetch the PR diff and count how many tasks flipped to completed=true.
+  # If it's more than one, the coder overstepped — close the PR and abort.
+  # Note: the coder prompt now says not to touch prd.json at all, so ideally
+  # this count will always be zero. Non-zero means the coder ignored instructions.
+  PRD_CHANGES=$(gh pr diff "$PR_NUMBER" -- prd.json 2>/dev/null \
+    | grep '^+.*"completed": true' | wc -l)
+  if [[ "$PRD_CHANGES" -gt 1 ]]; then
+    log "  ABORT: coder marked $PRD_CHANGES tasks complete in prd.json (expected 0). Closing PR #$PR_NUMBER."
+    gh pr close "$PR_NUMBER" --comment "Closing: coder incorrectly modified prd.json (marked $PRD_CHANGES tasks complete). The orchestrator owns prd.json. Re-run ralph to retry this task."
+    exit 1
+  fi
+
   log "  Merging PR #$PR_NUMBER..."
   gh pr merge "$PR_NUMBER" --merge --delete-branch
 
   git checkout "$MAIN_BRANCH"
   git pull --ff-only origin "$MAIN_BRANCH"
+
+  # ── Orchestrator-owned task tracking ──────────────────────────────────────
+  # The AI coder no longer touches prd.json or progress.txt — we do it here,
+  # after a successful merge, with a precise single-task update. This removes
+  # all risk of the AI accidentally (or "helpfully") mutating other tasks' state.
+  log "  Updating task tracking (prd.json + progress.txt)..."
+  python3 - <<PYEOF
+import json
+with open("prd.json") as f:
+    prd = json.load(f)
+task = next((t for t in prd["tasks"] if t["id"] == "$TASK_ID"), None)
+if task is None:
+    raise SystemExit(f"ERROR: task $TASK_ID not found in prd.json")
+if task.get("completed"):
+    print(f"  Note: $TASK_ID was already marked complete (coder may have touched prd.json despite instructions)")
+task["completed"] = True
+with open("prd.json", "w") as f:
+    json.dump(prd, f, indent=2)
+    f.write("\n")
+print(f"  Marked $TASK_ID complete in prd.json")
+PYEOF
+  echo "[$TODAY] [$TASK_ID] $TASK_TITLE: implemented and merged (PR #$PR_NUMBER)" >> progress.txt
+  git add prd.json progress.txt
+  git commit -m "[$TASK_ID] $TASK_TITLE: mark complete"
+  git push origin "$MAIN_BRANCH"
 
   log "Iteration $ITERATION complete: [$TASK_ID] $TASK_TITLE | $PR_URL"
 
