@@ -442,21 +442,25 @@ EOF
   PR_NUMBER=$(echo "$PR_URL" | grep -oE '[0-9]+$')
   log "  PR #$PR_NUMBER: $PR_URL"
 
-  # ── Review step ────────────────────────────────────────────────────────────
+  # ── Review step (with fix loop) ────────────────────────────────────────────
 
   if [[ "$SKIP_REVIEW" == "true" ]]; then
     log "  Skipping review (--skip-review). Auto-merging."
     gh pr comment "$PR_NUMBER" --body "*Review skipped — merged automatically via \`--skip-review\`.*"
   else
-    log "  Fetching diff for review ($REVIEWER)..."
-    PR_DIFF=""
-    for _retry in 1 2 3 4 5; do
-      PR_DIFF=$(gh pr diff "$PR_NUMBER" 2>/dev/null) && break
-      log "  gh pr diff returned nothing (attempt $_retry/5) — waiting 10s..."
-      sleep 10
-    done
+    MAX_FIX_ROUNDS=2
+    REVIEW_VERDICT="PENDING"
 
-    REVIEW_PROMPT="You are the code reviewer for a pull request in the playchitect project.
+    for _round in $(seq 0 $MAX_FIX_ROUNDS); do
+      log "  Fetching diff for review ($REVIEWER, round $_round)..."
+      PR_DIFF=""
+      for _retry in 1 2 3 4 5; do
+        PR_DIFF=$(gh pr diff "$PR_NUMBER" 2>/dev/null) && break
+        log "  gh pr diff returned nothing (attempt $_retry/5) — waiting 10s..."
+        sleep 10
+      done
+
+      REVIEW_PROMPT="You are the code reviewer for a pull request in the playchitect project.
 
 The code was written by $CODER. You are $REVIEWER.
 
@@ -480,12 +484,12 @@ Be constructive and specific. End your review with exactly one of:
 
 Output only the review text. It will be posted as a GitHub PR comment."
 
-    log "  Running reviewer ($REVIEWER)..."
-    REVIEW_TEXT=$(run_reviewer "$REVIEWER" "$REVIEW_PROMPT" 2>&1 | tee -a "$LOG_FILE")
+      log "  Running reviewer ($REVIEWER)..."
+      REVIEW_TEXT=$(run_reviewer "$REVIEWER" "$REVIEW_PROMPT" 2>&1 | tee -a "$LOG_FILE")
 
-    log "  Posting review comment..."
-    gh pr comment "$PR_NUMBER" --body "$(cat <<EOF
-## Code Review by \`$REVIEWER\`
+      log "  Posting review comment..."
+      gh pr comment "$PR_NUMBER" --body "$(cat <<EOF
+## Code Review by \`$REVIEWER\` (round $_round)
 
 $REVIEW_TEXT
 
@@ -493,6 +497,44 @@ $REVIEW_TEXT
 *Implemented by \`$CODER\` · Reviewed by \`$REVIEWER\`*
 EOF
 )"
+
+      if echo "$REVIEW_TEXT" | grep -q "CHANGES REQUESTED"; then
+        REVIEW_VERDICT="CHANGES_REQUESTED"
+        if [[ $_round -lt $MAX_FIX_ROUNDS ]]; then
+          log "  Reviewer requested changes (round $_round/$MAX_FIX_ROUNDS) — invoking coder to fix..."
+          FIX_PROMPT="You are the CODER who implemented task [$TASK_ID] $TASK_TITLE for the playchitect project.
+
+Your code reviewer has requested changes. Read the review carefully and fix all blocking issues.
+
+Review feedback:
+---
+$REVIEW_TEXT
+---
+
+Task acceptance criteria (must still be satisfied): $TASK_AC
+
+Fix steps:
+1. Address every issue the reviewer flagged
+2. Run tests and ensure they pass: uv run pytest tests/ -v
+3. Run pre-commit and fix all failures: uv run pre-commit run --all-files
+4. Commit your fixes: git add -u && git commit -m '[$TASK_ID] $TASK_TITLE: address review feedback'
+
+Do NOT push. Do NOT open a new PR. Fix only the issues raised — do not refactor unrelated code."
+
+          run_coder "$CODER" "$FIX_PROMPT" 2>&1 | tee -a "$LOG_FILE"
+          log "  Pushing fixes to $BRANCH..."
+          git push origin "$BRANCH"
+        else
+          log "  Reviewer still requesting changes after $MAX_FIX_ROUNDS fix round(s) — merging anyway."
+        fi
+      else
+        REVIEW_VERDICT="APPROVED"
+        log "  Reviewer approved."
+        break
+      fi
+    done
+
+    log "  Final review verdict: $REVIEW_VERDICT"
   fi
 
   # ── Merge ──────────────────────────────────────────────────────────────────
