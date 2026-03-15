@@ -22,8 +22,8 @@ from gi.repository import (  # type: ignore[unresolved-import]  # noqa: E402
     Gtk,
 )
 
-from playchitect.core.audio_scanner import AudioScanner
-from playchitect.core.metadata_extractor import MetadataExtractor
+from playchitect.core.audio_scanner import AudioScanner  # noqa: E402
+from playchitect.core.metadata_extractor import MetadataExtractor  # noqa: E402
 
 logger = logging.getLogger(__name__)
 
