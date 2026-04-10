@@ -164,8 +164,6 @@ class TestHarmonicSequenceTrigger:
         view = _make_view()
         view._harmonic_switch.get_active = MagicMock(return_value=True)
 
-        mock_sequencer = MagicMock()
-
         with patch("playchitect.gui.views.playlists_view.sequence_harmonic") as mock_seq:
             mock_seq.return_value = [Path("/test/track.mp3")]
             result = view.get_harmonic_ordering()
