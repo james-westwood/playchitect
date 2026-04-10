@@ -117,6 +117,9 @@ def bare_window() -> PlaychitectWindow:
     w._original_clusters = []
     w._playlist_namer = MagicMock()
     w._cluster_names = {}
+    w._cluster_btn = MagicMock()
+    w._target_spin = MagicMock()
+    w._target_unit = MagicMock()
     return w
 
 
@@ -162,6 +165,15 @@ class TestMainWindowSmoke:
 
     def test_split_view_attribute_set(self, window: PlaychitectWindow) -> None:
         assert hasattr(window, "_split_view")
+
+    def test_cluster_btn_attribute_set(self, window: PlaychitectWindow) -> None:
+        assert hasattr(window, "_cluster_btn")
+
+    def test_target_spin_attribute_set(self, window: PlaychitectWindow) -> None:
+        assert hasattr(window, "_target_spin")
+
+    def test_target_unit_attribute_set(self, window: PlaychitectWindow) -> None:
+        assert hasattr(window, "_target_unit")
 
 
 # ── Window-init call verification ─────────────────────────────────────────────
@@ -426,6 +438,23 @@ class TestPlaylistsClusterSelected:
 class TestClusterHandlers:
     """Test clustering signal handlers and workers."""
 
+    def test_on_cluster_clicked_starts_spinner(self, bare_window: PlaychitectWindow) -> None:
+        bare_window._metadata_map = {Path("t1.flac"): MagicMock()}
+        bare_window.set_title = MagicMock()
+
+        # Mock UI elements for target size
+        bare_window._target_spin = MagicMock()
+        bare_window._target_spin.get_value.return_value = 20.0
+        bare_window._target_unit = MagicMock()
+        bare_window._target_unit.get_selected.return_value = 0
+
+        with patch("threading.Thread") as mock_thread:
+            bare_window._on_cluster_clicked(MagicMock())
+
+            bare_window._spinner.start.assert_called_once()
+            bare_window._cluster_btn.set_sensitive.assert_called_with(False)
+            mock_thread.assert_called_once()
+
     def test_on_cluster_complete_updates_ui(self, bare_window: PlaychitectWindow) -> None:
         mock_cluster = MagicMock()
         mock_cluster.cluster_id = 1
@@ -444,6 +473,8 @@ class TestClusterHandlers:
         bare_window._on_cluster_complete()
 
         bare_window._spinner.stop.assert_called_once()
+        bare_window._cluster_btn.set_sensitive.assert_called_once_with(True)
+        bare_window._arc_dropdown.set_sensitive.assert_called_once_with(True)
         bare_window._playlists_view.load_clusters.assert_called_once_with(bare_window._clusters)
 
     def test_on_cluster_error_resets_ui(self, bare_window: PlaychitectWindow) -> None:
@@ -452,6 +483,7 @@ class TestClusterHandlers:
         bare_window._on_cluster_error()
 
         bare_window._spinner.stop.assert_called_once()
+        bare_window._cluster_btn.set_sensitive.assert_called_once_with(True)
         # Check if set_title was called with something containing "failed"
         title_call = bare_window.set_title.call_args[0][0]
         assert "failed" in title_call.lower()

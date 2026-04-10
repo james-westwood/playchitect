@@ -132,6 +132,7 @@ class TestResolveGenres:
                 file_hash="",
                 embedding=np.array([], dtype=np.float32),
                 top_tags=[],
+                moods=[],
             )
         }
 
@@ -177,6 +178,7 @@ class TestResolveGenres:
                 file_hash="",
                 embedding=np.array([], dtype=np.float32),
                 top_tags=[],
+                moods=[],
             )
         }
         result = resolve_genres(
@@ -206,6 +208,7 @@ class TestResolveGenres:
                 file_hash="",
                 embedding=np.array([], dtype=np.float32),
                 top_tags=[],
+                moods=[],
             )
         }
         result = resolve_genres(
@@ -235,6 +238,7 @@ class TestResolveGenres:
                 file_hash="",
                 embedding=np.array([], dtype=np.float32),
                 top_tags=[],
+                moods=[],
             )
         }
         result = resolve_genres(
@@ -264,6 +268,7 @@ class TestResolveGenres:
                 file_hash="",
                 embedding=np.array([], dtype=np.float32),
                 top_tags=[],
+                moods=[],
             )
         }
         result = resolve_genres(

@@ -143,6 +143,11 @@ class PlaychitectWindow(Adw.ApplicationWindow):
         self._build_menu()
         header.pack_end(self._menu_button)
 
+        # Cluster button
+        self._cluster_btn = Gtk.Button(label="Cluster")
+        self._cluster_btn.connect("clicked", self._on_cluster_clicked)
+        header.pack_end(self._cluster_btn)
+
         # ── Main content: OverlaySplitView ─────────────────────────────────────
         # Sidebar (navigation)
         sidebar_content = self._build_sidebar()
@@ -189,9 +194,7 @@ class PlaychitectWindow(Adw.ApplicationWindow):
         is_minutes = dropdown.get_selected() == 1
         if is_minutes:
             self._target_spin.set_range(5, 300)  # 5 mins to 5 hours
-            # If value is huge (from tracks mode), clamp it logic?
-            # Or just let set_range handle it.
-            # Ideally we might want to convert, but simple switching is safer.
+
             current = self._target_spin.get_value()
             if current < 5:
                 self._target_spin.set_value(60)  # Default to 1 hour
@@ -418,6 +421,7 @@ class PlaychitectWindow(Adw.ApplicationWindow):
             return
 
         self._spinner.start()
+        self._cluster_btn.set_sensitive(False)
         self.set_title("Playchitect — analysing & clustering…")
 
         # Read UI state (main thread)
@@ -487,6 +491,9 @@ class PlaychitectWindow(Adw.ApplicationWindow):
         """Update UI with clustering results."""
         self._spinner.stop()
 
+        # Re-enable cluster button
+        self._cluster_btn.set_sensitive(True)
+
         # Enable arc dropdown and reset to "None"
         self._arc_dropdown.set_sensitive(True)
         self._arc_dropdown.set_selected(0)
@@ -509,6 +516,7 @@ class PlaychitectWindow(Adw.ApplicationWindow):
 
     def _on_cluster_error(self) -> bool:
         self._spinner.stop()
+        self._cluster_btn.set_sensitive(True)
         self.set_title("Playchitect — clustering failed")
         return False
 

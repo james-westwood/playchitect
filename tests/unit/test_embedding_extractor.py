@@ -4,7 +4,7 @@ Unit tests for embedding_extractor module.
 
 import json
 from pathlib import Path
-from unittest.mock import MagicMock
+from typing import Any
 
 import numpy as np
 import pytest
@@ -12,6 +12,8 @@ import pytest
 import playchitect.core.embedding_extractor as emb_mod
 from playchitect.core.embedding_extractor import (
     _EMB_OUTPUT_LAYER,
+    _MIREX_FEATS_LAYER,
+    _MOOD_OUTPUT_LAYER,
     _MSD_MUSICNN_URL,
     _TAG_OUTPUT_LAYER,
     EmbeddingExtractor,
@@ -30,6 +32,7 @@ def make_embedding(path: Path, seed: int = 0) -> EmbeddingFeatures:
         file_hash="abc123",
         embedding=vec / np.linalg.norm(vec),
         top_tags=[("techno", 0.9), ("electronic", 0.7)],
+        moods=[("Aggressive", 0.8), ("Passionate", 0.2)],
     )
 
 
@@ -45,6 +48,21 @@ class TestEmbeddingFeatures:
         assert feat.file_hash == "abc123"
         assert feat.embedding.shape == (128,)
         assert feat.top_tags[0] == ("techno", 0.9)
+        assert feat.moods[0] == ("Aggressive", 0.8)
+
+    def test_primary_mood(self) -> None:
+        feat = make_embedding(Path("track.mp3"))
+        assert feat.primary_mood == "Aggressive"
+
+    def test_primary_mood_empty(self) -> None:
+        feat = EmbeddingFeatures(
+            filepath=Path("t.mp3"),
+            file_hash="x",
+            embedding=np.zeros(128, dtype=np.float32),
+            top_tags=[],
+            moods=[],
+        )
+        assert feat.primary_mood is None
 
     def test_to_dict_round_trip(self) -> None:
         original = make_embedding(Path("track.mp3"), seed=7)
@@ -55,6 +73,7 @@ class TestEmbeddingFeatures:
         assert isinstance(data["embedding"], list)
         assert len(data["embedding"]) == 128
         assert data["top_tags"] == [["techno", 0.9], ["electronic", 0.7]]
+        assert data["moods"] == [["Aggressive", 0.8], ["Passionate", 0.2]]
 
         restored = EmbeddingFeatures.from_dict(data)
 
@@ -62,17 +81,20 @@ class TestEmbeddingFeatures:
         assert restored.file_hash == original.file_hash
         np.testing.assert_array_almost_equal(restored.embedding, original.embedding)
         assert restored.top_tags == original.top_tags
+        assert restored.moods == original.moods
 
     def test_from_dict_handles_list_tags(self) -> None:
-        """from_dict should accept JSON list-of-lists for top_tags."""
+        """from_dict should accept JSON list-of-lists for top_tags and moods."""
         data = {
             "filepath": "foo.mp3",
             "file_hash": "deadbeef",
             "embedding": [0.0] * 128,
             "top_tags": [["house", 0.8], ["ambient", 0.3]],
+            "moods": [["Cheerful", 0.9]],
         }
         feat = EmbeddingFeatures.from_dict(data)
         assert feat.top_tags == [("house", 0.8), ("ambient", 0.3)]
+        assert feat.moods == [("Cheerful", 0.9)]
 
     def test_embedding_dtype(self) -> None:
         feat = make_embedding(Path("t.mp3"))
@@ -88,7 +110,11 @@ class TestEmbeddingExtractorGenre:
     @pytest.fixture()
     def extractor(self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> EmbeddingExtractor:
         monkeypatch.setattr(emb_mod, "_ESSENTIA_AVAILABLE", True)
-        return EmbeddingExtractor(cache_enabled=False, model_path=tmp_path / "fake.pb")
+        return EmbeddingExtractor(
+            cache_enabled=False,
+            model_path=tmp_path / "fake.pb",
+            mood_model_path=tmp_path / "fake_mood.pb",
+        )
 
     def test_known_tag_returns_genre(self, extractor: EmbeddingExtractor) -> None:
         feat = EmbeddingFeatures(
@@ -96,6 +122,7 @@ class TestEmbeddingExtractorGenre:
             file_hash="x",
             embedding=np.zeros(128, dtype=np.float32),
             top_tags=[("techno", 0.95), ("electronic", 0.6)],
+            moods=[],
         )
         assert extractor.infer_genre(feat) == "techno"
 
@@ -105,6 +132,7 @@ class TestEmbeddingExtractorGenre:
             file_hash="x",
             embedding=np.zeros(128, dtype=np.float32),
             top_tags=[("ambient", 0.85)],
+            moods=[],
         )
         assert extractor.infer_genre(feat) == "ambient"
 
@@ -115,6 +143,7 @@ class TestEmbeddingExtractorGenre:
                 file_hash="x",
                 embedding=np.zeros(128, dtype=np.float32),
                 top_tags=[(tag, 0.9)],
+                moods=[],
             )
             assert extractor.infer_genre(feat) == "dnb"
 
@@ -124,6 +153,7 @@ class TestEmbeddingExtractorGenre:
             file_hash="x",
             embedding=np.zeros(128, dtype=np.float32),
             top_tags=[("jazz", 0.9), ("classical", 0.7)],
+            moods=[],
         )
         assert extractor.infer_genre(feat) is None
 
@@ -134,6 +164,7 @@ class TestEmbeddingExtractorGenre:
             file_hash="x",
             embedding=np.zeros(128, dtype=np.float32),
             top_tags=[("house", 0.95), ("techno", 0.85)],
+            moods=[],
         )
         assert extractor.infer_genre(feat) == "house"
 
@@ -143,6 +174,7 @@ class TestEmbeddingExtractorGenre:
             file_hash="x",
             embedding=np.zeros(128, dtype=np.float32),
             top_tags=[("Techno", 0.9)],
+            moods=[],
         )
         assert extractor.infer_genre(feat) == "techno"
 
@@ -160,6 +192,7 @@ class TestEmbeddingExtractorCache:
             cache_dir=tmp_path / "cache",
             cache_enabled=True,
             model_path=tmp_path / "fake.pb",
+            mood_model_path=tmp_path / "fake_mood.pb",
         )
 
     def test_cache_miss_returns_none(self, extractor: EmbeddingExtractor) -> None:
@@ -173,6 +206,7 @@ class TestEmbeddingExtractorCache:
         assert loaded is not None
         np.testing.assert_array_almost_equal(loaded.embedding, feat.embedding)
         assert loaded.top_tags == feat.top_tags
+        assert loaded.moods == feat.moods
         assert loaded.file_hash == feat.file_hash
 
     def test_npy_file_created(self, extractor: EmbeddingExtractor) -> None:
@@ -182,17 +216,35 @@ class TestEmbeddingExtractorCache:
         npy_files = list(extractor.cache_dir.glob("*.npy"))
         assert len(npy_files) == 1
 
-    def test_tags_json_created(self, extractor: EmbeddingExtractor) -> None:
+    def test_metadata_json_created(self, extractor: EmbeddingExtractor) -> None:
         feat = make_embedding(Path("track.mp3"))
         extractor._save_to_cache(feat.file_hash, feat)
 
-        json_files = list(extractor.cache_dir.glob("*_tags.json"))
+        json_files = list(extractor.cache_dir.glob("*_metadata.json"))
         assert len(json_files) == 1
 
+    def test_load_from_legacy_tags_json(
+        self, extractor: EmbeddingExtractor, tmp_path: Path
+    ) -> None:
+        """Verify backward compatibility: load top_tags from old _tags.json."""
+        file_hash = "legacy_123"
+        extractor.cache_dir.mkdir(parents=True, exist_ok=True)
+        # Write valid .npy
+        np.save(str(extractor._get_cache_path(file_hash)), np.zeros(128, dtype=np.float32))
+        # Write old _tags.json
+        tags_path = extractor.cache_dir / f"{file_hash}_tags.json"
+        with open(tags_path, "w") as f:
+            json.dump([["house", 0.8]], f)
+
+        loaded = extractor._load_from_cache(file_hash)
+        assert loaded is not None
+        assert loaded.top_tags == [("house", 0.8)]
+        assert loaded.moods == []  # empty for legacy cache
+
     def test_partial_cache_miss_returns_none(self, extractor: EmbeddingExtractor) -> None:
-        """If only .npy exists (no _tags.json), load returns None."""
+        """If only .npy exists (no metadata JSON), load returns None."""
         feat = make_embedding(Path("track.mp3"))
-        # Only write the .npy, not the tags JSON
+        # Only write the .npy, not the metadata JSON
         np.save(str(extractor._get_cache_path(feat.file_hash)), feat.embedding)
         assert extractor._load_from_cache(feat.file_hash) is None
 
@@ -201,24 +253,51 @@ class TestEmbeddingExtractorCache:
 
 
 class TestEmbeddingExtractorAnalysis:
-    """Test analyze() with a fully mocked Essentia model."""
+    """Test analyze() with fully mocked Essentia models."""
 
     _N_FRAMES = 5
     _N_TAGS = 50
+    _N_MOODS = 5
 
     def _make_mock_model_class(self) -> type:
         """Return a mock _EssentiaModel class whose instances return synthetic arrays."""
         n_frames = self._N_FRAMES
         n_tags = self._N_TAGS
+        n_moods = self._N_MOODS
 
         class MockModel:
-            def __init__(self, graphFilename: str, output: str = "", **kwargs: object):
+            def __init__(
+                self,
+                graphFilename: str,
+                output: str = "",
+                input: str = "",
+                inputs: list[Any] | None = None,
+                outputs: list[Any] | None = None,
+                **kwargs: object,
+            ):
                 self.output = output
 
-            def __call__(self, audio: np.ndarray) -> np.ndarray:
+            def __call__(self, audio: np.ndarray) -> Any:
+                from playchitect.core.embedding_extractor import (
+                    _EMB_OUTPUT_LAYER as EMB_OUT,
+                )
+                from playchitect.core.embedding_extractor import (
+                    _MIREX_FEATS_LAYER as MIREX_OUT,
+                )
+                from playchitect.core.embedding_extractor import (
+                    _MOOD_OUTPUT_LAYER as MOOD_OUT,
+                )
+
                 rng = np.random.default_rng(0)
-                if self.output == _EMB_OUTPUT_LAYER:
+                if self.output == MOOD_OUT:
+                    return np.abs(rng.standard_normal((n_frames, n_moods))).astype(np.float32)
+
+                if self.output == EMB_OUT:
                     return rng.standard_normal((n_frames, 128)).astype(np.float32)
+
+                if self.output == MIREX_OUT:
+                    return np.abs(rng.standard_normal((n_frames, 200))).astype(np.float32)
+
                 # TAG_OUTPUT_LAYER — sigmoid activations in [0, 1]
                 return np.abs(rng.standard_normal((n_frames, n_tags))).astype(np.float32)
 
@@ -229,19 +308,28 @@ class TestEmbeddingExtractorAnalysis:
         self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
     ) -> EmbeddingExtractor:
         monkeypatch.setattr(emb_mod, "_ESSENTIA_AVAILABLE", True)
-        monkeypatch.setattr(emb_mod, "_EssentiaModel", self._make_mock_model_class())
+        mock_cls = self._make_mock_model_class()
+        monkeypatch.setattr(emb_mod, "_EssentiaModel", mock_cls)
+        monkeypatch.setattr(emb_mod, "TensorflowPredict2D", mock_cls)
 
-        # Create a fake .pb so _ensure_model skips download
+        # Create fake .pb files so _ensure_model skips download
         model_file = tmp_path / "fake.pb"
         model_file.write_bytes(b"fake_model")
+        mood_model_file = tmp_path / "fake_mood.pb"
+        mood_model_file.write_bytes(b"fake_mood_model")
 
-        # Create a fake metadata JSON with 50 class labels
+        # Create fake metadata JSONs
         meta_file = tmp_path / "fake.json"
         labels = [f"tag_{i}" for i in range(self._N_TAGS)]
         meta_file.write_text(json.dumps({"classes": labels}))
 
+        mood_meta_file = tmp_path / "fake_mood.json"
+        mood_labels = [f"mood_{i}" for i in range(self._N_MOODS)]
+        mood_meta_file.write_text(json.dumps({"classes": mood_labels}))
+
         return EmbeddingExtractor(
             model_path=model_file,
+            mood_model_path=mood_model_file,
             cache_dir=tmp_path / "cache",
             cache_enabled=True,
         )
@@ -255,13 +343,6 @@ class TestEmbeddingExtractorAnalysis:
         audio_file = tmp_path / "track.wav"
         audio_file.write_bytes(b"\x00" * 100)
 
-        # Patch librosa.load to return synthetic audio
-        monkeypatch.setattr(
-            "playchitect.core.embedding_extractor.librosa",
-            MagicMock(load=MagicMock(return_value=(np.zeros(16000, dtype=np.float32), 16000))),
-            raising=False,
-        )
-        # librosa is a lazy import inside analyze(); patch at the module level
         import librosa as _librosa  # noqa: PLC0415
 
         monkeypatch.setattr(
@@ -295,6 +376,30 @@ class TestEmbeddingExtractorAnalysis:
         confs = [c for _, c in feat.top_tags]
         assert confs == sorted(confs, reverse=True)
 
+    def test_analyze_produces_moods(
+        self,
+        extractor_with_mock_model: EmbeddingExtractor,
+        tmp_path: Path,
+        monkeypatch: pytest.MonkeyPatch,
+    ) -> None:
+        audio_file = tmp_path / "track.wav"
+        audio_file.write_bytes(b"\x00" * 100)
+
+        import librosa as _librosa  # noqa: PLC0415
+
+        monkeypatch.setattr(
+            _librosa, "load", lambda *a, **kw: (np.zeros(16000, dtype=np.float32), 16000)
+        )
+
+        feat = extractor_with_mock_model.analyze(audio_file)
+
+        assert len(feat.moods) == self._N_MOODS
+        # Moods should be sorted descending by probability
+        probs = [p for _, p in feat.moods]
+        assert probs == sorted(probs, reverse=True)
+        assert feat.primary_mood is not None
+        assert feat.primary_mood.startswith("mood_")
+
     def test_analyze_writes_cache(
         self,
         extractor_with_mock_model: EmbeddingExtractor,
@@ -314,6 +419,8 @@ class TestEmbeddingExtractorAnalysis:
 
         npy_files = list(extractor_with_mock_model.cache_dir.glob("*.npy"))
         assert len(npy_files) == 1
+        meta_files = list(extractor_with_mock_model.cache_dir.glob("*_metadata.json"))
+        assert len(meta_files) == 1
 
     def test_mean_pooling_is_correct(
         self,
@@ -328,10 +435,22 @@ class TestEmbeddingExtractorAnalysis:
         expected_mean = fixed_frames.mean(axis=0)
 
         class FixedModel:
-            def __init__(self, graphFilename: str, output: str = "", **kwargs: object):
+            def __init__(
+                self,
+                graphFilename: str,
+                output: str = "",
+                inputs: list | None = None,
+                outputs: list | None = None,
+                **kwargs: object,
+            ):
                 self.output = output
+                self.outputs = outputs
 
-            def __call__(self, audio: np.ndarray) -> np.ndarray:
+            def __call__(self, audio: np.ndarray) -> Any:
+                from playchitect.core.embedding_extractor import _MOOD_OUTPUT_LAYER as MOOD_OUT
+
+                if self.outputs and MOOD_OUT in self.outputs:
+                    return [np.zeros((n_frames, 5), dtype=np.float32)]
                 if self.output == _EMB_OUTPUT_LAYER:
                     return fixed_frames
                 return np.zeros((n_frames, self._N_TAGS), dtype=np.float32)
@@ -339,6 +458,7 @@ class TestEmbeddingExtractorAnalysis:
             _N_TAGS = 50
 
         monkeypatch.setattr(emb_mod, "_EssentiaModel", FixedModel)
+        monkeypatch.setattr(emb_mod, "TensorflowPredict2D", FixedModel)
 
         model_file = tmp_path / "fake.pb"
         model_file.write_bytes(b"x")
@@ -390,6 +510,7 @@ class TestEmbeddingExtractorDownload:
         monkeypatch.setattr(emb_mod, "_ESSENTIA_AVAILABLE", True)
 
         target = tmp_path / "models" / "msd-musicnn-1.pb"
+        meta = target.with_suffix(".json")
         calls: list[tuple[str, Path]] = []
 
         def fake_urlretrieve(url: str, dest: object) -> None:
@@ -401,13 +522,11 @@ class TestEmbeddingExtractorDownload:
         )
 
         extractor = EmbeddingExtractor(model_path=target, cache_enabled=False)
-        extractor._download_model(target)
+        extractor._download_model(target, _MSD_MUSICNN_URL, "https://fake.json")
 
-        # First call must be the .pb model URL
-        assert len(calls) >= 1
-        pb_call = calls[0]
-        assert pb_call[0] == _MSD_MUSICNN_URL
-        assert pb_call[1] == target
+        assert len(calls) == 2
+        assert calls[0] == (_MSD_MUSICNN_URL, target)
+        assert calls[1] == ("https://fake.json", meta)
 
     def test_download_target_path_matches_model_path(
         self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
@@ -426,7 +545,7 @@ class TestEmbeddingExtractorDownload:
         )
 
         extractor = EmbeddingExtractor(model_path=custom_path, cache_enabled=False)
-        extractor._download_model(custom_path)
+        extractor._download_model(custom_path, _MSD_MUSICNN_URL, "https://fake.json")
 
         assert retrieved[0] == custom_path
 
@@ -568,6 +687,7 @@ class TestAnalyzeAdditional:
             cache_dir=tmp_path / "cache",
             cache_enabled=True,
             model_path=tmp_path / "fake.pb",
+            mood_model_path=tmp_path / "fake_mood.pb",
         )
 
     def test_analyze_nonexistent_file_raises(
@@ -586,30 +706,62 @@ class TestAnalyzeAdditional:
 
         n_frames = 3
         n_tags = 4
+        n_moods = 5
 
         class MockModel:
-            def __init__(self, graphFilename: str, output: str = "", **kwargs: object):
+            def __init__(
+                self,
+                graphFilename: str,
+                output: str = "",
+                inputs: list[Any] | None = None,
+                outputs: list[Any] | None = None,
+                input: str = "",
+                **kwargs: object,
+            ):
                 self.output = output
                 MockModel.call_count += 1
 
-            def __call__(self, audio: np.ndarray) -> np.ndarray:
-                if self.output == _EMB_OUTPUT_LAYER:
+            def __call__(self, audio: np.ndarray) -> Any:
+                from playchitect.core.embedding_extractor import (
+                    _EMB_OUTPUT_LAYER as EMB_OUT,
+                )
+                from playchitect.core.embedding_extractor import (
+                    _MIREX_FEATS_LAYER as MIREX_OUT,
+                )
+                from playchitect.core.embedding_extractor import (
+                    _MOOD_OUTPUT_LAYER as MOOD_OUT,
+                )
+
+                if self.output == MOOD_OUT:
+                    return np.ones((n_frames, n_moods), dtype=np.float32)
+                if self.output == EMB_OUT:
                     return np.ones((n_frames, 128), dtype=np.float32)
+                if self.output == MIREX_OUT:
+                    return np.ones((n_frames, 200), dtype=np.float32)
                 return np.ones((n_frames, n_tags), dtype=np.float32)
 
             call_count = 0
 
         monkeypatch.setattr(emb_mod, "_EssentiaModel", MockModel)
+        monkeypatch.setattr(emb_mod, "TensorflowPredict2D", MockModel)
 
         model_file = tmp_path / "fake.pb"
         model_file.write_bytes(b"x")
+        mood_file = tmp_path / "fake_mood.pb"
+        mood_file.write_bytes(b"y")
+
         meta_file = tmp_path / "fake.json"
         meta_file.write_text(
             '{"classes": ' + str([f"t{i}" for i in range(n_tags)]).replace("'", '"') + "}"
         )
+        mood_meta = tmp_path / "fake_mood.json"
+        mood_meta.write_text(
+            '{"classes": ' + str([f"m{i}" for i in range(n_moods)]).replace("'", '"') + "}"
+        )
 
         extractor = EmbeddingExtractor(
             model_path=model_file,
+            mood_model_path=mood_file,
             cache_dir=tmp_path / "cache",
             cache_enabled=True,
         )
@@ -629,8 +781,9 @@ class TestAnalyzeAdditional:
 
         # Embedding content matches
         np.testing.assert_array_equal(feat1.embedding, feat2.embedding)
-        # Model constructor called exactly twice (emb + tags) on first analyze only
-        assert MockModel.call_count == 2
+        # Model constructor called exactly 4 times (emb + tags + mirex_feats + moods)
+        # on first analyze only
+        assert MockModel.call_count == 4
 
 
 # ── TestAnalyzeBatch ──────────────────────────────────────────────────────────
@@ -642,7 +795,11 @@ class TestAnalyzeBatch:
     @pytest.fixture()
     def extractor(self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> EmbeddingExtractor:
         monkeypatch.setattr(emb_mod, "_ESSENTIA_AVAILABLE", True)
-        return EmbeddingExtractor(cache_enabled=False, model_path=tmp_path / "fake.pb")
+        return EmbeddingExtractor(
+            cache_enabled=False,
+            model_path=tmp_path / "fake.pb",
+            mood_model_path=tmp_path / "fake_mood.pb",
+        )
 
     def test_batch_skips_nonexistent_files(
         self, extractor: EmbeddingExtractor, tmp_path: Path
@@ -661,22 +818,54 @@ class TestAnalyzeBatch:
         monkeypatch.setattr(emb_mod, "_ESSENTIA_AVAILABLE", True)
 
         class MockModel:
-            def __init__(self, graphFilename: str, output: str = "", **kwargs: object):
+            def __init__(
+                self,
+                graphFilename: str,
+                output: str = "",
+                input: str = "",
+                inputs: list[Any] | None = None,
+                outputs: list[Any] | None = None,
+                **kwargs: object,
+            ):
                 self.output = output
 
-            def __call__(self, audio: np.ndarray) -> np.ndarray:
-                if self.output == _EMB_OUTPUT_LAYER:
+            def __call__(self, audio: np.ndarray) -> Any:
+                from playchitect.core.embedding_extractor import (
+                    _EMB_OUTPUT_LAYER as EMB_OUT,
+                )
+                from playchitect.core.embedding_extractor import (
+                    _MIREX_FEATS_LAYER as MIREX_OUT,
+                )
+                from playchitect.core.embedding_extractor import (
+                    _MOOD_OUTPUT_LAYER as MOOD_OUT,
+                )
+
+                if self.output == MOOD_OUT:
+                    return np.ones((2, 5), dtype=np.float32)
+                if self.output == EMB_OUT:
                     return np.ones((2, 128), dtype=np.float32)
+                if self.output == MIREX_OUT:
+                    return np.ones((2, 200), dtype=np.float32)
                 return np.ones((2, 4), dtype=np.float32)
 
         monkeypatch.setattr(emb_mod, "_EssentiaModel", MockModel)
+        monkeypatch.setattr(emb_mod, "TensorflowPredict2D", MockModel)
 
         model_file = tmp_path / "fake.pb"
         model_file.write_bytes(b"x")
+        mood_file = tmp_path / "fake_mood.pb"
+        mood_file.write_bytes(b"y")
+
         meta = tmp_path / "fake.json"
         meta.write_text('{"classes": ["a", "b", "c", "d"]}')
+        mood_meta = tmp_path / "fake_mood.json"
+        mood_meta.write_text('{"classes": ["m1", "m2", "m3", "m4", "m5"]}')
 
-        extractor = EmbeddingExtractor(model_path=model_file, cache_enabled=False)
+        extractor = EmbeddingExtractor(
+            model_path=model_file,
+            mood_model_path=mood_file,
+            cache_enabled=False,
+        )
 
         good = tmp_path / "good.wav"
         good.write_bytes(b"\x00" * 200)
@@ -699,7 +888,7 @@ class TestAnalyzeBatch:
 class TestEnsureModel:
     """Test _ensure_model lazy initialization."""
 
-    def test_model_initialized_only_once(
+    def test_models_initialized_only_once(
         self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
     ) -> None:
         """Calling _ensure_model twice creates each model instance exactly once."""
@@ -708,21 +897,38 @@ class TestEnsureModel:
         init_calls: list[str] = []
 
         class MockModel:
-            def __init__(self, graphFilename: str, output: str = "", **kwargs: object):
+            def __init__(
+                self,
+                graphFilename: str,
+                output: str = "",
+                input: str = "",
+                inputs: list | None = None,
+                outputs: list | None = None,
+                **kwargs: object,
+            ):
                 init_calls.append(output)
 
         monkeypatch.setattr(emb_mod, "_EssentiaModel", MockModel)
+        monkeypatch.setattr(emb_mod, "TensorflowPredict2D", MockModel)
 
         model_file = tmp_path / "fake.pb"
         model_file.write_bytes(b"x")
+        mood_file = tmp_path / "fake_mood.pb"
+        mood_file.write_bytes(b"y")
 
-        extractor = EmbeddingExtractor(model_path=model_file, cache_enabled=False)
+        extractor = EmbeddingExtractor(
+            model_path=model_file,
+            mood_model_path=mood_file,
+            cache_enabled=False,
+        )
         extractor._ensure_model()
         extractor._ensure_model()  # Second call — should not re-create
 
-        # Each model (emb + tags) created exactly once
+        # Each model output layer created exactly once
         assert init_calls.count(_EMB_OUTPUT_LAYER) == 1
         assert init_calls.count(_TAG_OUTPUT_LAYER) == 1
+        assert init_calls.count(_MIREX_FEATS_LAYER) == 1
+        assert init_calls.count(_MOOD_OUTPUT_LAYER) == 1
 
     def test_ensure_model_triggers_download_when_missing(
         self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
@@ -733,24 +939,38 @@ class TestEnsureModel:
         downloaded: list[Path] = []
 
         class MockModel:
-            def __init__(self, graphFilename: str, output: str = "", **kwargs: object):
+            def __init__(
+                self,
+                graphFilename: str,
+                output: str = "",
+                inputs: list | None = None,
+                outputs: list | None = None,
+                **kwargs: object,
+            ):
                 pass
 
         monkeypatch.setattr(emb_mod, "_EssentiaModel", MockModel)
+        monkeypatch.setattr(emb_mod, "TensorflowPredict2D", MockModel)
 
-        model_file = tmp_path / "missing.pb"  # does NOT exist yet
+        model_file = tmp_path / "missing.pb"
+        mood_file = tmp_path / "missing_mood.pb"
 
-        def fake_download(target: Path) -> None:
+        def fake_download(target: Path, *args: Any) -> None:
             target.parent.mkdir(parents=True, exist_ok=True)
             target.write_bytes(b"fake_model")  # create it
             downloaded.append(target)
 
-        extractor = EmbeddingExtractor(model_path=model_file, cache_enabled=False)
+        extractor = EmbeddingExtractor(
+            model_path=model_file,
+            mood_model_path=mood_file,
+            cache_enabled=False,
+        )
         extractor._download_model = fake_download  # type: ignore[method-assign]
         extractor._ensure_model()
 
-        assert len(downloaded) == 1
-        assert downloaded[0] == model_file
+        assert len(downloaded) == 2
+        assert model_file in downloaded
+        assert mood_file in downloaded
 
     def test_ensure_model_propagates_init_exception(
         self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
@@ -759,15 +979,29 @@ class TestEnsureModel:
         monkeypatch.setattr(emb_mod, "_ESSENTIA_AVAILABLE", True)
 
         class BrokenModel:
-            def __init__(self, graphFilename: str, output: str = "", **kwargs: object):
+            def __init__(
+                self,
+                graphFilename: str,
+                output: str = "",
+                inputs: list | None = None,
+                outputs: list | None = None,
+                **kwargs: object,
+            ):
                 raise RuntimeError("model load failed")
 
         monkeypatch.setattr(emb_mod, "_EssentiaModel", BrokenModel)
+        monkeypatch.setattr(emb_mod, "TensorflowPredict2D", BrokenModel)
 
         model_file = tmp_path / "fake.pb"
         model_file.write_bytes(b"x")
+        mood_file = tmp_path / "fake_mood.pb"
+        mood_file.write_bytes(b"y")
 
-        extractor = EmbeddingExtractor(model_path=model_file, cache_enabled=False)
+        extractor = EmbeddingExtractor(
+            model_path=model_file,
+            mood_model_path=mood_file,
+            cache_enabled=False,
+        )
         with pytest.raises(RuntimeError, match="model load failed"):
             extractor._ensure_model()
 
@@ -795,7 +1029,7 @@ class TestDownloadFailure:
         target = tmp_path / "msd-musicnn-1.pb"
         extractor = EmbeddingExtractor(model_path=target, cache_enabled=False)
         with pytest.raises(OSError, match="network error"):
-            extractor._download_model(target)
+            extractor._download_model(target, _MSD_MUSICNN_URL, "https://fake.json")
 
 
 # ── TestCorruptCache ──────────────────────────────────────────────────────────
