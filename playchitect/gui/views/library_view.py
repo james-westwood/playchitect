@@ -202,7 +202,7 @@ class LibraryView(Gtk.Box):
 
         # SearchBar (hidden by default)
         self._search_bar = Gtk.SearchBar()
-        self._search_bar.set_search_mode_enabled(False)
+        self._search_bar.set_search_mode(False)
         self._search_bar.set_key_capture_widget(self)
 
         search_entry = Gtk.SearchEntry()
@@ -378,7 +378,7 @@ class LibraryView(Gtk.Box):
 
     def _on_search_toggled(self, btn: Gtk.ToggleButton) -> None:
         """Toggle search bar visibility."""
-        self._search_bar.set_search_mode_enabled(btn.get_active())
+        self._search_bar.set_search_mode(btn.get_active())
 
     def _on_preview_toggled(self, btn: Gtk.ToggleButton) -> None:
         """Emit preview-toggled signal when preview panel toggle changes."""

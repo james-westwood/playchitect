@@ -31,10 +31,31 @@ gi.require_version("Adw", "1")
 
 from gi.repository import (  # type: ignore[unresolved-import]  # noqa: E402
     Gdk,
+    Gio,
     GObject,
     Gtk,
     Pango,
 )
+
+
+class BrowserTrackItem(GObject.Object):
+    """GObject backing a single row in the set-builder browser ColumnView."""
+
+    title = GObject.Property(type=str, default="")
+    artist = GObject.Property(type=str, default="")
+    bpm = GObject.Property(type=str, default="")
+    filepath = GObject.Property(type=str, default="")
+
+    def __init__(self, title: str, artist: str, bpm: str, filepath: str) -> None:
+        super().__init__()
+        self.title = title
+        self.artist = artist
+        self.bpm = bpm
+        self.filepath = filepath
+
+    def __getitem__(self, index: int) -> str:
+        return (self.title, self.artist, self.bpm, self.filepath, "")[index]
+
 
 # Constants for styling
 _MAX_SET_SIZE = 20
@@ -419,8 +440,8 @@ class SetBuilderView(Gtk.Box):
         scroll.set_policy(Gtk.PolicyType.NEVER, Gtk.PolicyType.AUTOMATIC)
 
         # Create ListStore model for browser
-        self._browser_store = Gtk.ListStore(str, str, str, str, str)
-        # Columns: title, artist, bpm, filepath, block_filter
+        self._browser_store: Gio.ListStore = Gio.ListStore(item_type=BrowserTrackItem)
+        # Columns: title, artist, bpm, filepath
 
         self._browser_view = Gtk.ColumnView()
         self._browser_view.set_model(Gtk.SingleSelection(model=self._browser_store))
@@ -663,7 +684,7 @@ class SetBuilderView(Gtk.Box):
     def _filter_browser_by_block(self, block_name: str) -> None:
         """Filter browser by energy block name."""
         # Clear and repopulate browser store based on filter
-        self._browser_store.clear()
+        self._browser_store.remove_all()
 
         for path, meta in self._metadata_map.items():
             # If no filter or track matches block filter criteria
@@ -672,7 +693,7 @@ class SetBuilderView(Gtk.Box):
                 title = meta.title or path.name
                 artist = meta.artist or "Unknown Artist"
                 bpm = f"{meta.bpm:.1f}" if meta.bpm else "—"
-                self._browser_store.append([title, artist, bpm, str(path), ""])
+                self._browser_store.append(BrowserTrackItem(title, artist, bpm, str(path)))
             else:
                 # Filter logic: check if track belongs to selected block
                 # This is simplified - in real implementation, check block.cluster_ids
@@ -686,13 +707,13 @@ class SetBuilderView(Gtk.Box):
                                 artist = meta.artist or "Unknown Artist"
                                 bpm = f"{meta.bpm:.1f}" if meta.bpm else "—"
                                 self._browser_store.append(
-                                    [title, artist, bpm, str(path), block_name]
+                                    BrowserTrackItem(title, artist, bpm, str(path))
                                 )
                                 break
 
     def _load_block_tracks(self, block: EnergyBlock) -> None:
         """Load tracks for the selected block into the browser."""
-        self._browser_store.clear()
+        self._browser_store.remove_all()
 
         # Get tracks from clusters assigned to this block
         track_paths: list[Path] = []
@@ -709,7 +730,7 @@ class SetBuilderView(Gtk.Box):
                 title = meta.title or path.name
                 artist = meta.artist or "Unknown Artist"
                 bpm = f"{meta.bpm:.1f}" if meta.bpm else "—"
-                self._browser_store.append([title, artist, bpm, str(path), ""])
+                self._browser_store.append(BrowserTrackItem(title, artist, bpm, str(path)))
 
     def _on_browser_double_click(
         self, _gesture: Gtk.GestureClick, n_press: int, _x: float, _y: float
@@ -931,12 +952,12 @@ class SetBuilderView(Gtk.Box):
         self._update_block_filter_chips()
 
         # Populate browser with all tracks
-        self._browser_store.clear()
+        self._browser_store.remove_all()
         for path, meta in metadata_map.items():
             title = meta.title or path.name
             artist = meta.artist or "Unknown Artist"
             bpm = f"{meta.bpm:.1f}" if meta.bpm else "—"
-            self._browser_store.append([title, artist, bpm, str(path), ""])
+            self._browser_store.append(BrowserTrackItem(title, artist, bpm, str(path)))
 
         # Select first block if available
         if self._energy_blocks:
@@ -1108,12 +1129,12 @@ class SetBuilderView(Gtk.Box):
         self._features_map = features_map
 
         # Refresh browser
-        self._browser_store.clear()
+        self._browser_store.remove_all()
         for path, meta in metadata_map.items():
             title = meta.title or path.name
             artist = meta.artist or "Unknown Artist"
             bpm = f"{meta.bpm:.1f}" if meta.bpm else "—"
-            self._browser_store.append([title, artist, bpm, str(path), ""])
+            self._browser_store.append(BrowserTrackItem(title, artist, bpm, str(path)))
 
     def on_track_selected(self, filepath: Path) -> None:
         """Handle track selection from timeline.
