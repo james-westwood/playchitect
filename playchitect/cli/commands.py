@@ -113,9 +113,9 @@ def cli() -> None:
 )
 @click.option(
     "--sequence-mode",
-    type=click.Choice(["ramp", "fixed"]),
+    type=click.Choice(["ramp", "fixed", "harmonic"]),
     default="fixed",
-    help="Track sequencing mode: ramp (intensity build) or fixed (no change, default).",
+    help="Sequencing: ramp (energy build), harmonic (Camelot mixing), fixed (no change).",
 )
 @click.option(
     "--weight-file",
