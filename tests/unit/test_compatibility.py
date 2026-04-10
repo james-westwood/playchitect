@@ -16,7 +16,7 @@ class TestCompatibilityScore:
     def test_high_compatibility_same_bpm_compatible_key_same_energy(self) -> None:
         """Tracks with same BPM, compatible key, and same energy score > 0.8."""
         features_a = IntensityFeatures(
-            filepath=Path("track_a.mp3"),
+            file_path=Path("track_a.mp3"),
             file_hash="hash_a",
             rms_energy=0.5,
             brightness=0.6,
@@ -30,7 +30,7 @@ class TestCompatibilityScore:
         )
 
         features_b = IntensityFeatures(
-            filepath=Path("track_b.mp3"),
+            file_path=Path("track_b.mp3"),
             file_hash="hash_b",
             rms_energy=0.5,
             brightness=0.6,
@@ -51,7 +51,7 @@ class TestCompatibilityScore:
     def test_high_compatibility_adjacent_camelot_key(self) -> None:
         """Tracks with adjacent Camelot keys (same letter) are compatible."""
         features_a = IntensityFeatures(
-            filepath=Path("track_a.mp3"),
+            file_path=Path("track_a.mp3"),
             file_hash="hash_a",
             rms_energy=0.5,
             brightness=0.6,
@@ -65,7 +65,7 @@ class TestCompatibilityScore:
         )
 
         features_b = IntensityFeatures(
-            filepath=Path("track_b.mp3"),
+            file_path=Path("track_b.mp3"),
             file_hash="hash_b",
             rms_energy=0.5,
             brightness=0.6,
@@ -87,7 +87,7 @@ class TestCompatibilityScore:
     def test_low_compatibility_incompatible_key_large_bpm_diff(self) -> None:
         """Tracks with incompatible key and large BPM difference score < 0.4."""
         features_a = IntensityFeatures(
-            filepath=Path("track_a.mp3"),
+            file_path=Path("track_a.mp3"),
             file_hash="hash_a",
             rms_energy=0.9,  # High energy
             brightness=0.8,
@@ -101,7 +101,7 @@ class TestCompatibilityScore:
         )
 
         features_b = IntensityFeatures(
-            filepath=Path("track_b.mp3"),
+            file_path=Path("track_b.mp3"),
             file_hash="hash_b",
             rms_energy=0.1,  # Low energy - different
             brightness=0.2,  # Different timbre
@@ -127,7 +127,7 @@ class TestCompatibilityScore:
     def test_bpm_score_calculation(self) -> None:
         """Test BPM score component calculation."""
         features_a = IntensityFeatures(
-            filepath=Path("track_a.mp3"),
+            file_path=Path("track_a.mp3"),
             file_hash="hash_a",
             rms_energy=0.5,
             brightness=0.5,
@@ -141,7 +141,7 @@ class TestCompatibilityScore:
         )
 
         features_b = IntensityFeatures(
-            filepath=Path("track_b.mp3"),
+            file_path=Path("track_b.mp3"),
             file_hash="hash_b",
             rms_energy=0.5,
             brightness=0.5,
@@ -178,7 +178,7 @@ class TestCompatibilityScore:
     def test_key_score_same_number(self) -> None:
         """Same Camelot number (different letter) is compatible."""
         features_a = IntensityFeatures(
-            filepath=Path("track_a.mp3"),
+            file_path=Path("track_a.mp3"),
             file_hash="hash_a",
             rms_energy=0.5,
             brightness=0.5,
@@ -192,7 +192,7 @@ class TestCompatibilityScore:
         )
 
         features_b = IntensityFeatures(
-            filepath=Path("track_b.mp3"),
+            file_path=Path("track_b.mp3"),
             file_hash="hash_b",
             rms_energy=0.5,
             brightness=0.5,
@@ -211,7 +211,7 @@ class TestCompatibilityScore:
     def test_energy_score_similarity(self) -> None:
         """Test that energy difference affects score."""
         features_a = IntensityFeatures(
-            filepath=Path("track_a.mp3"),
+            file_path=Path("track_a.mp3"),
             file_hash="hash_a",
             rms_energy=0.8,
             brightness=0.5,
@@ -225,7 +225,7 @@ class TestCompatibilityScore:
         )
 
         features_b = IntensityFeatures(
-            filepath=Path("track_b.mp3"),
+            file_path=Path("track_b.mp3"),
             file_hash="hash_b",
             rms_energy=0.2,  # Different energy
             brightness=0.5,
@@ -247,7 +247,7 @@ class TestCompatibilityScore:
     def test_timbre_score_similarity(self) -> None:
         """Test that brightness difference affects score."""
         features_a = IntensityFeatures(
-            filepath=Path("track_a.mp3"),
+            file_path=Path("track_a.mp3"),
             file_hash="hash_a",
             rms_energy=0.5,
             brightness=0.9,
@@ -261,7 +261,7 @@ class TestCompatibilityScore:
         )
 
         features_b = IntensityFeatures(
-            filepath=Path("track_b.mp3"),
+            file_path=Path("track_b.mp3"),
             file_hash="hash_b",
             rms_energy=0.5,
             brightness=0.1,  # Different brightness
@@ -288,7 +288,7 @@ class TestNextTrackSuggestions:
         """next_track_suggestions returns exactly n results sorted descending."""
         current_path = Path("current.mp3")
         current_features = IntensityFeatures(
-            filepath=current_path,
+            file_path=current_path,
             file_hash="current_hash",
             rms_energy=0.5,
             brightness=0.6,
@@ -308,7 +308,7 @@ class TestNextTrackSuggestions:
             # Vary BPM and energy to get different scores
             bpm = 128.0 + i * 2  # Increasing BPM difference
             features = IntensityFeatures(
-                filepath=path,
+                file_path=path,
                 file_hash=f"hash_{i}",
                 rms_energy=0.5 + i * 0.05,  # Increasing energy difference
                 brightness=0.6,
@@ -343,7 +343,7 @@ class TestNextTrackSuggestions:
         """Current track should be excluded from suggestions."""
         current_path = Path("current.mp3")
         current_features = IntensityFeatures(
-            filepath=current_path,
+            file_path=current_path,
             file_hash="current_hash",
             rms_energy=0.5,
             brightness=0.6,
@@ -379,7 +379,7 @@ class TestNextTrackSuggestions:
         """Results are sorted by score in descending order."""
         current_path = Path("current.mp3")
         current_features = IntensityFeatures(
-            filepath=current_path,
+            file_path=current_path,
             file_hash="current_hash",
             rms_energy=0.5,
             brightness=0.5,
@@ -398,7 +398,7 @@ class TestNextTrackSuggestions:
             (
                 Path("best.mp3"),
                 IntensityFeatures(
-                    filepath=Path("best.mp3"),
+                    file_path=Path("best.mp3"),
                     file_hash="hash1",
                     rms_energy=0.5,
                     brightness=0.5,
@@ -416,7 +416,7 @@ class TestNextTrackSuggestions:
             (
                 Path("worst.mp3"),
                 IntensityFeatures(
-                    filepath=Path("worst.mp3"),
+                    file_path=Path("worst.mp3"),
                     file_hash="hash2",
                     rms_energy=0.9,
                     brightness=0.9,
@@ -434,7 +434,7 @@ class TestNextTrackSuggestions:
             (
                 Path("medium.mp3"),
                 IntensityFeatures(
-                    filepath=Path("medium.mp3"),
+                    file_path=Path("medium.mp3"),
                     file_hash="hash3",
                     rms_energy=0.6,
                     brightness=0.6,
@@ -472,7 +472,7 @@ class TestNextTrackSuggestions:
         """Returns empty list when no candidates provided."""
         current_path = Path("current.mp3")
         current_features = IntensityFeatures(
-            filepath=current_path,
+            file_path=current_path,
             file_hash="current_hash",
             rms_energy=0.5,
             brightness=0.5,
@@ -499,7 +499,7 @@ class TestNextTrackSuggestions:
         """Returns all available candidates when fewer than n."""
         current_path = Path("current.mp3")
         current_features = IntensityFeatures(
-            filepath=current_path,
+            file_path=current_path,
             file_hash="current_hash",
             rms_energy=0.5,
             brightness=0.5,
@@ -532,7 +532,7 @@ class TestNextTrackSuggestions:
         """Default n value is 5."""
         current_path = Path("current.mp3")
         current_features = IntensityFeatures(
-            filepath=current_path,
+            file_path=current_path,
             file_hash="current_hash",
             rms_energy=0.5,
             brightness=0.5,

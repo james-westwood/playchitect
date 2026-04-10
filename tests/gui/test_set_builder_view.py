@@ -74,7 +74,7 @@ class TestTrackCard:
             duration=300.0,
         )
         features = IntensityFeatures(
-            filepath=path,
+            file_path=path,
             file_hash="hash123",
             rms_energy=0.6,
             brightness=0.5,
@@ -98,7 +98,7 @@ class TestTrackCard:
         path = Path("/music/track.mp3")
         metadata = TrackMetadata(filepath=path, title="Track", bpm=130.0)
         features = IntensityFeatures(
-            filepath=path,
+            file_path=path,
             file_hash="hash",
             rms_energy=0.5,
             brightness=0.5,
@@ -119,7 +119,7 @@ class TestTrackCard:
         path = Path("/music/track.mp3")
         metadata = TrackMetadata(filepath=path, title="Track", bpm=130.0)
         features = IntensityFeatures(
-            filepath=path,
+            file_path=path,
             file_hash="hash",
             rms_energy=0.5,
             brightness=0.5,
@@ -147,7 +147,7 @@ class TestTrackCard:
         path = Path("/music/track.mp3")
         metadata = TrackMetadata(filepath=path, title="Track", bpm=130.0)
         features = IntensityFeatures(
-            filepath=path,
+            file_path=path,
             file_hash="hash",
             rms_energy=0.5,
             brightness=0.5,
@@ -199,7 +199,7 @@ class TestSetBuilderView:
 
         features = {
             path1: IntensityFeatures(
-                filepath=path1,
+                file_path=path1,
                 file_hash="hash1",
                 rms_energy=0.5,
                 brightness=0.4,
@@ -212,7 +212,7 @@ class TestSetBuilderView:
                 key_index=0.0,
             ),
             path2: IntensityFeatures(
-                filepath=path2,
+                file_path=path2,
                 file_hash="hash2",
                 rms_energy=0.7,
                 brightness=0.6,
@@ -254,7 +254,7 @@ class TestSetBuilderView:
                 # Assign increasing rms energy per cluster
                 rms = 0.1 + (int(str(cluster.cluster_id)) * 0.09)
                 features[path] = IntensityFeatures(
-                    filepath=path,
+                    file_path=path,
                     file_hash=f"hash_{path.name}",
                     rms_energy=rms,
                     brightness=0.5,
@@ -317,7 +317,7 @@ class TestSetBuilderView:
 
         features = {
             path: IntensityFeatures(
-                filepath=path,
+                file_path=path,
                 file_hash=f"hash_{path.name}",
                 rms_energy=0.5,
                 brightness=0.4,
@@ -392,7 +392,7 @@ class TestSetBuilderView:
         meta2 = TrackMetadata(filepath=path2, title="Track 2", bpm=130.0, duration=240.0)
 
         features1 = IntensityFeatures(
-            filepath=path1,
+            file_path=path1,
             file_hash="hash1",
             rms_energy=0.5,
             brightness=0.4,
@@ -405,7 +405,7 @@ class TestSetBuilderView:
             key_index=0.0,
         )
         features2 = IntensityFeatures(
-            filepath=path2,
+            file_path=path2,
             file_hash="hash2",
             rms_energy=0.7,
             brightness=0.6,
@@ -445,7 +445,7 @@ class TestSetBuilderView:
         meta3 = TrackMetadata(filepath=path3, title="Track 3", bpm=200.0, duration=200.0)
 
         features1 = IntensityFeatures(
-            filepath=path1,
+            file_path=path1,
             file_hash="hash1",
             rms_energy=0.5,
             brightness=0.5,
@@ -458,7 +458,7 @@ class TestSetBuilderView:
             key_index=0.0,
         )
         features2 = IntensityFeatures(
-            filepath=path2,
+            file_path=path2,
             file_hash="hash2",
             rms_energy=0.52,  # Similar energy for high compatibility
             brightness=0.52,
@@ -471,7 +471,7 @@ class TestSetBuilderView:
             key_index=1.0,
         )
         features3 = IntensityFeatures(
-            filepath=path3,
+            file_path=path3,
             file_hash="hash3",
             rms_energy=0.9,
             brightness=0.8,
@@ -509,7 +509,7 @@ class TestSetBuilderView:
         path = Path("/music/test_track.mp3")
         meta = TrackMetadata(filepath=path, title="Test Track", bpm=128.0, duration=300.0)
         features = IntensityFeatures(
-            filepath=path,
+            file_path=path,
             file_hash="hash",
             rms_energy=0.6,
             brightness=0.5,
@@ -543,7 +543,7 @@ class TestSetBuilderView:
         meta2 = TrackMetadata(filepath=path2, title="Track 2", bpm=130.0)
 
         features1 = IntensityFeatures(
-            filepath=path1,
+            file_path=path1,
             file_hash="hash1",
             rms_energy=0.5,
             brightness=0.4,
@@ -556,7 +556,7 @@ class TestSetBuilderView:
             key_index=0.0,
         )
         features2 = IntensityFeatures(
-            filepath=path2,
+            file_path=path2,
             file_hash="hash2",
             rms_energy=0.7,
             brightness=0.6,
@@ -584,7 +584,7 @@ class TestSetBuilderView:
         path = Path("/music/track1.mp3")
         meta = TrackMetadata(filepath=path, title="Track 1", bpm=128.0, duration=300.0)
         features = IntensityFeatures(
-            filepath=path,
+            file_path=path,
             file_hash="hash1",
             rms_energy=0.5,
             brightness=0.4,
@@ -638,7 +638,7 @@ class TestSetBuilderView:
         meta2 = TrackMetadata(filepath=path2, title="Track 2", bpm=128.0, duration=240.0)
 
         features1 = IntensityFeatures(
-            filepath=path1,
+            file_path=path1,
             file_hash="hash1",
             rms_energy=0.5,
             brightness=0.5,
@@ -651,7 +651,7 @@ class TestSetBuilderView:
             key_index=0.0,
         )
         features2 = IntensityFeatures(
-            filepath=path2,
+            file_path=path2,
             file_hash="hash2",
             rms_energy=0.5,  # Same energy
             brightness=0.5,
@@ -691,7 +691,7 @@ class TestSetBuilderView:
 
         features = {
             path: IntensityFeatures(
-                filepath=path,
+                file_path=path,
                 file_hash="hash",
                 rms_energy=0.5,
                 brightness=0.4,

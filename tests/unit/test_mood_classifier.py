@@ -20,7 +20,7 @@ class TestMoodClassifier:
     ) -> IntensityFeatures:
         """Create an IntensityFeatures with specified values for mood testing."""
         return IntensityFeatures(
-            filepath=Path("test.mp3"),
+            file_path=Path("test.mp3"),
             file_hash="abc123",
             rms_energy=rms_energy,
             brightness=brightness,
@@ -130,7 +130,7 @@ class TestMoodClassifier:
     def test_backwards_compat_missing_vocal_presence(self) -> None:
         """Missing vocal_presence field should be treated as 0.0."""
         features = IntensityFeatures(
-            filepath=Path("test.mp3"),
+            file_path=Path("test.mp3"),
             file_hash="abc123",
             rms_energy=0.2,
             brightness=0.2,
@@ -150,7 +150,7 @@ class TestMoodClassifier:
     def test_backwards_compat_missing_dynamic_range(self) -> None:
         """Missing dynamic_range field should be treated as 0.0."""
         features = IntensityFeatures(
-            filepath=Path("test.mp3"),
+            file_path=Path("test.mp3"),
             file_hash="abc123",
             rms_energy=0.45,
             brightness=0.5,

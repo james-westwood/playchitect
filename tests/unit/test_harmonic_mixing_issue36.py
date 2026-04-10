@@ -4,8 +4,7 @@ Tests for musical key detection, key compatibility scoring,
 and harmonic ordering in the sequencer.
 """
 
-import numpy as np
-import pytest
+from pathlib import Path
 
 from playchitect.core.intensity_analyzer import (
     IntensityFeatures,
@@ -98,7 +97,6 @@ class TestHarmonicSequencing:
 
     def test_sequence_harmonic_single_track(self, tmp_path: Path) -> None:
         """Single track should be returned as-is."""
-        from pathlib import Path
 
         track = tmp_path / "track.flac"
         features = {
@@ -123,7 +121,6 @@ class TestHarmonicSequencing:
 
     def test_sequence_harmonic_orders_by_compatibility(self, tmp_path: Path) -> None:
         """Should order tracks by harmonic compatibility."""
-        from pathlib import Path
 
         tracks = [tmp_path / f"track_{i}.flac" for i in range(5)]
         features = {

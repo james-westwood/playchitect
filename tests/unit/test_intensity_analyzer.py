@@ -19,7 +19,7 @@ class TestIntensityFeatures:
     def test_feature_creation(self) -> None:
         """Test creating IntensityFeatures."""
         features = IntensityFeatures(
-            filepath=Path("test.mp3"),
+            file_path=Path("test.mp3"),
             file_hash="abc123",
             rms_energy=0.5,
             brightness=0.6,
@@ -41,7 +41,7 @@ class TestIntensityFeatures:
     def test_to_feature_vector(self) -> None:
         """Test conversion to feature vector."""
         features = IntensityFeatures(
-            filepath=Path("test.mp3"),
+            file_path=Path("test.mp3"),
             file_hash="abc123",
             rms_energy=0.5,
             brightness=0.6,
@@ -69,7 +69,7 @@ class TestIntensityFeatures:
     def test_to_dict(self) -> None:
         """Test conversion to dictionary."""
         features = IntensityFeatures(
-            filepath=Path("test.mp3"),
+            file_path=Path("test.mp3"),
             file_hash="abc123",
             rms_energy=0.5,
             brightness=0.6,
@@ -946,7 +946,7 @@ class TestIntegration:
 
 def _make_fixture_features(filepath: Path) -> IntensityFeatures:
     return IntensityFeatures(
-        filepath=filepath,
+        file_path=filepath,
         file_hash="deadbeef",
         rms_energy=0.5,
         brightness=0.6,
