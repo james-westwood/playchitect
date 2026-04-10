@@ -44,6 +44,16 @@ class TrackModel(GObject.Object):
     cluster = GObject.Property(type=int, default=-1)
     duration = GObject.Property(type=float, default=0.0)  # seconds
     audio_format = GObject.Property(type=str, default="")  # ".flac", ".mp3", …
+    mood = GObject.Property(type=str, default="")  # Mood classification label
+    camelot_key = GObject.Property(type=str, default="")  # Camelot notation (e.g., '8B')
+    # TASK-12: Energy flow features for GUI columns
+    energy_gradient = GObject.Property(type=float, default=0.0)  # -1 to 1
+    drop_density = GObject.Property(type=float, default=0.0)  # 0 to 1
+    # TASK-14: Timbre/texture feature for GUI column
+    spectral_flatness = GObject.Property(type=float, default=0.0)  # 0-1 (texture/noisiness)
+    # TASK-16: Structural/vocal features
+    vocal_presence = GObject.Property(type=float, default=0.0)  # 0-1 (vocal content)
+    intro_length_secs = GObject.Property(type=float, default=0.0)  # seconds
 
     def __init__(
         self,
@@ -56,6 +66,13 @@ class TrackModel(GObject.Object):
         cluster: int = -1,
         duration: float = 0.0,
         audio_format: str = "",
+        mood: str = "",
+        camelot_key: str = "",
+        energy_gradient: float = 0.0,
+        drop_density: float = 0.0,
+        spectral_flatness: float = 0.0,
+        vocal_presence: float = 0.0,
+        intro_length_secs: float = 0.0,
     ) -> None:
         super().__init__()
         self.filepath = filepath
@@ -67,6 +84,13 @@ class TrackModel(GObject.Object):
         self.cluster = cluster
         self.duration = duration
         self.audio_format = audio_format
+        self.mood = mood
+        self.camelot_key = camelot_key
+        self.energy_gradient = energy_gradient
+        self.drop_density = drop_density
+        self.spectral_flatness = spectral_flatness
+        self.vocal_presence = vocal_presence
+        self.intro_length_secs = intro_length_secs
 
     @property
     def duration_str(self) -> str:
@@ -80,6 +104,38 @@ class TrackModel(GObject.Object):
         # Using hardness for the visual bars as it's the more robust metric
         filled = round(max(0.0, min(1.0, self.hardness)) * 5)
         return "█" * filled + "░" * (5 - filled)
+
+    @property
+    def gradient_icon(self) -> str:
+        """Return ↑/↓/→ icon based on energy_gradient sign."""
+        if self.energy_gradient > 0.05:
+            return "↑"
+        elif self.energy_gradient < -0.05:
+            return "↓"
+        return "→"
+
+    @property
+    def drop_density_formatted(self) -> str:
+        """Return drop_density as float string (drops/min)."""
+        # Convert normalized drop_density back to approximate drops/min
+        # drop_density is normalized to [0, 1] with 10 drops/min = 1.0
+        drops_per_min = self.drop_density * 10.0
+        return f"{drops_per_min:.1f}"
+
+    @property
+    def texture_label(self) -> str:
+        """Return texture label based on spectral_flatness value."""
+        if self.spectral_flatness < 0.3:
+            return "Tonal"
+        elif self.spectral_flatness <= 0.6:
+            return "Mixed"
+        else:
+            return "Noisy"
+
+    @property
+    def intro_formatted(self) -> str:
+        """Return intro_length_secs formatted as 'Xs' (e.g., '12s')."""
+        return f"{int(self.intro_length_secs)}s"
 
     @property
     def display_title(self) -> str:
@@ -229,7 +285,14 @@ class TrackListWidget(Gtk.Box):
             ("Title", 220, True, "title"),
             ("Artist", 160, True, "artist"),
             ("BPM", 70, True, "bpm"),
+            ("Key", 50, True, "camelot_key"),
+            ("", 24, False, None),  # Compatibility dot column (no header)
+            ("Mood", 90, True, "mood"),
+            ("Texture", 70, False, None),  # TASK-14: Texture column
             ("Hardness", 100, False, "hardness"),
+            ("Gradient", 60, False, None),  # TASK-12: Energy gradient indicator
+            ("Drops/min", 70, True, "drop_density"),  # TASK-12: Drop density
+            ("Intro", 60, True, "intro_length_secs"),  # TASK-16: Intro length
             ("Cluster", 80, True, "cluster"),
             ("Time", 70, True, "duration"),
         ]
@@ -238,16 +301,30 @@ class TrackListWidget(Gtk.Box):
             self._bind_title,
             self._bind_artist,
             self._bind_bpm,
+            self._bind_key,
+            self._bind_compat_dot,
+            self._bind_mood,
+            self._bind_texture,  # TASK-14
             self._bind_intensity,
+            self._bind_gradient,  # TASK-12
+            self._bind_drop_density,  # TASK-12
+            self._bind_intro,  # TASK-16
             self._bind_cluster,
             self._bind_duration,
         ]
 
         for (header, width, resizable, sort_attr), bind_fn in zip(col_specs, bind_fns):
             factory = Gtk.SignalListItemFactory()
-            factory.connect("setup", _setup_label)
-            factory.connect("bind", bind_fn)
-            factory.connect("unbind", _unbind_label)
+
+            # Use custom setup for compatibility dot (needs DrawingArea)
+            if bind_fn == self._bind_compat_dot:
+                factory.connect("setup", self._setup_compat_dot)
+                factory.connect("bind", bind_fn)
+                factory.connect("unbind", self._unbind_compat_dot)
+            else:
+                factory.connect("setup", _setup_label)
+                factory.connect("bind", bind_fn)
+                factory.connect("unbind", _unbind_label)
 
             col = Gtk.ColumnViewColumn(title=header, factory=factory)
             col.set_fixed_width(width)
@@ -287,6 +364,18 @@ class TrackListWidget(Gtk.Box):
         label.set_xalign(1.0)
         label.set_text(str(int(track.bpm)) if track.bpm > 0 else "—")
 
+    def _bind_mood(self, _factory: Gtk.SignalListItemFactory, item: Gtk.ListItem) -> None:
+        track: TrackModel = item.get_item()
+        label: Gtk.Label = item.get_child()
+        label.set_text(track.mood or "—")
+
+    # TASK-14: Texture column bind method
+    def _bind_texture(self, _factory: Gtk.SignalListItemFactory, item: Gtk.ListItem) -> None:
+        track: TrackModel = item.get_item()
+        label: Gtk.Label = item.get_child()
+        label.set_text(track.texture_label)
+        label.set_tooltip_text(f"Spectral flatness: {track.spectral_flatness:.3f}")
+
     def _bind_intensity(self, _factory: Gtk.SignalListItemFactory, item: Gtk.ListItem) -> None:
         track: TrackModel = item.get_item()
         label: Gtk.Label = item.get_child()
@@ -304,6 +393,137 @@ class TrackListWidget(Gtk.Box):
         label: Gtk.Label = item.get_child()
         label.set_xalign(1.0)
         label.set_text(track.duration_str)
+
+    def _bind_key(self, _factory: Gtk.SignalListItemFactory, item: Gtk.ListItem) -> None:
+        track: TrackModel = item.get_item()
+        label: Gtk.Label = item.get_child()
+        label.set_xalign(0.5)
+        label.set_text(track.camelot_key or "—")
+
+    # TASK-12: Gradient column bind method
+    def _bind_gradient(self, _factory: Gtk.SignalListItemFactory, item: Gtk.ListItem) -> None:
+        track: TrackModel = item.get_item()
+        label: Gtk.Label = item.get_child()
+        label.set_xalign(0.5)
+        label.set_text(track.gradient_icon)
+        label.set_tooltip_text(f"Energy gradient: {track.energy_gradient:.3f}")
+
+    # TASK-12: Drop density column bind method
+    def _bind_drop_density(self, _factory: Gtk.SignalListItemFactory, item: Gtk.ListItem) -> None:
+        track: TrackModel = item.get_item()
+        label: Gtk.Label = item.get_child()
+        label.set_xalign(1.0)
+        label.set_text(track.drop_density_formatted)
+
+    # TASK-16: Intro column bind method
+    def _bind_intro(self, _factory: Gtk.SignalListItemFactory, item: Gtk.ListItem) -> None:
+        track: TrackModel = item.get_item()
+        label: Gtk.Label = item.get_child()
+        label.set_xalign(1.0)
+        label.set_text(track.intro_formatted)
+        label.set_tooltip_text(f"Intro length: {track.intro_length_secs:.2f}s")
+
+    # ── Compatibility dot column ───────────────────────────────────────────────
+
+    def _setup_compat_dot(self, _factory: Gtk.SignalListItemFactory, item: Gtk.ListItem) -> None:
+        drawing_area = Gtk.DrawingArea()
+        drawing_area.set_size_request(16, 16)
+        drawing_area.set_draw_func(self._draw_compat_dot, None)
+        item.set_child(drawing_area)
+
+    def _unbind_compat_dot(self, _factory: Gtk.SignalListItemFactory, item: Gtk.ListItem) -> None:
+        drawing_area = item.get_child()
+        if isinstance(drawing_area, Gtk.DrawingArea):
+            drawing_area.set_draw_func(None, None)
+
+    def _bind_compat_dot(self, _factory: Gtk.SignalListItemFactory, item: Gtk.ListItem) -> None:
+        track: TrackModel = item.get_item()
+        drawing_area: Gtk.DrawingArea = item.get_child()
+
+        # Store track reference and queue redraw
+        drawing_area.track = track  # type: ignore[attr-defined]
+        drawing_area.queue_draw()
+
+    def _draw_compat_dot(
+        self,
+        area: Gtk.DrawingArea,
+        cr: object,  # cairo.Context
+        width: int,
+        height: int,
+        _data: object,
+    ) -> None:
+        """Draw a colored dot indicating harmonic compatibility with previous track.
+
+        Green: Compatible (same number or adjacent with same letter)
+        Amber/Yellow: Same number, different letter (mode switch)
+        Red: Incompatible
+        """
+        # Default to gray if no track data
+        track = getattr(area, "track", None)
+        if track is None:
+            self._draw_circle(cr, width, height, 0.7, 0.7, 0.7)  # Gray
+            return
+
+        # Get the list store to find previous track
+        store = self._store
+        n_items = store.get_n_items()
+        track_idx = -1
+
+        # Find this track's index
+        for i in range(n_items):
+            if store.get_item(i) == track:
+                track_idx = i
+                break
+
+        # First track or not found - no dot needed (invisible/gray)
+        if track_idx <= 0:
+            self._draw_circle(cr, width, height, 0.0, 0.0, 0.0, 0.0)  # Transparent
+            return
+
+        # Get previous track's key
+        prev_track = store.get_item(track_idx - 1)
+        prev_key = prev_track.camelot_key if prev_track else None
+        current_key = track.camelot_key
+
+        if not prev_key or not current_key:
+            self._draw_circle(cr, width, height, 0.7, 0.7, 0.7)  # Gray
+            return
+
+        # Calculate compatibility
+        from playchitect.core.intensity_analyzer import harmonic_compatibility
+
+        if harmonic_compatibility(current_key, prev_key):
+            # Check if it's same number different letter (amber) or full compatible (green)
+            if current_key[:-1] == prev_key[:-1] and current_key[-1] != prev_key[-1]:
+                # Same number, different letter = amber
+                self._draw_circle(cr, width, height, 1.0, 0.65, 0.0)  # Amber
+            else:
+                # Fully compatible = green
+                self._draw_circle(cr, width, height, 0.2, 0.8, 0.2)  # Green
+        else:
+            # Incompatible = red
+            self._draw_circle(cr, width, height, 0.9, 0.2, 0.2)  # Red
+
+    def _draw_circle(
+        self,
+        cr: object,
+        width: int,
+        height: int,
+        r: float,
+        g: float,
+        b: float,
+        a: float = 1.0,
+    ) -> None:
+        """Draw a filled circle in the center of the area."""
+        import math
+
+        center_x = width / 2.0
+        center_y = height / 2.0
+        radius = min(width, height) / 2.0 - 2  # 2px padding
+
+        cr.set_source_rgba(r, g, b, a)
+        cr.arc(center_x, center_y, radius, 0, 2 * math.pi)
+        cr.fill()
 
     # ── Keyboard shortcuts ────────────────────────────────────────────────────
 

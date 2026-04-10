@@ -330,6 +330,8 @@ class TestClusterByFeaturesWeighted:
                 bass_harmonics=float(rng.uniform(0.2, 0.7)),
                 percussiveness=float(rng.uniform(0.5, 0.95)),
                 onset_strength=float(rng.uniform(0.4, 0.8)),
+                camelot_key="8B",
+                key_index=0.0,
             )
         return meta, intensity
 
@@ -368,3 +370,40 @@ class TestClusterByFeaturesWeighted:
         clusterer = PlaylistClusterer(target_tracks_per_playlist=10, min_clusters=2)
         results = clusterer.cluster_by_features(meta, intensity, genre="house")
         assert sum(r.track_count for r in results) == n
+
+
+# ── Log-level: PCA bootstrap fallback ────────────────────────────────────────
+
+
+class TestSelectWeightsLogLevel:
+    """Ensure the PCA bootstrap fallback message is logged at INFO, not WARNING."""
+
+    def test_pca_bootstrap_fallback_is_info_not_warning(
+        self, caplog: pytest.LogCaptureFixture
+    ) -> None:
+        """When PCA CI is too wide, the fallback message must be INFO-level.
+
+        Force the CI check to fail by setting ci_threshold=1.0 (any CI is
+        considered too wide) via a patched learn_weights_pca that always returns
+        None.
+        """
+        import logging
+        from unittest.mock import patch
+
+        # A dataset large enough to pass _MIN_TRACKS_PCA, but learn_weights_pca
+        # is mocked to return None so the CI-too-wide branch fires.
+        X = _make_structured_data(n=50)
+
+        with caplog.at_level(logging.DEBUG, logger="playchitect.core.weighting"):
+            with patch("playchitect.core.weighting.learn_weights_pca", return_value=None):
+                select_weights(X)
+
+        warning_records = [r for r in caplog.records if r.levelno >= logging.WARNING]
+        info_records = [
+            r for r in caplog.records if r.levelno == logging.INFO and "PCA bootstrap" in r.message
+        ]
+
+        assert not warning_records, (
+            f"Expected no WARNING records; got: {[r.message for r in warning_records]}"
+        )
+        assert info_records, "Expected an INFO record containing 'PCA bootstrap'"

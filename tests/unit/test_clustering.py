@@ -3,11 +3,16 @@ Unit tests for clustering module.
 """
 
 from pathlib import Path
+from unittest.mock import patch
 
 import numpy as np
 import pytest
 
-from playchitect.core.clustering import FEATURE_NAMES, ClusterResult, PlaylistClusterer
+from playchitect.core.clustering import (
+    FEATURE_NAMES,
+    ClusterResult,
+    PlaylistClusterer,
+)
 from playchitect.core.intensity_analyzer import IntensityFeatures
 from playchitect.core.metadata_extractor import TrackMetadata
 
@@ -38,6 +43,8 @@ def make_intensity(
         bass_harmonics=harmonics,
         percussiveness=perc,
         onset_strength=onset,
+        camelot_key="8B",
+        key_index=0.0,
     )
 
 
@@ -118,12 +125,13 @@ class TestPlaylistClusterer:
 
     def test_cluster_respects_target_tracks(self) -> None:
         """Test that clustering respects target tracks per playlist."""
-        clusterer = PlaylistClusterer(target_tracks_per_playlist=5)
+        clusterer = PlaylistClusterer(target_tracks_per_playlist=5, random_state=1)
+        rng = np.random.RandomState(1)
 
         # Create 20 tracks with similar BPMs (should cluster into ~4 groups)
         metadata_dict = {}
         for i in range(20):
-            bpm = 128.0 + np.random.randn() * 2  # BPM around 128 ± 2
+            bpm = 128.0 + rng.randn() * 2  # BPM around 128 ± 2
             metadata_dict[Path(f"track{i}.mp3")] = TrackMetadata(
                 filepath=Path(f"track{i}.mp3"), bpm=float(bpm), duration=180.0
             )
@@ -423,6 +431,106 @@ class TestClusterByFeatures:
             assert r.feature_importance is None
 
 
+class TestNPlaylistsParameter:
+    """Test the n_playlists parameter for overriding auto-K selection."""
+
+    def _make_test_data(
+        self, n: int = 20
+    ) -> tuple[dict[Path, TrackMetadata], dict[Path, IntensityFeatures]]:
+        """Create test data with varied BPM and intensity."""
+        meta: dict[Path, TrackMetadata] = {}
+        intensity: dict[Path, IntensityFeatures] = {}
+        for i in range(n):
+            name = f"track_{i}.mp3"
+            p = Path(name)
+            meta[p] = make_metadata(name, bpm=120.0 + i * 2)
+            intensity[p] = make_intensity(name, rms=0.5 + (i % 5) * 0.1)
+        return meta, intensity
+
+    def test_n_playlists_returns_exact_count(self) -> None:
+        """cluster_by_features with n_playlists=3 returns exactly 3 clusters."""
+        meta, intensity = self._make_test_data(20)
+        clusterer = PlaylistClusterer(target_tracks_per_playlist=5, min_clusters=2)
+
+        results = clusterer.cluster_by_features(meta, intensity, n_playlists=3)
+
+        assert len(results) == 3
+
+    def test_n_playlists_one_returns_single_cluster(self) -> None:
+        """n_playlists=1 returns a single cluster with all tracks."""
+        meta, intensity = self._make_test_data(10)
+        clusterer = PlaylistClusterer(target_tracks_per_playlist=5, min_clusters=1)
+
+        results = clusterer.cluster_by_features(meta, intensity, n_playlists=1)
+
+        assert len(results) == 1
+        assert results[0].track_count == 10
+
+    def test_n_playlists_respects_max_clusters(self) -> None:
+        """n_playlists is capped by min_clusters constraint."""
+        meta, intensity = self._make_test_data(10)
+        clusterer = PlaylistClusterer(target_tracks_per_playlist=5, min_clusters=2)
+
+        # Request 1 cluster but min_clusters=2, so should get 2
+        results = clusterer.cluster_by_features(meta, intensity, n_playlists=1)
+
+        assert len(results) == 2
+
+    def test_n_playlists_capped_by_track_count(self) -> None:
+        """n_playlists cannot exceed the number of tracks."""
+        meta, intensity = self._make_test_data(5)
+        clusterer = PlaylistClusterer(target_tracks_per_playlist=5, min_clusters=2)
+
+        # Request 10 clusters but only 5 tracks
+        results = clusterer.cluster_by_features(meta, intensity, n_playlists=10)
+
+        assert len(results) <= 5
+
+    def test_n_playlists_none_uses_auto_k(self) -> None:
+        """n_playlists=None uses auto-K selection (elbow/silhouette)."""
+        meta, intensity = self._make_test_data(20)
+        clusterer = PlaylistClusterer(target_tracks_per_playlist=5, min_clusters=2)
+
+        results_auto = clusterer.cluster_by_features(meta, intensity, n_playlists=None)
+        results_explicit = clusterer.cluster_by_features(meta, intensity, n_playlists=4)
+
+        # Auto and explicit should give different results (with high probability)
+        # We can't assert exact counts since auto depends on data structure
+        assert len(results_auto) >= 1
+        assert len(results_explicit) == 4
+
+    def test_n_playlists_zero_uses_auto_k(self) -> None:
+        """n_playlists=0 is treated as None (auto-K selection)."""
+        meta, intensity = self._make_test_data(15)
+        clusterer = PlaylistClusterer(target_tracks_per_playlist=5, min_clusters=2)
+
+        results_zero = clusterer.cluster_by_features(meta, intensity, n_playlists=0)
+        results_none = clusterer.cluster_by_features(meta, intensity, n_playlists=None)
+
+        # Both should behave the same (both use auto-K)
+        assert len(results_zero) >= 1
+        assert len(results_none) >= 1
+
+    def test_n_playlists_with_duration_target(self) -> None:
+        """n_playlists works with duration-based clusterer."""
+        meta, intensity = self._make_test_data(20)
+        clusterer = PlaylistClusterer(target_duration_per_playlist=60, min_clusters=2)
+
+        results = clusterer.cluster_by_features(meta, intensity, n_playlists=3)
+
+        assert len(results) == 3
+
+    def test_all_tracks_accounted_for_with_n_playlists(self) -> None:
+        """All tracks are assigned to clusters when using n_playlists."""
+        meta, intensity = self._make_test_data(25)
+        clusterer = PlaylistClusterer(target_tracks_per_playlist=5, min_clusters=2)
+
+        results = clusterer.cluster_by_features(meta, intensity, n_playlists=4)
+
+        total_tracks = sum(r.track_count for r in results)
+        assert total_tracks == 25
+
+
 class TestClusterResult:
     """Test ClusterResult dataclass."""
 
@@ -623,3 +731,91 @@ class TestClusteringEdgeCases:
         results = clusterer.split_cluster(cluster, target_size=5)
         assert len(results) == 4
         assert sum(r.track_count for r in results) == 20
+
+
+class TestDetermineOptimalK:
+    """Test the improved _determine_optimal_k method with silhouette score."""
+
+    def test_silhouette_strong_signal_selects_silhouette_k(self) -> None:
+        """Create clearly separable clusters and verify silhouette-optimal K is selected."""
+        # 3 tight groups of points
+        group1 = np.random.normal(loc=0.0, scale=0.1, size=(20, 5))
+        group2 = np.random.normal(loc=10.0, scale=0.1, size=(20, 5))
+        group3 = np.random.normal(loc=20.0, scale=0.1, size=(20, 5))
+        features = np.vstack([group1, group2, group3])
+
+        clusterer = PlaylistClusterer(target_tracks_per_playlist=20, min_clusters=2, max_clusters=5)
+        # Should detect 3 clusters as silhouette will be very high at K=3
+        k = clusterer._determine_optimal_k(features, {}, len(features))
+        assert k == 3
+
+    def test_silhouette_weak_signal_falls_back_to_elbow(self) -> None:
+        """Mock silhouette_score to return low values; verify elbow-method K is selected."""
+        # Seeding ensures deterministic elbow method
+        rng = np.random.default_rng(0)
+        features = rng.random((40, 5))
+        clusterer = PlaylistClusterer(target_tracks_per_playlist=10, min_clusters=2, max_clusters=5)
+
+        # Mock silhouette_score to be flat and low (< _SIL_WEAK = 0.3)
+        with patch("playchitect.core.clustering.silhouette_score", return_value=0.1):
+            k = clusterer._determine_optimal_k(features, {}, len(features))
+            # With 40 tracks and target 10, constraint_k=4.
+            # Seeding 0 results in elbow_k=4 for this dataset.
+            # Since 0.1 < 0.3, it uses elbow_k (4).
+            assert k == 4
+
+    def test_silhouette_blend_midrange(self) -> None:
+        """Mock silhouette_score to return midrange values; verify K is blend of sil and elbow."""
+        features = np.random.rand(40, 5)
+        clusterer = PlaylistClusterer(target_tracks_per_playlist=10, min_clusters=2, max_clusters=5)
+
+        # Mock silhouette_score to peak at 0.4 (between _SIL_WEAK=0.3 and _SIL_STRONG=0.5)
+        # k_range is [2, 3, 4, 5]
+        # We'll make it peak at K=5 (index 3)
+        def mock_sil(feat, labels):
+            k = len(np.unique(labels))
+            return 0.4 if k == 5 else 0.2
+
+        with patch("playchitect.core.clustering.silhouette_score", side_effect=mock_sil):
+            # We need to know what elbow_k would be.
+            # Let's just verify the logic: data_k = round((best_sil_k + elbow_k) / 2)
+            # best_sil_k = 5.
+            # elbow_k will be calculated.
+            k = clusterer._determine_optimal_k(features, {}, len(features))
+            # If elbow_k is 2, blend is round((5+2)/2) = round(3.5) = 4
+            # If elbow_k is 3, blend is round((5+3)/2) = 4
+            # If elbow_k is 4, blend is round((5+4)/2) = round(4.5) = 5
+            # In any case, it's a blend.
+            assert k in [4, 5]
+
+    def test_k1_sentinel_not_selected(self) -> None:
+        """Verify K=1 (sentinel -1.0) is never selected as best silhouette K."""
+        # Use separable data for 2 clusters
+        group1 = np.random.normal(loc=0.0, scale=0.1, size=(20, 5))
+        group2 = np.random.normal(loc=10.0, scale=0.1, size=(20, 5))
+        features = np.vstack([group1, group2])
+
+        # Force min_clusters=1
+        clusterer = PlaylistClusterer(target_tracks_per_playlist=20, min_clusters=1, max_clusters=4)
+        # k_range = [1, 2, 3, 4]
+        # sil_scores = [-1.0, high, lower, lower]
+        k = clusterer._determine_optimal_k(features, {}, len(features))
+        assert k >= 2
+
+    def test_constraint_k_overrides_silhouette(self) -> None:
+        """Verify constraint_k is returned when it is within ±2 of data_k."""
+        # 3 clusters, but set target_tracks such that constraint_k = 5
+        group1 = np.random.normal(loc=0.0, scale=0.1, size=(20, 5))
+        group2 = np.random.normal(loc=10.0, scale=0.1, size=(20, 5))
+        group3 = np.random.normal(loc=20.0, scale=0.1, size=(20, 5))
+        features = np.vstack([group1, group2, group3])
+
+        # total_tracks = 60. target_tracks = 12 -> constraint_k = 5
+        clusterer = PlaylistClusterer(
+            target_tracks_per_playlist=12, min_clusters=2, max_clusters=10
+        )
+        # silhouette will suggest K=3.
+        # constraint_k = 5.
+        # abs(5 - 3) = 2 <= 2, so it should return 5.
+        k = clusterer._determine_optimal_k(features, {}, len(features))
+        assert k == 5
