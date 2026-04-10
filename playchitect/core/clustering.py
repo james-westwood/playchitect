@@ -170,7 +170,7 @@ class PlaylistClusterer:
         optimal_k = self._determine_optimal_k(bpms_normalized, valid_tracks, len(tracks))
         logger.info(f"Using K={optimal_k} clusters")
 
-        kmeans = KMeans(n_clusters=optimal_k, random_state=self.random_state, n_init=10)
+        kmeans = KMeans(n_clusters=optimal_k, random_state=self.random_state, n_init=10)  # type: ignore
         labels = kmeans.fit_predict(bpms_normalized)
 
         results = self._build_cluster_results(tracks, labels, optimal_k, valid_tracks)
@@ -384,7 +384,7 @@ class PlaylistClusterer:
             optimal_k = self._determine_optimal_k(features_for_kmeans, valid_meta, len(valid_paths))
             logger.info(f"Using K={optimal_k} clusters (weight source: {weight_source})")
 
-        kmeans = KMeans(n_clusters=optimal_k, random_state=self.random_state, n_init=10)
+        kmeans = KMeans(n_clusters=optimal_k, random_state=self.random_state, n_init=10)  # type: ignore
         labels = kmeans.fit_predict(features_for_kmeans)
 
         # Determine per-cluster feature importance
@@ -427,7 +427,7 @@ class PlaylistClusterer:
 
         for r in results:
             if r.feature_importance:
-                top = max(r.feature_importance, key=lambda k: r.feature_importance[k])  # type: ignore[index]
+                top = max(r.feature_importance, key=lambda k: r.feature_importance[k])  # type: ignore
                 logger.info(
                     f"Cluster {r.cluster_id}: {r.track_count} tracks, "
                     f"BPM: {r.bpm_mean:.1f} ± {r.bpm_std:.1f}, "
@@ -601,7 +601,7 @@ class PlaylistClusterer:
                     if t in embedding_dict and (m := embedding_dict[t].primary_mood):
                         mood_counts[m] = mood_counts.get(m, 0.0) + 1.0
                 if mood_counts:
-                    dominant_mood = max(mood_counts, key=mood_counts.get)  # type: ignore[arg-type]
+                    dominant_mood = max(mood_counts, key=mood_counts.get)  # type: ignore
 
             results.append(
                 ClusterResult(
@@ -691,9 +691,9 @@ class PlaylistClusterer:
         inertias: list[float] = []
         sil_scores: list[float] = []
         for k in k_range:
-            km = KMeans(n_clusters=k, random_state=self.random_state, n_init=10)
+            km = KMeans(n_clusters=k, random_state=self.random_state, n_init=10)  # type: ignore
             labels = km.fit_predict(features)
-            inertias.append(float(km.inertia_))  # type: ignore[arg-type]
+            inertias.append(float(km.inertia_))  # type: ignore
             if k > 1 and len(np.unique(labels)) > 1:
                 sil_scores.append(float(silhouette_score(features, labels)))
             else:
