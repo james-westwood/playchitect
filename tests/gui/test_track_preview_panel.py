@@ -170,7 +170,7 @@ class TestLoadTrack:
         with patch.object(panel, "_load_cover_art"):
             with patch.object(panel, "_extract_album_info", return_value=""):
                 with patch.object(panel, "_extract_key", return_value=None):
-                    panel.load_track(fake_track)  # type: ignore[arg-type]
+                    panel.load_track(fake_track)  # ty: ignore[invalid-argument-type]
 
         panel._title_label.set_text.assert_called_once_with("Dark Matter")
 
@@ -181,7 +181,7 @@ class TestLoadTrack:
         with patch.object(panel, "_load_cover_art"):
             with patch.object(panel, "_extract_album_info", return_value=""):
                 with patch.object(panel, "_extract_key", return_value=None):
-                    panel.load_track(fake_track)  # type: ignore[arg-type]
+                    panel.load_track(fake_track)  # ty: ignore[invalid-argument-type]
 
         panel._artist_label.set_text.assert_called_once_with("Surgeon")
 
@@ -192,7 +192,7 @@ class TestLoadTrack:
         with patch.object(panel, "_load_cover_art"):
             with patch.object(panel, "_extract_album_info", return_value=""):
                 with patch.object(panel, "_extract_key", return_value=None):
-                    panel.load_track(fake_track)  # type: ignore[arg-type]
+                    panel.load_track(fake_track)  # ty: ignore[invalid-argument-type]
 
         panel._bpm_pill.set_text.assert_called_once_with("138 BPM")
 
@@ -203,7 +203,7 @@ class TestLoadTrack:
         with patch.object(panel, "_load_cover_art"):
             with patch.object(panel, "_extract_album_info", return_value=""):
                 with patch.object(panel, "_extract_key", return_value=None):
-                    panel.load_track(fake_track)  # type: ignore[arg-type]
+                    panel.load_track(fake_track)  # ty: ignore[invalid-argument-type]
 
         panel._duration_pill.set_text.assert_called_once_with("6:26")
 
@@ -214,7 +214,7 @@ class TestLoadTrack:
         with patch.object(panel, "_load_cover_art"):
             with patch.object(panel, "_extract_album_info", return_value=""):
                 with patch.object(panel, "_extract_key", return_value=None):
-                    panel.load_track(fake_track)  # type: ignore[arg-type]
+                    panel.load_track(fake_track)  # ty: ignore[invalid-argument-type]
 
         panel._format_pill.set_text.assert_called_once_with("FLAC")
 
@@ -225,7 +225,7 @@ class TestLoadTrack:
         with patch.object(panel, "_load_cover_art"):
             with patch.object(panel, "_extract_album_info", return_value=""):
                 with patch.object(panel, "_extract_key", return_value=None):
-                    panel.load_track(fake_track)  # type: ignore[arg-type]
+                    panel.load_track(fake_track)  # ty: ignore[invalid-argument-type]
 
         panel._seek_scale.set_value.assert_called_once_with(0)
         panel._current_time_label.set_text.assert_called_once_with("0:00")
@@ -240,7 +240,7 @@ class TestLoadTrack:
         with patch.object(panel, "_load_cover_art"):
             with patch.object(panel, "_extract_album_info", return_value=""):
                 with patch.object(panel, "_extract_key", return_value=None):
-                    panel.load_track(track)  # type: ignore[arg-type]
+                    panel.load_track(track)  # ty: ignore[invalid-argument-type]
 
         panel._title_label.set_text.assert_called_once_with("my_song")
 
@@ -258,7 +258,7 @@ class TestCoverArtFallback:
             with patch.object(panel, "_show_placeholder") as mock_show:
                 with patch.object(panel, "_extract_album_info", return_value=""):
                     with patch.object(panel, "_extract_key", return_value=None):
-                        panel.load_track(fake_track)  # type: ignore[arg-type]
+                        panel.load_track(fake_track)  # ty: ignore[invalid-argument-type]
 
         mock_show.assert_called_once()
 
