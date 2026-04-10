@@ -11,9 +11,6 @@ from pathlib import Path
 from typing import TYPE_CHECKING
 from unittest.mock import MagicMock, patch
 
-import pytest
-from gi.repository import Gtk  # type: ignore[unresolved-import]
-
 if TYPE_CHECKING:
     from playchitect.gui.views.playlists_view import PlaylistsView
 
