@@ -957,7 +957,7 @@ class SetBuilderView(Gtk.Box):
             title = meta.title or path.name
             artist = meta.artist or "Unknown Artist"
             bpm = f"{meta.bpm:.1f}" if meta.bpm else "—"
-            self._browser_store.append([title, artist, bpm, str(path), ""])
+            self._browser_store.append(BrowserTrackItem(title, artist, bpm, str(path)))
 
         # Select first block if available
         if self._energy_blocks:
@@ -1134,7 +1134,7 @@ class SetBuilderView(Gtk.Box):
             title = meta.title or path.name
             artist = meta.artist or "Unknown Artist"
             bpm = f"{meta.bpm:.1f}" if meta.bpm else "—"
-            self._browser_store.append([title, artist, bpm, str(path), ""])
+            self._browser_store.append(BrowserTrackItem(title, artist, bpm, str(path)))
 
     def on_track_selected(self, filepath: Path) -> None:
         """Handle track selection from timeline.
