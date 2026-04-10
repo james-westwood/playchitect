@@ -91,7 +91,7 @@ def select_weights(
     X_scaled: np.ndarray,
     genre: str | None = None,
     random_state: int = 42,
-    weight_overrides: WeightOverrides | None = None,
+    weight_overrides: "WeightOverrides | None" = None,
 ) -> WeightProfile:
     """
     Select the best available weight strategy for the given data.
