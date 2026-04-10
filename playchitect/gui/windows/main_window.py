@@ -194,6 +194,7 @@ class PlaychitectWindow(Adw.ApplicationWindow):
         is_minutes = dropdown.get_selected() == 1
         if is_minutes:
             self._target_spin.set_range(5, 300)  # 5 mins to 5 hours
+
             current = self._target_spin.get_value()
             if current < 5:
                 self._target_spin.set_value(60)  # Default to 1 hour

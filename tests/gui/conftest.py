@@ -326,6 +326,23 @@ class _FakeGtkBase:
     def get_value(self) -> _FakeValue:
         return _FakeValue()
 
+    def get_selected(self) -> int:
+        return 0
+
+    def set_selected(self, _index: int) -> None:
+        pass
+
+    def set_popover(self, *_args: object) -> None:
+        pass
+
+    @classmethod
+    def new_with_range(cls, _min: float, _max: float, _step: float) -> _FakeGtkBase:
+        return cls()
+
+    @classmethod
+    def new_from_strings(cls, _strings: list[str]) -> _FakeGtkBase:
+        return cls()
+
     @classmethod
     def new_from_icon_name(cls, *_args: object) -> _FakeGtkBase:
         return cls()
