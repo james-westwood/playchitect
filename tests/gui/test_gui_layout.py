@@ -583,6 +583,9 @@ class TestPlaylistSizeControls:
         mock_glib = MagicMock()
 
         monkeypatch.setattr("playchitect.gui.windows.main_window.GLib", mock_glib)
+        monkeypatch.setattr(
+            "playchitect.gui.widgets.track_preview_panel._ensure_cache_dir", lambda: None
+        )
 
         PlaychitectWindow()
 
