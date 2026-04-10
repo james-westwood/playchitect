@@ -23,8 +23,8 @@ logger = logging.getLogger(__name__)
 
 try:
     # Essentia imports are optional; ty doesn't have stubs for them
-    from essentia.standard import TensorflowPredict2D  # type: ignore[import-not-found]
-    from essentia.standard import (  # type: ignore[import-not-found]
+    from essentia.standard import TensorflowPredict2D  # type: ignore
+    from essentia.standard import (  # type: ignore
         TensorflowPredictMusiCNN as _EssentiaModel,
     )
 
