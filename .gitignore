@@ -36,8 +36,13 @@ ENV/
 # Testing
 .pytest_cache/
 .coverage
+coverage.xml
 htmlcov/
 .tox/
+
+# Tooling
+.opencode/
+ralph-loop.log
 
 # Packaging
 *.spec
