@@ -106,7 +106,7 @@ class PlaychitectWindow(Adw.ApplicationWindow):
         header.pack_start(fresh_box)
 
         # Menu button (primary menu)
-        self._menu_button = Adw.MenuButton()
+        self._menu_button = Gtk.MenuButton()
         self._menu_button.set_icon_name("open-menu-symbolic")
         self._menu_button.set_tooltip_text("Menu")
         self._build_menu()
@@ -260,7 +260,7 @@ class PlaychitectWindow(Adw.ApplicationWindow):
         index = row.get_index()
         page_names = ["library", "playlists", "set-builder", "export"]
 
-        if 0 <= index < len(page_names):
+        if 0 <= index < len(page_names) and hasattr(self, "_view_stack"):
             self._view_stack.set_visible_child_name(page_names[index])
 
     def show_preferences(self) -> None:
