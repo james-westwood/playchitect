@@ -113,16 +113,16 @@ _pango_mock.EllipsizeMode.END = 3
 _adw_mock = MagicMock()
 
 _gi_mod = ModuleType("gi")
-_gi_mod.require_version = MagicMock()  # type: ignore[attr-defined]
+_gi_mod.require_version = MagicMock()  # ty: ignore[unresolved-attribute]
 
 _repo_mod = ModuleType("gi.repository")
-_repo_mod.GObject = _gobject_mock  # type: ignore[attr-defined]
-_repo_mod.Gtk = _gtk_mock  # type: ignore[attr-defined]
-_repo_mod.Gdk = _gdk_mock  # type: ignore[attr-defined]
-_repo_mod.Gio = _gio_mock  # type: ignore[attr-defined]
-_repo_mod.GLib = _glib_mock  # type: ignore[attr-defined]
-_repo_mod.Pango = _pango_mock  # type: ignore[attr-defined]
-_repo_mod.Adw = _adw_mock  # type: ignore[attr-defined]
+_repo_mod.GObject = _gobject_mock  # ty: ignore[unresolved-attribute]
+_repo_mod.Gtk = _gtk_mock  # ty: ignore[unresolved-attribute]
+_repo_mod.Gdk = _gdk_mock  # ty: ignore[unresolved-attribute]
+_repo_mod.Gio = _gio_mock  # ty: ignore[unresolved-attribute]
+_repo_mod.GLib = _glib_mock  # ty: ignore[unresolved-attribute]
+_repo_mod.Pango = _pango_mock  # ty: ignore[unresolved-attribute]
+_repo_mod.Adw = _adw_mock  # ty: ignore[unresolved-attribute]
 
 sys.modules.setdefault("gi", _gi_mod)
 sys.modules.setdefault("gi.repository", _repo_mod)
@@ -227,7 +227,8 @@ class TestApplyVocalFilter:
         }
 
         filtered_metadata, filtered_intensity = view._apply_vocal_filter(
-            metadata_map, intensity_map
+            metadata_map,  # ty: ignore[invalid-argument-type]
+            intensity_map,
         )
 
         assert len(filtered_metadata) == 3
@@ -260,7 +261,8 @@ class TestApplyVocalFilter:
         }
 
         filtered_metadata, filtered_intensity = view._apply_vocal_filter(
-            metadata_map, intensity_map
+            metadata_map,  # ty: ignore[invalid-argument-type]
+            intensity_map,
         )
 
         assert len(filtered_metadata) == 2
@@ -293,7 +295,8 @@ class TestApplyVocalFilter:
         }
 
         filtered_metadata, filtered_intensity = view._apply_vocal_filter(
-            metadata_map, intensity_map
+            metadata_map,  # ty: ignore[invalid-argument-type]
+            intensity_map,
         )
 
         assert len(filtered_metadata) == 2
@@ -319,7 +322,8 @@ class TestApplyVocalFilter:
         }
 
         filtered_metadata, filtered_intensity = view._apply_vocal_filter(
-            metadata_map, intensity_map
+            metadata_map,  # ty: ignore[invalid-argument-type]
+            intensity_map,
         )
 
         assert len(filtered_metadata) == 1
@@ -339,7 +343,8 @@ class TestApplyVocalFilter:
         intensity_map = {path1: intensity_without_vocal}
 
         filtered_metadata, filtered_intensity = view._apply_vocal_filter(
-            metadata_map, intensity_map
+            metadata_map,  # ty: ignore[invalid-argument-type]
+            intensity_map,
         )
 
         # vocal_presence defaults to 0.0, which is < 0.3, so track is kept

@@ -965,7 +965,7 @@ class TestEnsureModel:
             mood_model_path=mood_file,
             cache_enabled=False,
         )
-        extractor._download_model = fake_download  # type: ignore[method-assign]
+        extractor._download_model = fake_download  # ty: ignore[invalid-assignment]
         extractor._ensure_model()
 
         assert len(downloaded) == 2

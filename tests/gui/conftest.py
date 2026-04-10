@@ -433,11 +433,11 @@ _pango_mock.EllipsizeMode = MagicMock()
 _pango_mock.EllipsizeMode.END = 3
 
 _gi_mod = ModuleType("gi")
-_gi_mod.require_version = MagicMock()  # type: ignore[attr-defined]
+_gi_mod.require_version = MagicMock()  # ty: ignore[unresolved-attribute]
 
 _repo_mod = ModuleType("gi.repository")
-_repo_mod.GObject = _gobject_mock  # type: ignore[attr-defined]
-_repo_mod.Gtk = _gtk_mock  # type: ignore[attr-defined]
+_repo_mod.GObject = _gobject_mock  # ty: ignore[unresolved-attribute]
+_repo_mod.Gtk = _gtk_mock  # ty: ignore[unresolved-attribute]
 
 # Gdk mock with DragAction
 _gdk_mock = MagicMock()
@@ -448,11 +448,11 @@ _gdk_mock.KEY_space = 32
 _gdk_mock.Rectangle = MagicMock()
 _gdk_mock.ModifierType = MagicMock()
 
-_repo_mod.Gdk = _gdk_mock  # type: ignore[attr-defined]
-_repo_mod.Gio = MagicMock()  # type: ignore[attr-defined]
-_repo_mod.GLib = MagicMock()  # type: ignore[attr-defined]
-_repo_mod.Pango = _pango_mock  # type: ignore[attr-defined]
-_repo_mod.Adw = _adw_mock  # type: ignore[attr-defined]
+_repo_mod.Gdk = _gdk_mock  # ty: ignore[unresolved-attribute]
+_repo_mod.Gio = MagicMock()  # ty: ignore[unresolved-attribute]
+_repo_mod.GLib = MagicMock()  # ty: ignore[unresolved-attribute]
+_repo_mod.Pango = _pango_mock  # ty: ignore[unresolved-attribute]
+_repo_mod.Adw = _adw_mock  # ty: ignore[unresolved-attribute]
 
 sys.modules.setdefault("gi", _gi_mod)
 sys.modules.setdefault("gi.repository", _repo_mod)

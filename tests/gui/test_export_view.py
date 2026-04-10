@@ -326,7 +326,7 @@ class TestPublicAPI:
         view = _make_view()
 
         names = {1: "Test Cluster", 2: "Another Cluster"}
-        view.set_cluster_names(names)
+        view.set_cluster_names(names)  # ty: ignore[invalid-argument-type]
 
         assert view._cluster_names == names
 
