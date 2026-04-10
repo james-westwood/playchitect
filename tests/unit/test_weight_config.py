@@ -196,7 +196,7 @@ class TestApplyWeightOverrides:
 
         # bpm should be at index 7 in reversed order
         assert result[7] == 2.0
-        assert result[0] == 0.125  # onset_strength (was last, now first)
+        assert result[0] == 1.0  # onset_strength unchanged (no normalization)
 
     def test_apply_mismatched_length_raises(self) -> None:
         """Mismatched weights length and feature_names length raises error."""
