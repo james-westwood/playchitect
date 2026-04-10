@@ -1,0 +1,51 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<DJ_PLAYLISTS Version="1.0.0">
+  <PRODUCT Name="rekordbox" Version="6.6.11" Company="AlphaTheta"/>
+  <COLLECTION Entries="5">
+    <TRACK TrackID="1" Name="Test Track 1" Artist="Test Artist 1"
+           Location="file://localhost/home/user/music/test1.mp3"
+           AverageBpm="128.50" Tonality="6A" TotalTime="240">
+      <POSITION_MARK Name="Intro" Start="0.0" Num="0" Type="0"/>
+      <POSITION_MARK Name="Drop" Start="15000.0" Num="1" Type="0"/>
+      <POSITION_MARK Name="Break" Start="60000.0" Num="8" Type="0"/>
+    </TRACK>
+    <TRACK TrackID="2" Name="Test Track 2" Artist="Test Artist 2"
+           Location="file://localhost/home/user/music/test2.wav"
+           AverageBpm="124.00" Tonality="4B" TotalTime="180"/>
+    <TRACK TrackID="3" Name="Test Track 3" Artist="Test Artist 3"
+           Location="file://localhost/home/user/music/test3.flac"
+           AverageBpm="135.00" Tonality="Cm" TotalTime="300">
+      <POSITION_MARK Start="5000.0" Num="0" Type="0"/>
+    </TRACK>
+    <TRACK TrackID="4" Name="Test Track 4" Artist="Test Artist 4"
+           Location="file://localhost/home/user/music/test4.aiff"
+           AverageBpm="140.00" Tonality="G#m" TotalTime="200">
+      <POSITION_MARK Name="Build" Start="45000.0" Num="2" Type="0"/>
+      <POSITION_MARK Name="Outro" Start="120000.0" Num="3" Type="0"/>
+    </TRACK>
+    <TRACK TrackID="5" Name="Test Track 5" Artist="Test Artist 5"
+           Location="file://localhost/home/user/music/test5.ogg"
+           AverageBpm="130.00" Tonality="8B" TotalTime="220">
+      <POSITION_MARK Name="Cue 1" Start="0.0" Num="0" Type="0"/>
+      <POSITION_MARK Name="Cue 2" Start="30000.0" Num="1" Type="0"/>
+      <POSITION_MARK Name="Cue 3" Start="60000.0" Num="2" Type="0"/>
+      <POSITION_MARK Name="Cue 4" Start="90000.0" Num="3" Type="0"/>
+      <POSITION_MARK Name="Cue 5" Start="120000.0" Num="4" Type="0"/>
+      <POSITION_MARK Name="Cue 6" Start="150000.0" Num="5" Type="0"/>
+      <POSITION_MARK Name="Cue 7" Start="180000.0" Num="6" Type="0"/>
+      <POSITION_MARK Name="Cue 8" Start="210000.0" Num="7" Type="0"/>
+      <POSITION_MARK Name="Memory" Start="200000.0" Num="8" Type="0"/>
+    </TRACK>
+  </COLLECTION>
+  <PLAYLISTS>
+    <NODE Type="0" Name="ROOT">
+      <NODE Type="1" Name="Test Playlist">
+        <TRACK Key="1"/>
+        <TRACK Key="2"/>
+        <TRACK Key="3"/>
+        <TRACK Key="4"/>
+        <TRACK Key="5"/>
+      </NODE>
+    </NODE>
+  </PLAYLISTS>
+</DJ_PLAYLISTS>

@@ -16,6 +16,7 @@ from typing import Any
 import numpy as np
 from sklearn.cluster import KMeans
 from sklearn.decomposition import PCA
+from sklearn.metrics import silhouette_score
 from sklearn.preprocessing import StandardScaler
 
 from playchitect.core.intensity_analyzer import IntensityFeatures
@@ -26,11 +27,16 @@ from playchitect.core.weighting import (
     ewkm_refine,
     select_weights,
 )
+from playchitect.utils.weight_config import WeightOverrides, apply_weight_overrides
 
 logger = logging.getLogger(__name__)
 
 # Minimum tracks to activate EWKM per-cluster weight refinement.
 _MIN_TRACKS_EWKM = 80
+
+# Silhouette score thresholds for auto-K selection.
+_SIL_STRONG: float = 0.5  # silhouette max above this → silhouette is primary signal
+_SIL_WEAK: float = 0.3  # silhouette max below this → fall back to elbow method
 
 # Block PCA constants for optional MusiCNN embedding integration.
 _EMBEDDING_PCA_COMPONENTS: int = 12
@@ -105,6 +111,7 @@ class PlaylistClusterer:
         min_clusters: int = 2,
         max_clusters: int = 10,
         random_state: int = 42,
+        weight_overrides: WeightOverrides | None = None,
     ):
         """
         Initialize playlist clusterer.
@@ -115,6 +122,7 @@ class PlaylistClusterer:
             min_clusters: Minimum number of clusters to consider
             max_clusters: Maximum number of clusters to consider
             random_state: Random seed for reproducibility
+            weight_overrides: Optional user-specified feature weight overrides
         """
         if target_tracks_per_playlist is None and target_duration_per_playlist is None:
             raise ValueError(
@@ -129,6 +137,7 @@ class PlaylistClusterer:
         self.max_clusters = max_clusters
         self.random_state = random_state
         self.scaler = StandardScaler()
+        self.weight_overrides = weight_overrides
 
     # ── Public API ─────────────────────────────────────────────────────────────
 
@@ -186,6 +195,7 @@ class PlaylistClusterer:
         cluster_mode: str = _CLUSTER_MODE_SINGLE,
         genre_dict: dict[Path, str] | None = None,
         bpm_scaling: dict[Path, float] | None = None,
+        n_playlists: int | None = None,
     ) -> list[ClusterResult]:
         """
         Cluster tracks using BPM + 7 intensity features (8-dimensional).
@@ -224,6 +234,9 @@ class PlaylistClusterer:
                             per-genre and mixed-genre modes.
             bpm_scaling:    Optional per-path BPM scaling (e.g. for mixed-genre);
                             raw BPM * scale used in features, original for reporting.
+            n_playlists:    Optional override for number of clusters. When > 0,
+                            bypasses auto-K selection (elbow/silhouette) and uses
+                            this exact K value.
 
         Returns:
             List of ClusterResult objects sorted by BPM mean, each with
@@ -345,13 +358,31 @@ class PlaylistClusterer:
             profile: WeightProfile = select_weights(
                 features_normalized, genre=genre, random_state=self.random_state
             )
+            # Apply user-specified weight overrides if provided
+            if self.weight_overrides is not None:
+                profile = WeightProfile(
+                    weights=apply_weight_overrides(
+                        profile.weights, self.weight_overrides, FEATURE_NAMES
+                    ),
+                    source=f"{profile.source}+override",
+                    genre=profile.genre,
+                    n_tracks=profile.n_tracks,
+                    ci_width=profile.ci_width,
+                )
             w_sqrt = np.sqrt(profile.weights)
             features_for_kmeans = features_normalized * w_sqrt[np.newaxis, :]
             weight_source = profile.source
 
         valid_meta = {p: metadata_dict[p] for p in valid_paths}
-        optimal_k = self._determine_optimal_k(features_for_kmeans, valid_meta, len(valid_paths))
-        logger.info(f"Using K={optimal_k} clusters (weight source: {weight_source})")
+
+        # Determine optimal K, respecting n_playlists override if provided
+        if n_playlists is not None and n_playlists > 0:
+            optimal_k = min(n_playlists, len(valid_paths))
+            optimal_k = max(self.min_clusters, optimal_k)
+            logger.info(f"Using K={optimal_k} clusters (n_playlists override)")
+        else:
+            optimal_k = self._determine_optimal_k(features_for_kmeans, valid_meta, len(valid_paths))
+            logger.info(f"Using K={optimal_k} clusters (weight source: {weight_source})")
 
         kmeans = KMeans(n_clusters=optimal_k, random_state=self.random_state, n_init=10)
         labels = kmeans.fit_predict(features_for_kmeans)
@@ -655,13 +686,18 @@ class PlaylistClusterer:
         else:
             constraint_k = None
 
-        # Elbow method
+        # Elbow method + Silhouette Score
         k_range = range(self.min_clusters, min(self.max_clusters + 1, total_tracks))
-        inertias = []
+        inertias: list[float] = []
+        sil_scores: list[float] = []
         for k in k_range:
             km = KMeans(n_clusters=k, random_state=self.random_state, n_init=10)
-            km.fit(features)
-            inertias.append(km.inertia_)
+            labels = km.fit_predict(features)
+            inertias.append(float(km.inertia_))  # type: ignore[arg-type]
+            if k > 1 and len(np.unique(labels)) > 1:
+                sil_scores.append(float(silhouette_score(features, labels)))
+            else:
+                sil_scores.append(-1.0)  # silhouette undefined for k=1 or single-cluster results
 
         if len(inertias) <= 1:
             elbow_k = self.min_clusters
@@ -669,11 +705,25 @@ class PlaylistClusterer:
             inertia_diffs = np.diff(inertias)
             elbow_k = self.min_clusters + int(np.argmax(np.abs(inertia_diffs)))
 
-        logger.debug(f"Elbow method suggests K={elbow_k}, constraint K={constraint_k}")
+        max_sil = max(sil_scores) if sil_scores else 0.0
+        best_sil_k = list(k_range)[int(np.argmax(sil_scores))]
 
-        if constraint_k and abs(constraint_k - elbow_k) <= 2:
+        logger.debug(
+            f"Silhouette scores: max={max_sil:.3f} at K={best_sil_k}, "
+            f"elbow K={elbow_k}, constraint K={constraint_k}"
+        )
+
+        if max_sil >= _SIL_STRONG:
+            data_k = best_sil_k
+        elif max_sil < _SIL_WEAK:
+            data_k = elbow_k
+        else:
+            # Blend: average of silhouette suggestion and elbow, rounded
+            data_k = round((best_sil_k + elbow_k) / 2)
+
+        if constraint_k and abs(constraint_k - data_k) <= 2:
             return constraint_k
-        return elbow_k
+        return data_k
 
     def _create_single_cluster(
         self, metadata_dict: dict[Path, TrackMetadata]

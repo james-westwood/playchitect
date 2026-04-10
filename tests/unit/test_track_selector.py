@@ -37,6 +37,8 @@ def _make_intensity(
         bass_harmonics=bass_harmonics,
         percussiveness=percussiveness,
         onset_strength=onset_strength,
+        camelot_key="8B",
+        key_index=0.0,
     )
 
 

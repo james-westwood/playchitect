@@ -6,7 +6,7 @@ Do NOT manipulate sys.modules here — that fights with conftest and breaks impo
 Approach
 --------
 - ``window`` fixture: patches the 4 external dependencies (TrackPreviewer,
-  ClusterViewPanel, TrackListWidget, get_config) so PlaychitectWindow.__init__
+  PlaylistsView, LibraryView, get_config) so PlaychitectWindow.__init__
   runs end-to-end as a real smoke test.
 - ``bare_window`` fixture: uses __new__ to skip __init__ entirely, allowing
   isolated testing of individual methods without any GTK widget construction.
@@ -40,14 +40,14 @@ _HIG_MIN_HEIGHT = 240
 
 _PATCHES = {
     "playchitect.gui.windows.main_window.TrackPreviewer": None,
-    "playchitect.gui.windows.main_window.ClusterViewPanel": None,
-    "playchitect.gui.windows.main_window.TrackListWidget": None,
+    "playchitect.gui.windows.main_window.PlaylistsView": None,
+    "playchitect.gui.windows.main_window.LibraryView": None,
     "playchitect.gui.windows.main_window.get_config": None,
 }
 
 
 def _patch_deps(monkeypatch: pytest.MonkeyPatch, launcher: str | None = None) -> None:
-    """Patch the four external deps so PlaychitectWindow.__init__ can run."""
+    """Patch the external deps so PlaychitectWindow.__init__ can run."""
     mock_previewer = MagicMock()
     mock_previewer.launcher_name.return_value = launcher
 
@@ -59,16 +59,24 @@ def _patch_deps(monkeypatch: pytest.MonkeyPatch, launcher: str | None = None) ->
         MagicMock(return_value=mock_previewer),
     )
     monkeypatch.setattr(
-        "playchitect.gui.windows.main_window.ClusterViewPanel",
+        "playchitect.gui.windows.main_window.PlaylistsView",
         MagicMock(return_value=MagicMock()),
     )
     monkeypatch.setattr(
-        "playchitect.gui.windows.main_window.TrackListWidget",
+        "playchitect.gui.windows.main_window.LibraryView",
+        MagicMock(return_value=MagicMock()),
+    )
+    monkeypatch.setattr(
+        "playchitect.gui.windows.main_window.SetBuilderView",
         MagicMock(return_value=MagicMock()),
     )
     monkeypatch.setattr(
         "playchitect.gui.windows.main_window.get_config",
         MagicMock(return_value=mock_config),
+    )
+    monkeypatch.setattr(
+        "playchitect.gui.windows.main_window.PreferencesWindow",
+        MagicMock(return_value=MagicMock()),
     )
 
 
@@ -94,12 +102,24 @@ def bare_window() -> PlaychitectWindow:
     w._previewer = MagicMock()
     w._preview_chip = MagicMock()
     w._spinner = MagicMock()
-    w._cluster_btn = MagicMock()
-    w.track_list = MagicMock()
-    w.cluster_panel = MagicMock()
+    w._arc_dropdown = MagicMock()
+    w._menu_button = MagicMock()
+    w._nav_list = MagicMock()
+    w._view_stack = MagicMock()
+    w._split_view = MagicMock()
+    w._playlists_view = MagicMock()
+    w._library_view = MagicMock()
+    w._set_builder_view = MagicMock()
+    w._export_view = MagicMock()
     w._metadata_map = {}
     w._intensity_map = {}
     w._clusters = []
+    w._original_clusters = []
+    w._playlist_namer = MagicMock()
+    w._cluster_names = {}
+    w._cluster_btn = MagicMock()
+    w._target_spin = MagicMock()
+    w._target_unit = MagicMock()
     return w
 
 
@@ -115,13 +135,14 @@ class TestMainWindowSmoke:
     def test_previewer_attribute_set(self, window: PlaychitectWindow) -> None:
         assert hasattr(window, "_previewer")
 
-    def test_cluster_panel_attribute_set(self, window: PlaychitectWindow) -> None:
-        assert hasattr(window, "cluster_panel")
+    def test_playlists_view_attribute_set(self, window: PlaychitectWindow) -> None:
+        assert hasattr(window, "_playlists_view")
 
-    def test_track_list_attribute_set(self, window: PlaychitectWindow) -> None:
-        assert hasattr(window, "track_list")
+    def test_library_view_attribute_set(self, window: PlaychitectWindow) -> None:
+        assert hasattr(window, "_library_view")
 
     def test_spinner_attribute_set(self, window: PlaychitectWindow) -> None:
+        assert hasattr(window, "_spinner")
         assert hasattr(window, "_spinner")
 
     def test_preview_chip_attribute_set(self, window: PlaychitectWindow) -> None:
@@ -129,6 +150,30 @@ class TestMainWindowSmoke:
 
     def test_track_title_default(self, window: PlaychitectWindow) -> None:
         assert window._track_title == "Playchitect"
+
+    def test_arc_dropdown_attribute_set(self, window: PlaychitectWindow) -> None:
+        assert hasattr(window, "_arc_dropdown")
+
+    def test_menu_button_attribute_set(self, window: PlaychitectWindow) -> None:
+        assert hasattr(window, "_menu_button")
+
+    def test_nav_list_attribute_set(self, window: PlaychitectWindow) -> None:
+        assert hasattr(window, "_nav_list")
+
+    def test_view_stack_attribute_set(self, window: PlaychitectWindow) -> None:
+        assert hasattr(window, "_view_stack")
+
+    def test_split_view_attribute_set(self, window: PlaychitectWindow) -> None:
+        assert hasattr(window, "_split_view")
+
+    def test_cluster_btn_attribute_set(self, window: PlaychitectWindow) -> None:
+        assert hasattr(window, "_cluster_btn")
+
+    def test_target_spin_attribute_set(self, window: PlaychitectWindow) -> None:
+        assert hasattr(window, "_target_spin")
+
+    def test_target_unit_attribute_set(self, window: PlaychitectWindow) -> None:
+        assert hasattr(window, "_target_unit")
 
 
 # ── Window-init call verification ─────────────────────────────────────────────
@@ -197,6 +242,68 @@ class TestHIGCompliance:
         assert remaining >= _DESIGN_WIDTH // 2
 
 
+# ── Navigation sidebar ────────────────────────────────────────────────────────
+
+
+class TestNavigationSidebar:
+    """Navigation sidebar with four rows switches view stack pages."""
+
+    def test_nav_row_selected_switches_to_library(self, bare_window: PlaychitectWindow) -> None:
+        """Selecting row 0 switches to library page."""
+        mock_row = MagicMock()
+        mock_row.get_index.return_value = 0
+        bare_window._on_nav_row_selected(MagicMock(), mock_row)
+        bare_window._view_stack.set_visible_child_name.assert_called_once_with("library")
+
+    def test_nav_row_selected_switches_to_playlists(self, bare_window: PlaychitectWindow) -> None:
+        """Selecting row 1 switches to playlists page."""
+        mock_row = MagicMock()
+        mock_row.get_index.return_value = 1
+        bare_window._on_nav_row_selected(MagicMock(), mock_row)
+        bare_window._view_stack.set_visible_child_name.assert_called_once_with("playlists")
+
+    def test_nav_row_selected_switches_to_set_builder(self, bare_window: PlaychitectWindow) -> None:
+        """Selecting row 2 switches to set-builder page."""
+        mock_row = MagicMock()
+        mock_row.get_index.return_value = 2
+        bare_window._on_nav_row_selected(MagicMock(), mock_row)
+        bare_window._view_stack.set_visible_child_name.assert_called_once_with("set-builder")
+
+    def test_nav_row_selected_switches_to_export(self, bare_window: PlaychitectWindow) -> None:
+        """Selecting row 3 switches to export page."""
+        mock_row = MagicMock()
+        mock_row.get_index.return_value = 3
+        bare_window._on_nav_row_selected(MagicMock(), mock_row)
+        bare_window._view_stack.set_visible_child_name.assert_called_once_with("export")
+
+    def test_nav_row_selected_none_does_nothing(self, bare_window: PlaychitectWindow) -> None:
+        """Passing None row does nothing."""
+        bare_window._on_nav_row_selected(MagicMock(), None)
+        bare_window._view_stack.set_visible_child_name.assert_not_called()
+
+
+# ── Preferences window ──────────────────────────────────────────────────────────
+
+
+class TestPreferencesWindow:
+    """Preferences window can be shown from the main window."""
+
+    def test_show_preferences_creates_window(
+        self, bare_window: PlaychitectWindow, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        """show_preferences creates and presents a PreferencesWindow."""
+        mock_prefs = MagicMock()
+        monkeypatch.setattr(
+            "playchitect.gui.windows.main_window.PreferencesWindow",
+            MagicMock(return_value=mock_prefs),
+        )
+
+        bare_window.show_preferences()
+
+        mock_prefs.set_transient_for.assert_called_once_with(bare_window)
+        mock_prefs.present.assert_called_once()
+
+
 # ── Preview chip ──────────────────────────────────────────────────────────────
 
 
@@ -241,10 +348,12 @@ class TestScanCompleteHandler:
     def _make_tracks(self, n: int) -> list[MagicMock]:
         return [MagicMock() for _ in range(n)]
 
-    def test_loads_tracks_into_widget(self, bare_window: PlaychitectWindow) -> None:
+    def test_sets_metadata_in_playlists_view(self, bare_window: PlaychitectWindow) -> None:
+        """Test that scan completion passes metadata to playlists view."""
         tracks = self._make_tracks(5)
+        bare_window._metadata_map = {Path(f"track{i}.mp3"): MagicMock() for i in range(5)}
         bare_window._on_scan_complete(tracks)
-        bare_window.track_list.load_tracks.assert_called_once_with(tracks)
+        bare_window._playlists_view.set_metadata.assert_called_once_with(bare_window._metadata_map)
 
     def test_stops_spinner(self, bare_window: PlaychitectWindow) -> None:
         bare_window._on_scan_complete(self._make_tracks(3))
@@ -306,32 +415,24 @@ class TestRevertTitle:
 # ── Cluster selected ──────────────────────────────────────────────────────────
 
 
-class TestClusterSelected:
-    """_on_cluster_selected updates the title and clears the search filter."""
+class TestPlaylistsClusterSelected:
+    """_on_playlists_cluster_selected updates the title."""
 
     def test_title_includes_cluster_id(self, bare_window: PlaychitectWindow) -> None:
         spy = MagicMock()
         bare_window.set_title = spy
-        # Mock a cluster result so lookup succeeds
-        mock_cluster = MagicMock()
-        mock_cluster.cluster_id = 3
-        mock_cluster.tracks = []
-        bare_window._clusters = [mock_cluster]
 
-        bare_window._on_cluster_selected(MagicMock(), cluster_id=3)
+        bare_window._on_playlists_cluster_selected(MagicMock(), cluster_id=3)
         title = spy.call_args[0][0]
         assert "3" in title
 
-    def test_clears_search_entry(self, bare_window: PlaychitectWindow) -> None:
-        bare_window.set_title = MagicMock()
-        # Mock a cluster result so lookup succeeds
-        mock_cluster = MagicMock()
-        mock_cluster.cluster_id = 2
-        mock_cluster.tracks = []
-        bare_window._clusters = [mock_cluster]
+    def test_title_includes_cluster_label(self, bare_window: PlaychitectWindow) -> None:
+        spy = MagicMock()
+        bare_window.set_title = spy
 
-        bare_window._on_cluster_selected(MagicMock(), cluster_id=2)
-        bare_window.track_list._search_entry.set_text.assert_called_once_with("")
+        bare_window._on_playlists_cluster_selected(MagicMock(), cluster_id="2a")
+        title = spy.call_args[0][0]
+        assert "Cluster" in title
 
 
 class TestClusterHandlers:
@@ -372,8 +473,9 @@ class TestClusterHandlers:
         bare_window._on_cluster_complete()
 
         bare_window._spinner.stop.assert_called_once()
-        bare_window._cluster_btn.set_sensitive.assert_called_with(True)
-        bare_window.cluster_panel.load_clusters.assert_called_once()
+        bare_window._cluster_btn.set_sensitive.assert_called_once_with(True)
+        bare_window._arc_dropdown.set_sensitive.assert_called_once_with(True)
+        bare_window._playlists_view.load_clusters.assert_called_once_with(bare_window._clusters)
 
     def test_on_cluster_error_resets_ui(self, bare_window: PlaychitectWindow) -> None:
         bare_window.set_title = MagicMock()
@@ -381,7 +483,7 @@ class TestClusterHandlers:
         bare_window._on_cluster_error()
 
         bare_window._spinner.stop.assert_called_once()
-        bare_window._cluster_btn.set_sensitive.assert_called_with(True)
+        bare_window._cluster_btn.set_sensitive.assert_called_once_with(True)
         # Check if set_title was called with something containing "failed"
         title_call = bare_window.set_title.call_args[0][0]
         assert "failed" in title_call.lower()

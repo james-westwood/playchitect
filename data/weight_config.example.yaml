@@ -1,0 +1,42 @@
+# Example weight configuration for Playchitect clustering.
+# Copy this file and modify the values to override default feature weights.
+# Weights are relative values - they will be normalized so they sum to 1.0.
+
+weights:
+  # BPM (beats per minute) - tempo importance
+  # Higher values make tempo differences more significant in clustering
+  bpm: null  # Use default (computed from data or genre heuristics)
+
+  # RMS Energy - overall loudness/dynamic range
+  # Higher values prioritize tracks with similar energy levels
+  rms_energy: null
+
+  # Brightness - spectral centroid (treble content)
+  # Higher values make tonal brightness more important for grouping
+  brightness: null
+
+  # Sub-bass energy - low frequency content (<60Hz)
+  # Higher values emphasize sub-bass similarity
+  sub_bass: null
+
+  # Kick Energy - kick drum strength (60-120Hz)
+  # Higher values prioritize similar kick drum characteristics
+  kick_energy: null
+
+  # Bass Harmonics - upper bass content (120-250Hz)
+  # Higher values make bass texture more important
+  bass_harmonics: null
+
+  # Percussiveness - transient density and strength
+  # Higher values emphasize rhythmic similarity
+  percussiveness: null
+
+  # Onset Strength - note/beat attack intensity
+  # Higher values prioritize tracks with similar rhythmic attacks
+  onset_strength: null
+
+# Example overrides (uncomment to use):
+# weights:
+#   bpm: 2.0          # Make BPM twice as important
+#   rms_energy: 1.5   # Slightly boost energy importance
+#   # All others use defaults

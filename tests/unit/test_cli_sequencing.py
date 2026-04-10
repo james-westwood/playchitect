@@ -32,6 +32,8 @@ def make_fake_features(p: Path) -> IntensityFeatures:
         bass_harmonics=0.3,
         percussiveness=0.6,
         onset_strength=0.5,
+        camelot_key="8B",
+        key_index=0.0,
     )
 
 

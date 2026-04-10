@@ -11,9 +11,11 @@ import click
 from playchitect.core.audio_scanner import AudioScanner
 from playchitect.core.clustering import PlaylistClusterer
 from playchitect.core.export import CUEExporter, M3UExporter
+from playchitect.core.importers import parse_rekordbox_xml
 from playchitect.core.metadata_extractor import MetadataExtractor
 from playchitect.core.track_selector import TrackSelector
 from playchitect.utils.config import get_config
+from playchitect.utils.weight_config import WeightOverrides, load_weight_overrides
 
 # Configure logging
 logging.basicConfig(
@@ -115,6 +117,17 @@ def cli() -> None:
     default="fixed",
     help="Track sequencing mode: ramp (intensity build) or fixed (no change, default).",
 )
+@click.option(
+    "--weight-file",
+    type=click.Path(exists=True, path_type=Path),
+    default=None,
+    help="YAML file with feature weight overrides for clustering.",
+)
+@click.option(
+    "--learn-weights/--no-learn-weights",
+    default=True,
+    help="Enable/disable EWKM per-cluster weight refinement (default: enabled).",
+)
 def scan(
     music_path: Path | None,
     output: Path | None,
@@ -132,6 +145,8 @@ def scan(
     cluster_mode: str,
     genre_map: Path | None,
     sequence_mode: str,
+    weight_file: Path | None,
+    learn_weights: bool,
 ) -> None:
     """
     Scan music directory and create intelligent playlists.
@@ -305,11 +320,22 @@ def scan(
                 f"Genre resolution: {known_count}/{len(genre_dict_resolved)} tracks assigned"
             )
 
+    # Load weight overrides if provided
+    weight_overrides: WeightOverrides | None = None
+    if weight_file is not None:
+        try:
+            weight_overrides = load_weight_overrides(weight_file)
+            click.echo(f"Loaded weight overrides from: {weight_file}")
+        except Exception as e:
+            click.echo(f"Error loading weight file: {e}", err=True)
+            sys.exit(1)
+
     # Perform clustering
     click.echo("\nClustering tracks...")
     clusterer = PlaylistClusterer(
         target_tracks_per_playlist=target_tracks,
         target_duration_per_playlist=target_duration,
+        weight_overrides=weight_overrides,
     )
 
     if intensity_dict:
@@ -318,6 +344,7 @@ def scan(
             intensity_dict,
             embedding_dict=embedding_dict,
             genre=auto_genre,
+            use_ewkm=learn_weights,
             cluster_mode=cluster_mode,
             genre_dict=genre_dict_resolved,
         )
@@ -512,6 +539,60 @@ def info(music_path: Path, format: str) -> None:
         click.echo("\nFile types:")
         for ext, count in sorted(extensions.items()):
             click.echo(f"  {ext}: {count}")
+
+
+@cli.command(name="import-rekordbox")
+@click.argument("xml_path", type=click.Path(exists=True, path_type=Path))
+def import_rekordbox(xml_path: Path) -> None:
+    """
+    Import tracks from Rekordbox XML library export.
+
+    XML_PATH: Path to Rekordbox XML file (from File > Export Collection)
+    """
+    try:
+        tracks = parse_rekordbox_xml(xml_path)
+    except FileNotFoundError as e:
+        click.echo(f"Error: File not found - {e}", err=True)
+        sys.exit(1)
+    except Exception as e:
+        click.echo(f"Error parsing XML: {e}", err=True)
+        sys.exit(1)
+
+    if not tracks:
+        click.echo("No tracks found in XML file.")
+        return
+
+    # Print summary table
+    click.echo(f"\nSuccessfully imported {len(tracks)} tracks from Rekordbox:\n")
+
+    # Header
+    click.echo(f"{'#':<4} {'File':<40} {'BPM':<8} {'Key':<8} {'Cues':<6}")
+    click.echo("-" * 70)
+
+    # Rows
+    for i, track in enumerate(tracks, 1):
+        location = track["location"]
+        filename = Path(location).name
+        # Truncate long filenames
+        display_name = (filename[:37] + "...") if len(filename) > 40 else filename
+
+        bpm = f"{track['bpm']:.2f}" if track["bpm"] else "-"
+        key = track["key_rekordbox"] or "-"
+        cues = len(track["cue_points"])
+
+        click.echo(f"{i:<4} {display_name:<40} {bpm:<8} {key:<8} {cues:<6}")
+
+    # Summary stats
+    click.echo("-" * 70)
+    total_cues = sum(len(t["cue_points"]) for t in tracks)
+    tracks_with_bpm = sum(1 for t in tracks if t["bpm"] is not None)
+    tracks_with_key = sum(1 for t in tracks if t["key_rekordbox"])
+
+    click.echo("\nSummary:")
+    click.echo(f"  Total tracks: {len(tracks)}")
+    click.echo(f"  Tracks with BPM: {tracks_with_bpm}/{len(tracks)}")
+    click.echo(f"  Tracks with key: {tracks_with_key}/{len(tracks)}")
+    click.echo(f"  Total cue points: {total_cues}")
 
 
 def main() -> None:
