@@ -113,6 +113,8 @@ def _row_to_features(file_hash: str, row: tuple) -> IntensityFeatures:
         bass_harmonics=harmonics,
         percussiveness=perc,
         onset_strength=onset,
+        camelot_key="8B",  # Default value for backward compatibility
+        key_index=0.0,
     )
 
 

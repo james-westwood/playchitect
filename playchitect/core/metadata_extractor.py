@@ -13,7 +13,11 @@ from typing import Any
 
 import numpy as np
 
-from playchitect.utils.warnings import suppress_librosa_warnings
+from playchitect.utils.warnings import (
+    suppress_audio_log_warnings,
+    suppress_c_stderr,
+    suppress_librosa_warnings,
+)
 
 try:
     from mutagen import File as MutagenFile
@@ -225,7 +229,7 @@ class MetadataExtractor:
         if not filepath.exists():
             return None
 
-        with suppress_librosa_warnings():
+        with suppress_librosa_warnings(), suppress_audio_log_warnings(), suppress_c_stderr():
             try:
                 import librosa  # noqa: PLC0415
 

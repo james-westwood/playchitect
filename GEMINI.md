@@ -37,6 +37,17 @@ If modifying a function, make sure to update the docstring.
 If new features have been made that affect user experience, add a note to the docstring.
 If new features affect how the user must interact with the app, either by the CLI or GUI, then follow instructions in `UPDATING_DOCS.md`.
 
+### Attribution for Gemini's Contributions
+
+To ensure Gemini's contributions are properly attributed in `git log` and on platforms like GitHub, configure the local Git repository with the following user name and email before making commits:
+
+```bash
+git config user.name "Gemini"
+git config user.email "gemini-cli@google.com"
+```
+
+This will associate commits made by Gemini with a distinct identity, appearing in contributor lists.
+
 ---
 
 ## Project Context

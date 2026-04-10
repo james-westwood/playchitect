@@ -22,9 +22,9 @@ import numpy as np
 logger = logging.getLogger(__name__)
 
 try:
-    from essentia.standard import TensorflowPredict2D  # type: ignore[unresolved-import]
+    from essentia.standard import TensorflowPredict2D  # type: ignore[import-not-found]
     from essentia.standard import (
-        TensorflowPredictMusiCNN as _EssentiaModel,  # type: ignore[unresolved-import]
+        TensorflowPredictMusiCNN as _EssentiaModel,  # type: ignore[import-not-found]
     )
 
     _ESSENTIA_AVAILABLE = True
@@ -69,6 +69,7 @@ _TAG_GENRE_MAP: dict[str, str] = {
     "electronica": "techno",
     "deep house": "house",
 }
+
 
 # ── Dataclass ─────────────────────────────────────────────────────────────────
 
