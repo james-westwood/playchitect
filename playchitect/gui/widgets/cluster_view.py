@@ -86,10 +86,14 @@ class ClusterCard(Gtk.Frame):
         # ── Header: cluster label + track count ──────────────────────────────
         header = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL, spacing=6)
 
-        self._title_label = Gtk.Label(label=s.cluster_label)
+        # Editable title using EditableLabel (double-click to edit)
+        self._title_label = Adw.EditableLabel()
+        self._title_label.set_text(s.cluster_label)
         self._title_label.set_xalign(0.0)
         self._title_label.set_hexpand(True)
         self._title_label.add_css_class("heading")
+        # Connect to editing-mode signal to emit renamed signal when editing finishes
+        self._title_label.connect("notify::editing", self._on_editing_changed)
 
         count_chip = Gtk.Label(label=s.track_count_str)
         count_chip.add_css_class("caption")
@@ -212,29 +216,24 @@ class ClusterCard(Gtk.Frame):
         self.emit("view-tracks")
 
     def _on_rename_clicked(self, _btn: Gtk.Button) -> None:
-        dialog = Adw.AlertDialog(
-            heading="Rename Cluster",
-            body=f"Enter a new name for {self._stats.cluster_label}:",
-        )
-        entry = Gtk.Entry()
-        entry.set_text(self._stats.cluster_label)
-        entry.set_activates_default(True)
-        dialog.set_extra_child(entry)
-        dialog.add_response("cancel", "Cancel")
-        dialog.add_response("rename", "Rename")
-        dialog.set_response_appearance("rename", Adw.ResponseAppearance.SUGGESTED)
-        dialog.set_default_response("rename")
-        dialog.connect("response", self._on_rename_response, entry)
+        """Start editing mode when rename button is clicked."""
+        self._title_label.start_editing()
 
-        root = self.get_root()
-        if isinstance(root, Gtk.Window):
-            dialog.present(root)
-        else:
-            logger.warning("ClusterCard: cannot present rename dialog — no parent window")
+    def _on_editing_changed(self, editable_label: Adw.EditableLabel, _param: object) -> None:
+        """Handle editing mode change - emit renamed signal when editing finishes."""
+        if not editable_label.get_editing():
+            # Editing finished - emit renamed signal with new text
+            new_name = editable_label.get_text().strip()
+            if new_name:
+                current_text = self._stats.cluster_label
+                # Only emit if name actually changed
+                if new_name != current_text:
+                    self.emit("renamed", new_name)
 
     def _on_rename_response(
         self, _dialog: Adw.AlertDialog, response: str, entry: Gtk.Entry
     ) -> None:
+        """Legacy handler - kept for compatibility but no longer used."""
         if response == "rename":
             new_name = entry.get_text().strip()
             if new_name:
@@ -250,6 +249,10 @@ class ClusterCard(Gtk.Frame):
         if child is not None:
             self.set_child(None)
         self._build()
+
+    def set_cluster_label(self, label: str) -> None:
+        """Update the displayed cluster label without rebuilding."""
+        self._title_label.set_text(label)
 
     @property
     def cluster_id(self) -> int | str:
@@ -342,6 +345,16 @@ class ClusterViewPanel(Gtk.Box):
                 return
         # Card doesn't exist yet — rebuild the whole panel.
         GLib.idle_add(self._rebuild_from_cards)
+
+    def set_cluster_names(self, names: dict[int | str, str]) -> None:
+        """Update cluster labels from a mapping of cluster_id to name.
+
+        Args:
+            names: Mapping of cluster_id to generated/display name.
+        """
+        for card in self._cards:
+            if card.cluster_id in names:
+                card.set_cluster_label(names[card.cluster_id])
 
     @property
     def active_cluster_id(self) -> int | str | None:

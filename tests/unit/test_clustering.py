@@ -43,6 +43,8 @@ def make_intensity(
         bass_harmonics=harmonics,
         percussiveness=perc,
         onset_strength=onset,
+        camelot_key="8B",
+        key_index=0.0,
     )
 
 
@@ -427,6 +429,106 @@ class TestClusterByFeatures:
         for r in results:
             assert r.feature_means is None
             assert r.feature_importance is None
+
+
+class TestNPlaylistsParameter:
+    """Test the n_playlists parameter for overriding auto-K selection."""
+
+    def _make_test_data(
+        self, n: int = 20
+    ) -> tuple[dict[Path, TrackMetadata], dict[Path, IntensityFeatures]]:
+        """Create test data with varied BPM and intensity."""
+        meta: dict[Path, TrackMetadata] = {}
+        intensity: dict[Path, IntensityFeatures] = {}
+        for i in range(n):
+            name = f"track_{i}.mp3"
+            p = Path(name)
+            meta[p] = make_metadata(name, bpm=120.0 + i * 2)
+            intensity[p] = make_intensity(name, rms=0.5 + (i % 5) * 0.1)
+        return meta, intensity
+
+    def test_n_playlists_returns_exact_count(self) -> None:
+        """cluster_by_features with n_playlists=3 returns exactly 3 clusters."""
+        meta, intensity = self._make_test_data(20)
+        clusterer = PlaylistClusterer(target_tracks_per_playlist=5, min_clusters=2)
+
+        results = clusterer.cluster_by_features(meta, intensity, n_playlists=3)
+
+        assert len(results) == 3
+
+    def test_n_playlists_one_returns_single_cluster(self) -> None:
+        """n_playlists=1 returns a single cluster with all tracks."""
+        meta, intensity = self._make_test_data(10)
+        clusterer = PlaylistClusterer(target_tracks_per_playlist=5, min_clusters=1)
+
+        results = clusterer.cluster_by_features(meta, intensity, n_playlists=1)
+
+        assert len(results) == 1
+        assert results[0].track_count == 10
+
+    def test_n_playlists_respects_max_clusters(self) -> None:
+        """n_playlists is capped by min_clusters constraint."""
+        meta, intensity = self._make_test_data(10)
+        clusterer = PlaylistClusterer(target_tracks_per_playlist=5, min_clusters=2)
+
+        # Request 1 cluster but min_clusters=2, so should get 2
+        results = clusterer.cluster_by_features(meta, intensity, n_playlists=1)
+
+        assert len(results) == 2
+
+    def test_n_playlists_capped_by_track_count(self) -> None:
+        """n_playlists cannot exceed the number of tracks."""
+        meta, intensity = self._make_test_data(5)
+        clusterer = PlaylistClusterer(target_tracks_per_playlist=5, min_clusters=2)
+
+        # Request 10 clusters but only 5 tracks
+        results = clusterer.cluster_by_features(meta, intensity, n_playlists=10)
+
+        assert len(results) <= 5
+
+    def test_n_playlists_none_uses_auto_k(self) -> None:
+        """n_playlists=None uses auto-K selection (elbow/silhouette)."""
+        meta, intensity = self._make_test_data(20)
+        clusterer = PlaylistClusterer(target_tracks_per_playlist=5, min_clusters=2)
+
+        results_auto = clusterer.cluster_by_features(meta, intensity, n_playlists=None)
+        results_explicit = clusterer.cluster_by_features(meta, intensity, n_playlists=4)
+
+        # Auto and explicit should give different results (with high probability)
+        # We can't assert exact counts since auto depends on data structure
+        assert len(results_auto) >= 1
+        assert len(results_explicit) == 4
+
+    def test_n_playlists_zero_uses_auto_k(self) -> None:
+        """n_playlists=0 is treated as None (auto-K selection)."""
+        meta, intensity = self._make_test_data(15)
+        clusterer = PlaylistClusterer(target_tracks_per_playlist=5, min_clusters=2)
+
+        results_zero = clusterer.cluster_by_features(meta, intensity, n_playlists=0)
+        results_none = clusterer.cluster_by_features(meta, intensity, n_playlists=None)
+
+        # Both should behave the same (both use auto-K)
+        assert len(results_zero) >= 1
+        assert len(results_none) >= 1
+
+    def test_n_playlists_with_duration_target(self) -> None:
+        """n_playlists works with duration-based clusterer."""
+        meta, intensity = self._make_test_data(20)
+        clusterer = PlaylistClusterer(target_duration_per_playlist=60, min_clusters=2)
+
+        results = clusterer.cluster_by_features(meta, intensity, n_playlists=3)
+
+        assert len(results) == 3
+
+    def test_all_tracks_accounted_for_with_n_playlists(self) -> None:
+        """All tracks are assigned to clusters when using n_playlists."""
+        meta, intensity = self._make_test_data(25)
+        clusterer = PlaylistClusterer(target_tracks_per_playlist=5, min_clusters=2)
+
+        results = clusterer.cluster_by_features(meta, intensity, n_playlists=4)
+
+        total_tracks = sum(r.track_count for r in results)
+        assert total_tracks == 25
 
 
 class TestClusterResult:

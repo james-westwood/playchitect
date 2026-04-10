@@ -112,7 +112,7 @@ def select_weights(
             top = _fmt_top3(profile)
             logger.info(f"PCA weights (ci={profile.ci_width:.3f}, n={n_tracks}): {top}")
             return profile
-        logger.warning("PCA bootstrap CI too wide; falling back to heuristic/uniform")
+        logger.info("PCA bootstrap CI too wide; falling back to heuristic/uniform")
 
     if genre is not None:
         profile = get_heuristic_weights(genre, n_tracks=n_tracks)
