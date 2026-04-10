@@ -280,7 +280,9 @@ weights:
 
     def test_validate_weights_sum_not_one_raises(self, tmp_path: Path) -> None:
         """Weights that don't sum to 1.0 should raise ValueError."""
-        from playchitect.utils.weight_config import validate_weights
+        from playchitect.utils.weight_config import (
+            validate_weights,  # ty: ignore[unresolved-import]
+        )
 
         config = tmp_path / "weights.yaml"
         config.write_text("""
@@ -301,7 +303,9 @@ weights:
 
     def test_validate_weights_negative_raises(self, tmp_path: Path) -> None:
         """Negative weight values should raise ValueError."""
-        from playchitect.utils.weight_config import validate_weights
+        from playchitect.utils.weight_config import (
+            validate_weights,  # ty: ignore[unresolved-import]
+        )
 
         config = tmp_path / "weights.yaml"
         config.write_text("""
@@ -322,7 +326,9 @@ weights:
 
     def test_validate_weights_missing_features_raises(self, tmp_path: Path) -> None:
         """Missing feature weights should raise ValueError."""
-        from playchitect.utils.weight_config import validate_weights
+        from playchitect.utils.weight_config import (
+            validate_weights,  # ty: ignore[unresolved-import]
+        )
 
         config = tmp_path / "weights.yaml"
         config.write_text("""
@@ -357,7 +363,7 @@ class TestWeightProfileSource:
 
         # This should work after implementation - select_weights should accept
         # weight_overrides parameter
-        profile = select_weights(X, weight_overrides=overrides)
+        profile = select_weights(X, weight_overrides=overrides)  # ty: ignore[unknown-argument]
         assert profile.source == "user", (
             f"Expected source='user' when overrides provided, got '{profile.source}'"
         )

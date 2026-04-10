@@ -5,17 +5,13 @@ that expose the weighting system via CLI.
 """
 
 from pathlib import Path
-from unittest.mock import patch
 
 import numpy as np
-import pytest
 import soundfile as sf
-import yaml
 from click.testing import CliRunner
 from mutagen.flac import FLAC
 
 from playchitect.cli.commands import scan
-
 
 _SAMPLE_RATE = 44100
 _DURATION_S = 0.5
