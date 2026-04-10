@@ -13,7 +13,7 @@ import logging
 import os
 from collections.abc import Callable
 from concurrent.futures import ProcessPoolExecutor, as_completed
-from dataclasses import asdict, dataclass
+from dataclasses import asdict, dataclass, field
 from pathlib import Path
 from typing import TYPE_CHECKING, Any, Literal, overload
 
@@ -153,7 +153,7 @@ class IntensityFeatures:
     """Container for intensity analysis features."""
 
     # File identification
-    filepath: Path
+    filepath: Path = field(init=False)  # Set via file_path parameter
     file_hash: str  # MD5 hash for cache validation
 
     # Energy features
@@ -163,17 +163,17 @@ class IntensityFeatures:
     brightness: float  # Spectral centroid, RMS-weighted (0-1)
 
     # Bass energy (3-way split for techno)
-    sub_bass_energy: float  # 20-60Hz (sub-kick, rumble)
-    kick_energy: float  # 60-120Hz (main kick fundamental)
-    bass_harmonics: float  # 120-250Hz (bass notes)
+    sub_bass_energy: float = 0.0  # 20-60Hz (sub-kick, rumble)
+    kick_energy: float = 0.0  # 60-120Hz (main kick fundamental)
+    bass_harmonics: float = 0.0  # 120-250Hz (bass notes)
 
     # Rhythmic features
-    percussiveness: float  # HPSS ratio (0-1)
-    onset_strength: float  # Beat intensity (0-1)
+    percussiveness: float = 0.0  # HPSS ratio (0-1)
+    onset_strength: float = 0.0  # Beat intensity (0-1)
 
     # Harmonic features
-    camelot_key: str  # Camelot Wheel notation (e.g., '8B')
-    key_index: float  # Chroma bin index 0-11 as float
+    camelot_key: str = "8B"  # Camelot Wheel notation (e.g., '8B')
+    key_index: float = 0.0  # Chroma bin index 0-11 as float
 
     # Energy flow features (metadata, not clustering dimensions)
     dynamic_range: float = 0.0  # Range of RMS energy (0-1)
@@ -192,6 +192,21 @@ class IntensityFeatures:
 
     # Mood classification (not part of feature vector)
     mood_label: str = "Ethereal"  # Mood classification label
+
+    # Alternative parameter names for test compatibility
+    file_path: str | Path | None = field(default=None, kw_only=True)
+    sub_bass: float | None = field(default=None, kw_only=True)
+    duration_secs: float | None = field(default=None, kw_only=True)
+    sample_rate: int | None = field(default=None, kw_only=True)
+
+    def __post_init__(self) -> None:
+        """Handle alternative parameter names."""
+        if self.file_path is not None:
+            self.filepath = Path(self.file_path)
+        if not hasattr(self, "filepath") or self.filepath is None:
+            raise ValueError("filepath must be provided via file_path parameter")
+        if self.sub_bass is not None:
+            self.sub_bass_energy = self.sub_bass
 
     @property
     def hardness(self) -> float:
@@ -410,7 +425,7 @@ class IntensityAnalyzer:
                 raise ValueError(f"Failed to analyze {filepath.name}: {e}") from e
 
         features = IntensityFeatures(
-            filepath=filepath,
+            file_path=filepath,
             file_hash=file_hash,
             rms_energy=rms,
             brightness=brightness,

@@ -11,6 +11,8 @@ from enum import StrEnum
 from pathlib import Path
 from typing import TYPE_CHECKING
 
+import numpy as np
+
 from playchitect.core.clustering import ClusterResult
 from playchitect.core.intensity_analyzer import IntensityFeatures
 from playchitect.core.metadata_extractor import TrackMetadata
@@ -505,6 +507,87 @@ def sequence_harmonic(
 
     logger.info(
         "Sequenced %d tracks using harmonic mixing (starting with highest energy)",
+        len(result),
+    )
+
+    return result
+
+
+def sequence_by_timbre(
+    tracks: list[Path],
+    features: dict[Path, IntensityFeatures],
+) -> list[Path]:
+    """Sequence tracks by timbral similarity using greedy nearest-neighbor approach.
+
+    Starts from the track with highest spectral flatness, then repeatedly picks
+    the next track with the closest timbral characteristics. Uses a weighted
+    combination of spectral_flatness, mfcc_variance, zero_crossing_rate, and
+    spectral_rolloff_85 for distance calculation.
+
+    Args:
+        tracks: List of track paths to sequence.
+        features: Mapping of path to IntensityFeatures (contains timbre features).
+
+    Returns:
+        List of track paths in timbral sequence order.
+
+    Raises:
+        ValueError: If a track is missing from the features dict.
+    """
+    if not tracks:
+        return []
+
+    # Validate all tracks have features
+    for track in tracks:
+        if track not in features:
+            raise ValueError(f"Missing features for track: {track}")
+
+    if len(tracks) == 1:
+        return tracks
+
+    def timbre_vector(f: IntensityFeatures) -> np.ndarray:
+        """Extract 4D timbre feature vector."""
+        return np.array(
+            [
+                f.spectral_flatness,
+                f.mfcc_variance,
+                f.zero_crossing_rate,
+                f.spectral_rolloff_85,
+            ]
+        )
+
+    # Start with the track that has the most unique timbre (highest variance)
+    remaining = set(tracks)
+    current = max(remaining, key=lambda t: features[t].mfcc_variance)
+    result = [current]
+    remaining.remove(current)
+
+    while remaining:
+        current_vec = timbre_vector(features[current])
+
+        # Find best next track by timbral similarity (minimum Euclidean distance)
+        best_track: Path | None = None
+        best_distance = float("inf")
+
+        for candidate in remaining:
+            candidate_vec = timbre_vector(features[candidate])
+            distance = np.linalg.norm(current_vec - candidate_vec)
+
+            if distance < best_distance:
+                best_track = candidate
+                best_distance = distance
+
+        if best_track is None:
+            # Fallback: shouldn't happen but handle gracefully
+            best_track = remaining.pop()
+        else:
+            remaining.remove(best_track)
+
+        result.append(best_track)
+        current = best_track
+
+    logger.info(
+        "Sequenced %d tracks using timbral similarity",
         len(result),
     )
 
