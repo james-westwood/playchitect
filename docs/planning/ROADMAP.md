@@ -131,6 +131,9 @@ See [`milestones/milestone-2-complete.md`](milestones/milestone-2-complete.md) f
 
 **Goal**: Deepen musical intelligence and provide advanced creative sequencing.
 
+**GUI redesign**: The window is being restructured into a 4-view navigation sidebar layout. See the [GUI Design document](gui-design.md) for wireframes and rationale.
+
+- **GUI Architecture**: #112 — Navigation sidebar; #113 — Library view; #114 — Preview panel (cover art + embedded player); #115 — Playlists view; #101 — Set Builder workspace
 - **Harmonic Mixing**: #36 (Core), #37 (GUI) — Camelot wheel and key compatibility
 - **Energy & Dynamics**: #38 (Core), #39 (GUI) — Dynamic range and onset density
 - **Timbre & Texture**: #40 (Core), #41 (GUI) — MFCCs and spectral analysis

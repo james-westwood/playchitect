@@ -53,6 +53,8 @@ VOLUME_DEFAULT = 0.8
 
 def _ensure_cache_dir() -> None:
     """Ensure the cover art cache directory exists."""
+    if CACHE_DIR.exists() and not CACHE_DIR.is_dir():
+        CACHE_DIR.unlink()
     CACHE_DIR.mkdir(parents=True, exist_ok=True)
 
 

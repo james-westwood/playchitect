@@ -59,6 +59,9 @@ class _FakeGtkBase:
     def set_icon_name(self, *_args: object) -> None:
         pass
 
+    def set_tooltip_text(self, *_args: object) -> None:
+        pass
+
     def set_menu_model(self, *_args: object) -> None:
         pass
 
@@ -95,6 +98,18 @@ class _FakeGtkBase:
     def set_has_frame(self, *_args: object) -> None:
         pass
 
+    def set_margin_start(self, *_args: object) -> None:
+        pass
+
+    def set_margin_top(self, *_args: object) -> None:
+        pass
+
+    def set_margin_bottom(self, *_args: object) -> None:
+        pass
+
+    def set_margin_end(self, *_args: object) -> None:
+        pass
+
     def set_vexpand(self, *_args: object) -> None:
         pass
 
@@ -128,6 +143,9 @@ class _FakeGtkBase:
     def set_subtitle(self, *_args: object) -> None:
         pass
 
+    def add_suffix(self, *_args: object) -> None:
+        pass
+
     def set_show_row_separators(self, *_args: object) -> None:
         pass
 
@@ -153,6 +171,12 @@ class _FakeGtkBase:
         pass
 
     def set_placeholder_text(self, *_args: object) -> None:
+        pass
+
+    def set_child(self, *_args: object) -> None:
+        pass
+
+    def add(self, *_args: object) -> None:
         pass
 
     def set_selection_mode(self, *_args: object) -> None:
@@ -194,55 +218,18 @@ class _FakeGtkBase:
     def add_titled(self, *_args: object) -> None:
         pass
 
+    def append(self, *_args: object) -> None:
+        pass
+
     def emit(self, *_args: object, **_kwargs: object) -> None:
         pass
 
-    # Margin methods
-    def set_margin_top(self, _margin: int) -> None:
-        pass
-
-    def set_margin_bottom(self, _margin: int) -> None:
-        pass
-
-    def set_margin_start(self, _margin: int) -> None:
-        pass
-
-    def set_margin_end(self, _margin: int) -> None:
-        pass
-
-    # Container methods
-    def append(self, _child: object) -> None:
-        pass
-
-    def add(self, _child: object) -> None:
-        pass
-
-    def add_suffix(self, _child: object) -> None:
-        pass
-
-    def set_child(self, _child: object) -> None:
-        pass
-
-    def set_popover(self, _popover: object) -> None:
-        pass
-
-    def set_tooltip_text(self, _text: str) -> None:
-        pass
-
-    def remove(self, *_args: object) -> None:
-        pass
-
-    def clear(self, *_args: object) -> None:
-        pass
-
-    # Visibility methods
     def set_visible(self, *_args: object) -> None:
         pass
 
     def get_visible(self, *_args: object) -> bool:
         return True
 
-    # Item/model methods
     def get_item(self, *_args: object) -> Any:
         return None
 
@@ -252,13 +239,15 @@ class _FakeGtkBase:
     def get_next_sibling(self, *_args: object) -> Any:
         return None
 
+    def remove(self, *_args: object) -> None:
+        pass
+
     def get_n_items(self, *_args: object) -> int:
         return 0
 
-    def set_model(self, *_args: object) -> None:
+    def clear(self, *_args: object) -> None:
         pass
 
-    # Text/label methods
     def set_text(self, *_args: object) -> None:
         pass
 
@@ -268,33 +257,6 @@ class _FakeGtkBase:
     def set_ellipsize(self, *_args: object) -> None:
         pass
 
-    def set_max_width_chars(self, *_args: object) -> None:
-        pass
-
-    def set_width_chars(self, *_args: object) -> None:
-        pass
-
-    # Value methods
-    def get_value(self) -> float:
-        return 0.0
-
-    def set_value(self, _value: float) -> None:
-        pass
-
-    def get_selected(self) -> int:
-        return 0
-
-    def set_selected(self, _index: int) -> None:
-        pass
-
-    # Range/spin methods
-    def set_range(self, _min: float, _max: float) -> None:
-        pass
-
-    def set_draw_value(self, *_args: object) -> None:
-        pass
-
-    # Style/display methods
     def set_opacity(self, *_args: object) -> None:
         pass
 
@@ -302,6 +264,9 @@ class _FakeGtkBase:
         pass
 
     def set_propagate_natural_width(self, *_args: object) -> None:
+        pass
+
+    def set_model(self, *_args: object) -> None:
         pass
 
     def set_fixed_width(self, *_args: object) -> None:
@@ -313,6 +278,27 @@ class _FakeGtkBase:
     def set_expanded(self, *_args: object) -> None:
         pass
 
+    def set_max_width_chars(self, *_args: object) -> None:
+        pass
+
+    def set_width_chars(self, *_args: object) -> None:
+        pass
+
+    def set_range(self, *_args: object) -> None:
+        pass
+
+    def set_draw_value(self, *_args: object) -> None:
+        pass
+
+    def set_value(self, *_args: object) -> None:
+        pass
+
+    def set_draw_func(self, *_args: object) -> None:
+        pass
+
+    def queue_draw(self) -> None:
+        pass
+
     def set_content_fit(self, *_args: object) -> None:
         pass
 
@@ -322,14 +308,6 @@ class _FakeGtkBase:
     def set_wide_handle(self, *_args: object) -> None:
         pass
 
-    # Drawing methods
-    def set_draw_func(self, *_args: object) -> None:
-        pass
-
-    def queue_draw(self) -> None:
-        pass
-
-    # Button/toggle methods
     def set_active(self, *_args: object) -> None:
         pass
 
@@ -345,7 +323,18 @@ class _FakeGtkBase:
     def set_actions(self, *_args: object) -> None:
         pass
 
-    # Class methods
+    def get_value(self) -> _FakeValue:
+        return _FakeValue()
+
+    def get_selected(self) -> int:
+        return 0
+
+    def set_selected(self, _index: int) -> None:
+        pass
+
+    def set_popover(self, *_args: object) -> None:
+        pass
+
     @classmethod
     def new_with_range(cls, _min: float, _max: float, _step: float) -> _FakeGtkBase:
         return cls()

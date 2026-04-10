@@ -167,6 +167,15 @@ class TestMainWindowSmoke:
     def test_split_view_attribute_set(self, window: PlaychitectWindow) -> None:
         assert hasattr(window, "_split_view")
 
+    def test_cluster_btn_attribute_set(self, window: PlaychitectWindow) -> None:
+        assert hasattr(window, "_cluster_btn")
+
+    def test_target_spin_attribute_set(self, window: PlaychitectWindow) -> None:
+        assert hasattr(window, "_target_spin")
+
+    def test_target_unit_attribute_set(self, window: PlaychitectWindow) -> None:
+        assert hasattr(window, "_target_unit")
+
 
 # ── Window-init call verification ─────────────────────────────────────────────
 
@@ -473,6 +482,7 @@ class TestClusterHandlers:
         bare_window._on_cluster_error()
 
         bare_window._spinner.stop.assert_called_once()
+        bare_window._cluster_btn.set_sensitive.assert_called_once_with(True)
         # Check if set_title was called with something containing "failed"
         title_call = bare_window.set_title.call_args[0][0]
         assert "failed" in title_call.lower()
