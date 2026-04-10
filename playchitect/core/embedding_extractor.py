@@ -49,8 +49,7 @@ _TAG_GENRE_MAP: dict[str, str] = {
 # ── Optional Essentia import ──────────────────────────────────────────────────
 
 try:
-    from essentia.standard import TensorflowPredict2D  # type: ignore[import-untyped,unresolved-import]
-    from essentia.standard import TensorflowPredictMusiCNN as _EssentiaModel  # type: ignore[import-untyped,unresolved-import]
+    from essentia.standard import TensorflowPredictMusiCNN as _EssentiaModel  # type: ignore[import]
 
     _ESSENTIA_AVAILABLE = True
 except ImportError:

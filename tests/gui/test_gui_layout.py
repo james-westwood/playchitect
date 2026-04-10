@@ -505,13 +505,13 @@ class TestPlaylistSizeControls:
         mock_config.get_test_music_path.return_value = test_path
         monkeypatch.setattr("playchitect.gui.windows.main_window.get_config", lambda: mock_config)
 
-                # Mock Path.is_dir to return True
-                monkeypatch.setattr(
-                    "pathlib.Path.is_dir", lambda p: True if str(p) == str(test_path) else False
-                )
-        
-                mock_glib = MagicMock()
-        
+        # Mock Path.is_dir to return True
+        monkeypatch.setattr(
+            "pathlib.Path.is_dir", lambda p: True if str(p) == str(test_path) else False
+        )
+
+        mock_glib = MagicMock()
+
         monkeypatch.setattr("playchitect.gui.windows.main_window.GLib", mock_glib)
 
         PlaychitectWindow()
