@@ -5,7 +5,7 @@
 **Name**: Playchitect
 **Purpose**: Smart DJ Playlist Manager with Intelligent BPM Clustering
 **Repository**: https://github.com/james-westwood/playchitect
-**Location**: `/home/james/audio/playchitect/`
+**Location**: `/home/james/Programming/personal/playchitect/`
 **Status**: Milestones 1–5 Complete; Milestone 6 (Packaging & Distribution) in progress
 
 
@@ -109,7 +109,7 @@ playchitect/
 
 ### Setup
 ```bash
-cd /home/james/audio/playchitect
+cd /home/james/Programming/personal/playchitect
 # Venv uses system Python 3.13 + system-site-packages for GTK4/gi access
 uv venv --python /usr/bin/python3 --system-site-packages  # Already done
 uv pip install -e ".[dev]"  # Already done
@@ -377,7 +377,7 @@ Playchitect originated from `/home/james/audio-management/scripts/create_random_
 
 ## Important Notes
 
-- **Working Directory**: `/home/james/audio/playchitect/`
+- **Working Directory**: `/home/james/Programming/personal/playchitect/`
 - **Virtual Environment**: `.venv/` (managed by uv)
 - **Pre-commit**: Always run before commits (installed via `uv run pre-commit install`)
 - **Tests**: Must pass before merging to main
