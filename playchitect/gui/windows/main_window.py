@@ -421,7 +421,6 @@ class PlaychitectWindow(Adw.ApplicationWindow):
             return
 
         self._spinner.start()
-        self._cluster_btn.set_sensitive(False)
         self.set_title("Playchitect — analysing & clustering…")
 
         # Read UI state (main thread)

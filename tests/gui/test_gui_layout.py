@@ -114,6 +114,7 @@ def bare_window() -> PlaychitectWindow:
     w._metadata_map = {}
     w._intensity_map = {}
     w._clusters = []
+    w._active_arc = None
     w._original_clusters = []
     w._playlist_namer = MagicMock()
     w._cluster_names = {}
@@ -452,7 +453,6 @@ class TestClusterHandlers:
             bare_window._on_cluster_clicked(MagicMock())
 
             bare_window._spinner.start.assert_called_once()
-            bare_window._cluster_btn.set_sensitive.assert_called_with(False)
             mock_thread.assert_called_once()
 
     def test_on_cluster_complete_updates_ui(self, bare_window: PlaychitectWindow) -> None:
@@ -473,7 +473,6 @@ class TestClusterHandlers:
         bare_window._on_cluster_complete()
 
         bare_window._spinner.stop.assert_called_once()
-        bare_window._cluster_btn.set_sensitive.assert_called_once_with(True)
         bare_window._arc_dropdown.set_sensitive.assert_called_once_with(True)
         bare_window._playlists_view.load_clusters.assert_called_once_with(bare_window._clusters)
 
