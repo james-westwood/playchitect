@@ -24,7 +24,11 @@ import librosa
 import numpy as np
 
 from playchitect.utils.config import get_config
-from playchitect.utils.warnings import suppress_audio_log_warnings, suppress_librosa_warnings
+from playchitect.utils.warnings import (
+    suppress_audio_log_warnings,
+    suppress_c_stderr,
+    suppress_librosa_warnings,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -139,7 +143,7 @@ def _analyze_worker(args: tuple[str, str]) -> tuple[str, dict[str, Any]]:
     """
     filepath_str, cache_dir_str = args
     analyzer = IntensityAnalyzer(cache_dir=Path(cache_dir_str))
-    with suppress_librosa_warnings(), suppress_audio_log_warnings():
+    with suppress_librosa_warnings(), suppress_audio_log_warnings(), suppress_c_stderr():
         features = analyzer.analyze(Path(filepath_str))
     return (filepath_str, features.to_dict())
 
@@ -361,7 +365,7 @@ class IntensityAnalyzer:
 
         # Load audio — suppress backend-negotiation warnings from librosa /
         # audioread / soundfile so they never appear in user-facing output.
-        with suppress_librosa_warnings(), suppress_audio_log_warnings():
+        with suppress_librosa_warnings(), suppress_audio_log_warnings(), suppress_c_stderr():
             try:
                 # Use duration=300 limit to avoid OOM on huge files, enough for intensity
                 y, _ = librosa.load(filepath, sr=self.sample_rate, mono=True, duration=300)
@@ -899,6 +903,8 @@ class IntensityAnalyzer:
         if not uncached:
             return results
 
+        n_skipped = 0
+
         # Submit uncached files to the process pool
         with ProcessPoolExecutor(max_workers=max_workers) as executor:
             future_to_path = {
@@ -915,10 +921,14 @@ class IntensityAnalyzer:
                         self.cache_db.put_intensity(features.file_hash, features)
                 except Exception as exc:
                     logger.error("Failed to analyse %s: %s", original_path, exc)
+                    n_skipped += 1
                 finally:
                     n_done += 1
                     if progress_callback is not None:
                         progress_callback(n_done, n_total)
+
+        if n_skipped:
+            logger.warning("Skipped %d file(s) due to decode errors", n_skipped)
 
         return results
 
