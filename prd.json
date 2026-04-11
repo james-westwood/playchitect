@@ -425,26 +425,211 @@
       "note": "GitHub issue #82. Relates to #79, #81 (Mixxx sync)."
     },
     {
+      "id": "BUG-01",
+      "epic": "GUI Stability",
+      "title": "fix_preview_panel_not_updating_on_track_reselect",
+      "owner": "ralph",
+      "description": "In playchitect/gui/views/library_view.py and/or track_preview_panel.py, clicking a different track while the preview panel is already open does not update the panel contents. The panel only reflects the newly selected track if it is closed and reopened. Root cause: the track-selected signal is either not re-emitted on re-selection, or the preview panel is not listening to subsequent emissions after the first open. Fix so that every selection-change event updates the panel in place.",
+      "acceptance_criteria": "Clicking track A opens the preview panel. Clicking track B (while panel is open) immediately shows track B's information without closing/reopening. tests/gui/test_library_view.py: add test that simulates two sequential selections and asserts the preview panel reflects the second track. uv run pytest tests/ -v passes.",
+      "completed": false,
+      "priority": 1,
+      "note": ""
+    },
+    {
+      "id": "BUG-02",
+      "epic": "GUI Stability",
+      "title": "fix_duplicate_tracks_in_playlists",
+      "owner": "ralph",
+      "description": "The clustering output can assign the same track to multiple clusters (e.g. when it sits equidistant between centroids), and there is no deduplication pass. Add a post-clustering deduplication step: after cluster assignment, for each track that appears in more than one cluster, keep it only in the cluster whose centroid it is closest to and remove it from others. This should be applied in clustering.py before returning ClusterResult objects to the UI.",
+      "acceptance_criteria": "No track filepath appears more than once across all ClusterResult.tracks lists. tests/unit/test_clustering.py: add test with a dataset designed to produce overlaps and assert no duplicates in output. uv run pytest tests/ -v passes.",
+      "completed": false,
+      "priority": 1,
+      "note": ""
+    },
+    {
+      "id": "BUG-03",
+      "epic": "GUI Stability",
+      "title": "fix_key_detection_returning_8b_for_all_tracks",
+      "owner": "ralph",
+      "description": "All tracks in the Playlists view are showing Key '8B'. Investigate: (1) Is key detection running at all, or is a default/fallback being returned? (2) Check playchitect/core/metadata_extractor.py and any key detection module for where the key field is populated. (3) If key detection relies on a library (e.g. librosa, keyfinder) that is not running correctly, fix the detection pipeline. (4) If the key column is populated from a tag that is missing on most files, fall back gracefully to None and display '\u2014' rather than a wrong value.",
+      "acceptance_criteria": "Tracks with known keys (verifiable via a reference tool) display the correct key notation. Tracks with no detectable key display '\u2014' not a hardcoded fallback. uv run pytest tests/ -v passes.",
+      "completed": false,
+      "priority": 1,
+      "note": ""
+    },
+    {
+      "id": "BUG-04",
+      "epic": "GUI Stability",
+      "title": "fix_export_no_playlists_available_after_clustering",
+      "owner": "ralph",
+      "description": "After running clustering in the Playlists view, switching to Export view shows 'No clusters available to export' and the 'Selected only' dropdown shows '(None)'. The Export view is not reading the clustered playlists from app state. Fix the data-flow: after clustering completes, the ClusterResult list must be stored in a shared app-state object that ExportView reads. Also rename all 'cluster' references in ExportView to 'playlist' (see GUI-01).",
+      "acceptance_criteria": "After running clustering, Export view shows all playlist names in the dropdown. Selecting a playlist and exporting produces a valid M3U file. 'Selected only' correctly filters to the chosen playlist. uv run pytest tests/ -v passes.",
+      "completed": false,
+      "priority": 1,
+      "note": ""
+    },
+    {
+      "id": "BUG-05",
+      "epic": "GUI Stability",
+      "title": "fix_layout_overflow_and_column_resizing",
+      "owner": "ralph",
+      "description": "Multiple views overflow the screen width: Library view is too wide even with no tracks; Preview panel is too wide; Playlists view overflows due to the number of controls in the action bar. Also, columns in the Library ColumnView are not resizable (Gtk.ColumnViewColumn.set_resizable is not set to True). Fix: (1) Set max-width / hexpand=False constraints on panels and action bars. (2) Set resizable=True on all ColumnViewColumn instances in LibraryView. (3) Make the app window double-click-maximisable (check Adw.ApplicationWindow title bar settings). (4) Ensure the Playlists action bar controls wrap or collapse on narrow windows.",
+      "acceptance_criteria": "App fits within a 1920x1080 display without horizontal scrollbars. Library columns are draggable to resize. Double-clicking the title bar maximises the window. uv run pytest tests/ -v passes.",
+      "completed": false,
+      "priority": 1,
+      "note": ""
+    },
+    {
+      "id": "BUG-06",
+      "epic": "GUI Stability",
+      "title": "fix_mood_classifier_all_ethereal_for_electronic_music",
+      "owner": "ralph",
+      "description": "The rule-based mood classifier in playchitect/core/mood_classifier.py returns 'Ethereal' (the catch-all default at line ~110) for nearly all electronic/techno tracks because the threshold rules for Energetic, Aggressive, Hypnotic etc. are not calibrated for this genre. Review and recalibrate the decision-tree thresholds using typical electronic music feature ranges. In particular: high RMS + high spectral centroid + high percussiveness should resolve to 'Energetic' or 'Aggressive', not fall through to 'Ethereal'. Add unit tests that assert specific mood labels for synthetic feature vectors representative of techno/house/dnb.",
+      "acceptance_criteria": "A synthetic IntensityFeatures with high RMS (>0.1), high percussiveness (>0.5), and high spectral centroid classifies as 'Energetic' or 'Aggressive', not 'Ethereal'. Existing mood classifier tests still pass. uv run pytest tests/ -v passes.",
+      "completed": false,
+      "priority": 2,
+      "note": ""
+    },
+    {
+      "id": "GUI-01",
+      "epic": "GUI UX",
+      "title": "rename_cluster_to_playlist_throughout_ui",
+      "owner": "ralph",
+      "description": "From a user perspective, each K-means cluster IS a playlist. Rename all user-facing occurrences of 'Cluster'/'cluster' to 'Playlist'/'playlist' throughout the GUI layer (labels, button text, window titles, toast notifications, export filenames, dropdown options, log messages shown in the UI). This does NOT require renaming internal Python class names like ClusterResult \u2014 only strings visible to the user. Files to update include at minimum: playlists_view.py, export_view.py, main_window.py, set_builder_view.py, cluster_view.py, cluster_stats.py. Also change cluster numbering from 0-based to 1-based (display 'Playlist 1' not 'Playlist 0').",
+      "acceptance_criteria": "No user-visible string in the running app contains the word 'Cluster' or 'cluster'. Playlists are numbered starting from 1. uv run pytest tests/ -v passes.",
+      "completed": false,
+      "priority": 1,
+      "note": ""
+    },
+    {
+      "id": "GUI-02",
+      "epic": "GUI UX",
+      "title": "clean_up_header_bar_remove_sushi_arc_fresh",
+      "owner": "ralph",
+      "description": "The global header bar contains three elements that should be moved or removed: (1) 'Sushi \u2713' chip: move this to a small status badge near the Preview panel in LibraryView only; it is irrelevant in other views. (2) 'Arc:' dropdown: this controls energy arc sequencing and belongs in the Playlists view action bar, not the global header. Move it there and enable/disable it based on whether playlists have been generated. (3) 'Fresh:' toggle: this controls track freshness preference and belongs in the Playlists view action bar alongside other sequencing controls. After moving all three, the header bar should contain only the app title/menu and view switcher tabs.",
+      "acceptance_criteria": "Header bar contains no Sushi chip, no Arc dropdown, no Fresh toggle. Arc dropdown appears in Playlists view and is disabled until playlists are generated. Fresh toggle appears in Playlists view. Sushi status appears near the preview panel in Library view. uv run pytest tests/ -v passes.",
+      "completed": false,
+      "priority": 1,
+      "note": ""
+    },
+    {
+      "id": "GUI-03",
+      "epic": "GUI UX",
+      "title": "fix_burger_menu_greyed_out_items",
+      "owner": "ralph",
+      "description": "The hamburger menu contains 'Open Folder' and 'Preferences' items that are permanently greyed out and non-functional. Fix: (1) 'Open Folder' should open a Gtk.FileDialog folder picker and trigger a library rescan of the selected folder (wire to the existing scan functionality). (2) 'Preferences' should open the existing PreferencesWindow (playchitect/gui/preferences_window.py). Remove any other greyed-out items that have no planned implementation.",
+      "acceptance_criteria": "Clicking 'Open Folder' opens a folder picker; selecting a folder rescans the library. Clicking 'Preferences' opens the PreferencesWindow. No greyed-out menu items remain unless they have a visible disabled reason (e.g. 'Export \u2014 scan a library first'). uv run pytest tests/ -v passes.",
+      "completed": false,
+      "priority": 2,
+      "note": ""
+    },
+    {
+      "id": "GUI-04",
+      "epic": "GUI UX",
+      "title": "merge_sort_and_energy_flow_controls_in_playlists_view",
+      "owner": "ralph",
+      "description": "The Playlists view action bar has two separate dropdowns that are confusingly similar: 'Sort by:' (sequencing algorithm: Energy ramp, BPM ascending, Spectral centroid, Timbre similarity, Intro length) and 'Energy flow:' (arc shape: ramp, build, descent, constant). These are genuinely different axes but are poorly labelled and redundant in effect for most users. Merge them into a single 'Sequence:' control with clear combined options such as: 'Energy ramp', 'Energy build', 'Energy descent', 'BPM ascending', 'BPM descending', 'Timbre similarity' (advanced). Move timbre similarity and intro-length options into a collapsible 'Advanced' expander so the default list is short. Remove the separate Energy flow dropdown.",
+      "acceptance_criteria": "Single 'Sequence:' dropdown replaces both Sort by and Energy flow controls. Advanced options are hidden behind an expander. Selecting any option correctly applies the corresponding sequencing. uv run pytest tests/ -v passes.",
+      "completed": false,
+      "priority": 2,
+      "note": ""
+    },
+    {
+      "id": "GUI-05",
+      "epic": "GUI UX",
+      "title": "add_tooltips_to_all_major_controls",
+      "owner": "ralph",
+      "description": "Most controls in the app have no tooltip. Add Gtk.Widget.set_tooltip_text() to: all dropdown controls (Sequence, Vocal, Key, Playlists count, Duration target), all buttons (Generate, Autofill, Export, Preview), the cluster/playlist graph widget, the energy arc widget, and the Fresh toggle. Tooltips should explain what the control does in plain language appropriate for a DJ user, not an ML engineer.",
+      "acceptance_criteria": "Hovering over each named control for 1 second shows a non-empty tooltip in plain English. uv run pytest tests/ -v passes.",
+      "completed": false,
+      "priority": 3,
+      "note": ""
+    },
+    {
+      "id": "GUI-06",
+      "epic": "GUI UX",
+      "title": "clarify_vocal_filter_options_in_playlists_view",
+      "owner": "ralph",
+      "description": "The Playlists view has a 'Vocal' filter with options 'Any', 'Instrumental', 'Vocal'. These options are confusing for users mixing electronic/techno: (1) Add a tooltip explaining each option and how it affects track selection. (2) Rename options to be clearer: 'Any vocals' \u2192 'Any', 'Instrumental only' \u2192 'No vocals', 'Has vocals' \u2192 'Vocals'. (3) If the vocal detection feature is not reliably implemented, add a note in the tooltip that this filter has limited accuracy for electronic music.",
+      "acceptance_criteria": "Vocal filter has a tooltip explaining its function. Option labels are updated to clearer wording. uv run pytest tests/ -v passes.",
+      "completed": false,
+      "priority": 3,
+      "note": ""
+    },
+    {
+      "id": "FEAT-01",
+      "epic": "Core Algorithm",
+      "title": "duration_constrained_playlist_assembly",
+      "owner": "ralph",
+      "description": "Currently clustering assigns ALL similar tracks to each cluster, ignoring the user's target duration. Change the playlist assembly pipeline so that: after K-means assigns tracks to clusters, each cluster's tracks are ranked by distance to their centroid (most similar first); then tracks are added to the playlist in that order until the target duration per playlist is reached (user-specified value, default 90 mins, tolerance +/-10%). Tracks that don't fit their primary cluster are offered to the next-closest cluster if they fit within its duration budget. Tracks that fit no playlist within tolerance are dropped and a count is logged. The target duration per playlist is the user's total set duration divided by the number of playlists. Implement this post-processing step in playchitect/core/clustering.py or a new playchitect/core/playlist_builder.py module.",
+      "acceptance_criteria": "With target_duration=90mins and n_playlists=6, each output playlist has a total track duration between 80 and 100 minutes. tests/unit/test_playlist_builder.py (or test_clustering.py): add tests that assert playlist duration is within tolerance. uv run pytest tests/ -v passes.",
+      "completed": false,
+      "priority": 1,
+      "note": ""
+    },
+    {
+      "id": "FEAT-02",
+      "epic": "Set Builder",
+      "title": "set_builder_chapter_generation",
+      "owner": "ralph",
+      "description": "Redesign the Set Builder view to be chapter-based. A 'chapter' is a named segment of a DJ set with a defined energy role and target duration. When the user clicks 'Generate Set' in the Set Builder view, the app: (1) Runs clustering on the scanned library using energy arc as the primary axis (reusing energy_blocks.py suggest_blocks() which already defines Warm Up / Build / Peak / Sustain / Wind Down blocks). (2) Creates one chapter per block with an auto-generated name (e.g. 'Intro', 'Build', 'Peak', 'Sustain', 'Outro') and a target duration proportional to the user's total set length. (3) Fills each chapter with tracks selected from the corresponding energy block, ranked by centroid proximity, up to the chapter's target duration. (4) Displays the chapters in the Set Builder view as an ordered list of expandable rows. The user can rename any chapter by clicking its name. This uses a separate clustering pass from the Playlists view \u2014 Set Builder and Playlists are independent workflows.",
+      "acceptance_criteria": "Clicking 'Generate Set' with a 90-min target produces 4-6 named chapters whose total duration sums to 80-100 minutes. Each chapter has an auto-generated name. Chapters are displayed as an ordered list in SetBuilderView. Chapter names are editable in-place. tests/unit/test_set_builder.py: add tests for chapter generation. uv run pytest tests/ -v passes.",
+      "completed": false,
+      "priority": 2,
+      "note": ""
+    },
+    {
+      "id": "FEAT-03",
+      "epic": "Set Builder",
+      "title": "set_builder_chapter_interaction",
+      "owner": "ralph",
+      "description": "Build the interaction model for Set Builder chapters: (1) Clicking a chapter row expands it to show its tracks as a sub-list. Within the expanded chapter, tracks can be previewed (spacebar), reordered by drag-and-drop, and individually removed. (2) Clicking outside the expanded chapter collapses it back to summary view. (3) Chapters themselves can be reordered by drag-and-drop in the outer list (the order determines the DJ set narrative arc). (4) An 'Add track' button within each chapter opens a search/filter dialog to pull in a track from the scanned library. (5) Chapter summary row shows: chapter name, track count, total duration, energy range.",
+      "acceptance_criteria": "Chapters expand/collapse on click. Tracks within a chapter can be reordered by drag-and-drop. Chapters themselves can be reordered. Chapter summary correctly reflects track count and total duration after any modifications. uv run pytest tests/ -v passes.",
+      "completed": false,
+      "priority": 2,
+      "note": ""
+    },
+    {
+      "id": "FEAT-04",
+      "epic": "Set Builder",
+      "title": "set_builder_export",
+      "owner": "ralph",
+      "description": "Add export capability to the Set Builder view with two modes: (1) 'Export as playlist' \u2014 exports all chapters as a single flat M3U file in chapter order, retaining chapter-boundary comments (e.g. #EXTINF chapter markers). (2) 'Export as chapters' \u2014 exports each chapter as a separate M3U file named after the chapter (e.g. '01_Intro.m3u', '02_Build.m3u'). Both export modes prompt the user for an output directory via Gtk.FileDialog. Wire the export button in SetBuilderView to call the existing export infrastructure in playchitect/core/export.py, extending it to support chapter-aware M3U output.",
+      "acceptance_criteria": "'Export as playlist' produces a single M3U with all tracks in chapter order. 'Export as chapters' produces one M3U per chapter with sequential numbering. File names use the chapter names the user has set. uv run pytest tests/ -v passes.",
+      "completed": false,
+      "priority": 2,
+      "note": ""
+    },
+    {
+      "id": "FEAT-H1",
+      "epic": "Branding",
+      "title": "app_branding_icons_splash_theming",
+      "owner": "human",
+      "description": "Design and implement app branding: (1) A distinct app icon (SVG source + PNG exports at 16/32/48/64/128/256px) that communicates 'DJ / music intelligence'. (2) An About dialog (Adw.AboutDialog) with app name, version, description, and license. (3) A loading/splash state shown while the initial library scan runs \u2014 currently the app shows a blank window. (4) Consider a CSS theme tweak (custom accent colour) via Adw.StyleManager. This task requires design decisions from James before ralph can implement the technical parts.",
+      "acceptance_criteria": "App has a recognisable icon in the taskbar and About dialog. Loading state is shown during initial scan. Design assets are approved by James.",
+      "completed": false,
+      "priority": 3,
+      "note": ""
+    },
+    {
       "id": "TASK-H2",
-      "epic": "Integrations \u2014 Research",
+      "epic": "Research",
       "title": "realtime_next_track_sidecar_feasibility",
       "owner": "human",
-      "description": "Research and decide on the feasibility of a real-time 'Next Track' sidecar integration with Mixxx. Concept: a bridge between Mixxx's active performance and Playchitect's sequencing logic. As a set plays in Mixxx, Playchitect updates its view in real-time to show current position in the ramp and recommends next tracks based on live energy. Potential path: Mixxx JavaScript controller script broadcasts current track metadata via local WebSocket or OSC; Playchitect listens and highlights 'Now Playing'; dynamic re-sequencing if the DJ deviates from the architected plan. This is a research/decision task \u2014 evaluate the Mixxx controller scripting API, WebSocket/OSC feasibility, and decide whether to build a spike or shelve.",
-      "acceptance_criteria": "Human decision: either a GitHub comment on #84 with a go/no-go verdict and rough technical plan, or a new task added to prd.json for the implementation spike.",
+      "description": "Research whether a real-time 'Next Track' sidecar integration with Mixxx is feasible. Mixxx exposes a DBus API and/or a TCP control interface. A sidecar process could listen to the currently playing track, query the Playchitect clustering results, and suggest the next track in real-time. Deliverable: a short feasibility note in docs/research/ covering the Mixxx API surface, latency constraints, and recommended implementation approach.",
       "completed": false,
-      "priority": 9,
-      "note": "GitHub issue #84. Labelled 'out-of-the-box' \u2014 ambitious idea, needs human judgement before ralph can act."
+      "priority": 3,
+      "note": "GitHub issue #84"
     },
     {
       "id": "TASK-H1",
       "epic": "Distribution",
       "title": "flathub_submission",
       "owner": "human",
-      "description": "Review the Flatpak manifest in packaging/flatpak/ and prepare the Flathub submission. Validate the manifest locally with `flatpak-builder --dry-run`. Validate AppStream metadata with `flatpak run org.freedesktop.appstream-glib validate data/com.github.jameswestwood.Playchitect.appdata.xml`. Fix any validation errors. Then open the submission PR manually on flathub/flathub GitHub \u2014 per Flathub AI policy, this PR must be opened by a human, not by an AI tool.",
-      "acceptance_criteria": "Flatpak manifest builds locally without error. AppStream validates without warnings. Submission PR opened on flathub/flathub.",
+      "description": "Manually submit Playchitect to Flathub following the Flathub submission guide. The Flatpak manifest must be written and the submission PR must be opened by James (not by an AI tool) per Flathub's AI policy. See CLAUDE.md for the full policy note.",
       "completed": false,
-      "priority": 8,
-      "note": "GitHub issue #60. MUST be done manually \u2014 Flathub AI policy prohibits AI-opened submission PRs."
+      "priority": 3,
+      "note": "GitHub issue #60"
     }
   ]
 }
