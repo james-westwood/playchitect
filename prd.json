@@ -429,9 +429,9 @@
       "epic": "GUI Stability",
       "title": "fix_preview_panel_not_updating_on_track_reselect",
       "owner": "ralph",
-      "description": "Two separate issues need fixing: (1) In library_view.py, Gtk.SingleSelection.selection-changed does NOT fire when the user clicks the already-selected row \u2014 so re-clicking the current track while preview is open never updates the panel. Fix by also connecting to Gtk.ColumnView.activate signal to handle re-activation of the current row. (2) In main_window.py _on_library_track_selected (line ~568), replace self._track_preview.get_visible() with self._track_preview.is_visible() which checks the full parent widget chain rather than just the local flag. Both fixes together ensure the panel always reflects the selected track.",
+      "description": "Two separate issues need fixing: (1) In library_view.py, Gtk.SingleSelection.selection-changed does NOT fire when the user clicks the already-selected row — so re-clicking the current track while preview is open never updates the panel. Fix by also connecting to Gtk.ColumnView.activate signal to handle re-activation of the current row. (2) In main_window.py _on_library_track_selected (line ~568), replace self._track_preview.get_visible() with self._track_preview.is_visible() which checks the full parent widget chain rather than just the local flag. Both fixes together ensure the panel always reflects the selected track.",
       "acceptance_criteria": "After fix: (a) Clicking a DIFFERENT track while panel is open immediately shows that track. (b) Clicking the SAME (already selected) track while panel is open also refreshes the panel. (c) tests/gui/test_library_view.py has a test that calls _on_activate with the current selection index and asserts track-selected is emitted. (d) uv run pytest tests/ -v passes.",
-      "completed": false,
+      "completed": true,
       "priority": 1,
       "note": "GitHub issue #187",
       "files": [
