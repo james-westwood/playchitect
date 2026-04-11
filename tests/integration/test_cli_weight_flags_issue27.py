@@ -7,6 +7,7 @@ that expose the weighting system via CLI.
 from pathlib import Path
 
 import numpy as np
+import pytest
 import soundfile as sf
 from click.testing import CliRunner
 from mutagen.flac import FLAC
@@ -55,6 +56,9 @@ class TestGenreFlag:
             "Output should mention genre/techno when --genre flag is used"
         )
 
+    # Hollow: the `or` makes this a tautology — if exit_code == 0 (the normal case)
+    # the assertion passes regardless of whether "house" appears in the output at all.
+    @pytest.mark.hollow
     def test_genre_house_selects_heuristic_weights(self, tmp_path: Path) -> None:
         """--genre house should select heuristic weights for house."""
         music_dir = tmp_path / "music"
@@ -70,6 +74,10 @@ class TestGenreFlag:
 
         assert result.exit_code == 0 or "house" in result.output.lower()
 
+    # Hollow: the `or` makes this a tautology — if the CLI exits non-zero the first
+    # condition passes; if it exits zero but prints "invalid" the second passes.
+    # Either branch passes, so a silent failure (exit 0 with no error message) is missed.
+    @pytest.mark.hollow
     def test_genre_invalid_raises_error(self, tmp_path: Path) -> None:
         """--genre with invalid genre should raise error."""
         music_dir = tmp_path / "music"
