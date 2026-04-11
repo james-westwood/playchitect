@@ -429,14 +429,16 @@
       "epic": "GUI Stability",
       "title": "fix_preview_panel_not_updating_on_track_reselect",
       "owner": "ralph",
-      "description": "In playchitect/gui/views/library_view.py and/or track_preview_panel.py, clicking a different track while the preview panel is already open does not update the panel contents. The panel only reflects the newly selected track if it is closed and reopened. Root cause: the track-selected signal is either not re-emitted on re-selection, or the preview panel is not listening to subsequent emissions after the first open. Fix so that every selection-change event updates the panel in place.",
-      "acceptance_criteria": "Clicking track A opens the preview panel. Clicking track B (while panel is open) immediately shows track B's information without closing/reopening. tests/gui/test_library_view.py: add test that simulates two sequential selections and asserts the preview panel reflects the second track. uv run pytest tests/ -v passes.",
-      "completed": true,
+      "description": "Two separate issues need fixing: (1) In library_view.py, Gtk.SingleSelection.selection-changed does NOT fire when the user clicks the already-selected row \u2014 so re-clicking the current track while preview is open never updates the panel. Fix by also connecting to Gtk.ColumnView.activate signal to handle re-activation of the current row. (2) In main_window.py _on_library_track_selected (line ~568), replace self._track_preview.get_visible() with self._track_preview.is_visible() which checks the full parent widget chain rather than just the local flag. Both fixes together ensure the panel always reflects the selected track.",
+      "acceptance_criteria": "After fix: (a) Clicking a DIFFERENT track while panel is open immediately shows that track. (b) Clicking the SAME (already selected) track while panel is open also refreshes the panel. (c) tests/gui/test_library_view.py has a test that calls _on_activate with the current selection index and asserts track-selected is emitted. (d) uv run pytest tests/ -v passes.",
+      "completed": false,
       "priority": 1,
       "note": "GitHub issue #187",
       "files": [
         "playchitect/gui/views/library_view.py",
-        "playchitect/gui/widgets/track_preview_panel.py"
+        "playchitect/gui/windows/main_window.py",
+        "playchitect/gui/widgets/track_preview_panel.py",
+        "tests/gui/test_library_view.py"
       ]
     },
     {
