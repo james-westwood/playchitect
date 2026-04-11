@@ -2,13 +2,15 @@
 
 Provides a side panel displaying track details with embedded audio playback using
 GStreamer. Cover art is extracted from APIC/METADATA_BLOCK_PICTURE tags and
-cached to disk for fast subsequent loads.
+cached to disk for fast subsequent loads. Also supports structural analysis
+to inject cue points into Mixxx.
 """
 
 from __future__ import annotations
 
 import hashlib
 import logging
+import threading
 from pathlib import Path
 from typing import Any
 
@@ -39,6 +41,11 @@ try:
 except ImportError:
     GdkPixbuf = None  # type: ignore[misc]
 
+from playchitect.core.mixxx_sync import MixxxSync  # noqa: E402
+from playchitect.core.structural_analyzer import (  # noqa: E402
+    StructuralAnalyzer,
+    predict_cue_points,
+)
 from playchitect.core.vibe_tags import VibeTagStore  # noqa: E402
 from playchitect.gui.views.library_view import LibraryTrackModel  # noqa: E402
 
@@ -449,6 +456,24 @@ class TrackPreviewPanel(Gtk.Box):
 
         controls_box.append(volume_box)
 
+        # Cue injection section
+        cues_box = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL, spacing=8)
+        cues_box.set_halign(Gtk.Align.CENTER)
+        cues_box.set_margin_top(8)
+
+        self._apply_cues_btn = Gtk.Button(label="Apply Suggested Cues")
+        self._apply_cues_btn.set_tooltip_text(
+            "Analyze track structure and inject cue points into Mixxx"
+        )
+        self._apply_cues_btn.connect("clicked", self._on_apply_cues_clicked)
+        cues_box.append(self._apply_cues_btn)
+
+        self._cues_spinner = Gtk.Spinner()
+        self._cues_spinner.set_visible(False)
+        cues_box.append(self._cues_spinner)
+
+        controls_box.append(cues_box)
+
         self.append(controls_box)
 
     def _init_gstreamer(self) -> None:
@@ -759,6 +784,104 @@ class TrackPreviewPanel(Gtk.Box):
         except Exception:
             logger.exception("Failed to extract key")
             return None
+
+    def _on_apply_cues_clicked(self, _btn: Gtk.Button) -> None:
+        """Handle Apply Suggested Cues button click.
+
+        Runs structural analysis and cue injection in a background thread.
+        """
+        if self._current_track is None:
+            return
+
+        # Disable button and show spinner
+        self._apply_cues_btn.set_sensitive(False)
+        self._cues_spinner.set_visible(True)
+        self._cues_spinner.start()
+
+        # Run analysis in background thread
+        thread = threading.Thread(
+            target=self._run_cue_analysis,
+            args=(Path(self._current_track.filepath),),
+            daemon=True,
+        )
+        thread.start()
+
+    def _run_cue_analysis(self, track_path: Path) -> None:
+        """Run structural analysis and inject cues into Mixxx.
+
+        This method runs in a background thread.
+        """
+        try:
+            # Analyze track structure
+            analyzer = StructuralAnalyzer()
+            analysis = analyzer.analyze(track_path)
+
+            # Predict cue points
+            cue_points = predict_cue_points(analysis)
+
+            # Write to Mixxx DB
+            mixxx_sync = MixxxSync()
+            if mixxx_sync.available and mixxx_sync.db_path is not None:
+                count = mixxx_sync.write_cue_points(mixxx_sync.db_path, track_path, cue_points)
+                GLib.idle_add(self._on_cues_applied, True, f"Applied {count} cue points")
+            else:
+                GLib.idle_add(self._on_cues_applied, False, "Mixxx database not found")
+
+        except Exception as e:
+            logger.exception("Failed to apply cue points")
+            GLib.idle_add(self._on_cues_applied, False, str(e))
+
+    def _on_cues_applied(self, success: bool, message: str) -> bool:
+        """Callback for when cue analysis completes.
+
+        Runs on the main thread via GLib.idle_add.
+
+        Args:
+            success: Whether the operation succeeded
+            message: Status message to display
+
+        Returns:
+            False to remove the idle callback
+        """
+        # Re-enable button and hide spinner
+        self._apply_cues_btn.set_sensitive(True)
+        self._cues_spinner.stop()
+        self._cues_spinner.set_visible(False)
+
+        # Show toast notification
+        if success:
+            self._show_toast(message)
+        else:
+            self._show_toast(f"Failed: {message}")
+
+        return False  # Remove idle callback
+
+    def _show_toast(self, message: str) -> None:
+        """Show a toast notification.
+
+        Args:
+            message: Message to display in the toast
+        """
+        # Get the parent window to find a ToastOverlay
+        parent = self.get_parent()
+        while parent is not None:
+            if hasattr(parent, "add_toast"):
+                # Adw.ToastOverlay or similar
+                try:
+                    import gi
+
+                    gi.require_version("Adw", "1")
+                    from gi.repository import Adw  # type: ignore[import-unresolved]  # noqa: E402
+
+                    toast = Adw.Toast.new(message)
+                    parent.add_toast(toast)
+                    return
+                except (ImportError, ValueError):
+                    pass
+            parent = parent.get_parent()
+
+        # Fallback: just log the message
+        logger.info(f"Toast: {message}")
 
     def dispose(self) -> None:
         """Clean up GStreamer resources."""
