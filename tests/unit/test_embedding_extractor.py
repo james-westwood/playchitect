@@ -465,8 +465,12 @@ class TestEmbeddingExtractorAnalysis:
         meta_file = tmp_path / "fake.json"
         meta_file.write_text(json.dumps({"classes": [str(i) for i in range(50)]}))
 
+        mood_model_file = tmp_path / "fake_mood.pb"
+        mood_model_file.write_bytes(b"x")
+
         extractor = EmbeddingExtractor(
             model_path=model_file,
+            mood_model_path=mood_model_file,
             cache_enabled=False,
         )
 
