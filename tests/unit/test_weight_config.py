@@ -132,7 +132,7 @@ class TestApplyWeightOverrides:
         result = apply_weight_overrides(weights, overrides)
 
         assert result[0] == 2.0  # bpm is first feature
-        assert result[1] == 0.1  # others unchanged
+        assert result[1] == 0.125  # others normalized to uniform (1/8)
 
     def test_apply_multiple_overrides(self) -> None:
         """Can apply multiple weight overrides."""
@@ -196,7 +196,7 @@ class TestApplyWeightOverrides:
 
         # bpm should be at index 7 in reversed order
         assert result[7] == 2.0
-        assert result[0] == 1.0  # onset_strength unchanged (no normalization)
+        assert result[0] == 0.125  # onset_strength normalized to uniform (1/8)
 
     def test_apply_mismatched_length_raises(self) -> None:
         """Mismatched weights length and feature_names length raises error."""
