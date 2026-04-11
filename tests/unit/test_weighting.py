@@ -321,7 +321,7 @@ class TestClusterByFeaturesWeighted:
             p = Path(f"t{i}.mp3")
             meta[p] = TrackMetadata(filepath=p, bpm=bpm + rng.uniform(-2, 2), duration=360.0)
             intensity[p] = IntensityFeatures(
-                filepath=p,
+                file_path=p,
                 file_hash="x",
                 rms_energy=float(rng.uniform(0.3, 0.9)),
                 brightness=float(rng.uniform(0.2, 0.8)),

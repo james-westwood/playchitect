@@ -43,7 +43,7 @@ def make_intensity_features(
 ) -> IntensityFeatures:
     """Create IntensityFeatures with specified RMS energy."""
     return IntensityFeatures(
-        filepath=filepath,
+        file_path=filepath,
         file_hash="deadbeef",
         rms_energy=rms_energy,
         brightness=0.5,

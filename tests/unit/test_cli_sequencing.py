@@ -23,7 +23,7 @@ def make_fake_metadata(p: Path) -> TrackMetadata:
 def make_fake_features(p: Path) -> IntensityFeatures:
     """Create fake intensity features for testing."""
     return IntensityFeatures(
-        filepath=p,
+        file_path=p,
         file_hash="abc",
         rms_energy=0.5,
         brightness=0.5,
