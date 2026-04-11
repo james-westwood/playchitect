@@ -22,9 +22,10 @@ import numpy as np
 logger = logging.getLogger(__name__)
 
 try:
-    from essentia.standard import TensorflowPredict2D  # type: ignore[import-not-found]
-    from essentia.standard import (
-        TensorflowPredictMusiCNN as _EssentiaModel,  # type: ignore[import-not-found]
+    # Essentia imports are optional; ty doesn't have stubs for them
+    from essentia.standard import TensorflowPredict2D  # type: ignore
+    from essentia.standard import (  # type: ignore
+        TensorflowPredictMusiCNN as _EssentiaModel,
     )
 
     _ESSENTIA_AVAILABLE = True

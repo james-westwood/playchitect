@@ -104,6 +104,7 @@ class PlaychitectWindow(Adw.ApplicationWindow):
         fresh_box.append(self._fresh_switch)
 
         header.pack_start(fresh_box)
+
         # ── Clustering Options ────────────────────────────────────────────────
         options_btn = Gtk.MenuButton(icon_name="emblem-system-symbolic")
         options_btn.set_tooltip_text("Clustering Options")
@@ -141,6 +142,11 @@ class PlaychitectWindow(Adw.ApplicationWindow):
         self._menu_button.set_tooltip_text("Menu")
         self._build_menu()
         header.pack_end(self._menu_button)
+
+        # Cluster button
+        self._cluster_btn = Gtk.Button(label="Cluster")
+        self._cluster_btn.connect("clicked", self._on_cluster_clicked)
+        header.pack_end(self._cluster_btn)
 
         # ── Main content: OverlaySplitView ─────────────────────────────────────
         # Sidebar (navigation)
@@ -188,9 +194,7 @@ class PlaychitectWindow(Adw.ApplicationWindow):
         is_minutes = dropdown.get_selected() == 1
         if is_minutes:
             self._target_spin.set_range(5, 300)  # 5 mins to 5 hours
-            # If value is huge (from tracks mode), clamp it logic?
-            # Or just let set_range handle it.
-            # Ideally we might want to convert, but simple switching is safer.
+
             current = self._target_spin.get_value()
             if current < 5:
                 self._target_spin.set_value(60)  # Default to 1 hour
@@ -331,7 +335,7 @@ class PlaychitectWindow(Adw.ApplicationWindow):
         prefs.set_transient_for(self)
         prefs.present()
 
-        # ── Preview chip ──────────────────────────────────────────────────────────
+    # ── Preview chip ──────────────────────────────────────────────────────────
 
     def _update_preview_chip(self) -> None:
         """Set the header chip text and style to reflect preview availability."""
@@ -486,6 +490,9 @@ class PlaychitectWindow(Adw.ApplicationWindow):
         """Update UI with clustering results."""
         self._spinner.stop()
 
+        # Re-enable cluster button
+        self._cluster_btn.set_sensitive(True)
+
         # Enable arc dropdown and reset to "None"
         self._arc_dropdown.set_sensitive(True)
         self._arc_dropdown.set_selected(0)
@@ -508,6 +515,7 @@ class PlaychitectWindow(Adw.ApplicationWindow):
 
     def _on_cluster_error(self) -> bool:
         self._spinner.stop()
+        self._cluster_btn.set_sensitive(True)
         self.set_title("Playchitect — clustering failed")
         return False
 

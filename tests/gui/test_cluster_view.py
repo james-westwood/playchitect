@@ -81,7 +81,7 @@ class TestClusterCardProperties:
         assert card.cluster_id == 3
 
     def test_cluster_id_string(self):
-        card = _make_card(_make_stats(cluster_id="2a"))  # type: ignore[arg-type]
+        card = _make_card(_make_stats(cluster_id="2a"))  # ty: ignore[invalid-argument-type]
         assert card.cluster_id == "2a"
 
 

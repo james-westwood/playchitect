@@ -11,7 +11,7 @@ from typing import TYPE_CHECKING
 from unittest.mock import MagicMock, patch
 
 import pytest
-from gi.repository import Gtk  # type: ignore[unresolved-import]
+from gi.repository import Gtk  # ty: ignore[unresolved-import]
 
 from playchitect.gui.widgets.cluster_stats import ClusterStats
 
@@ -107,7 +107,7 @@ class TestClusterRowWidget:
 
     def test_cluster_id_with_string_id(self):
         """Test cluster_id with string identifier."""
-        row = _make_row(_make_stats(cluster_id="2a"))  # type: ignore[arg-type]
+        row = _make_row(_make_stats(cluster_id="2a"))  # ty: ignore[invalid-argument-type]
         assert row.cluster_id == "2a"
 
 
@@ -139,7 +139,7 @@ class TestPlaylistsViewPublicAPI:
         view = _make_view()
         metadata_map = {Path("/test/track1.mp3"): MagicMock()}
 
-        view.set_metadata(metadata_map)
+        view.set_metadata(metadata_map)  # ty: ignore[invalid-argument-type]
 
         assert view._metadata_map == metadata_map
         view._generate_btn.set_sensitive.assert_called_once_with(True)
@@ -171,7 +171,7 @@ class TestPlaylistsViewPublicAPI:
         view._cluster_stats = [_make_stats()]
         view._selected_cluster_id = 5
         # Mock _refresh_cluster_sidebar to avoid GTK calls
-        view._refresh_cluster_sidebar = MagicMock()  # type: ignore[method-assign]
+        view._refresh_cluster_sidebar = MagicMock()  # ty: ignore[invalid-assignment]
 
         view.clear()
 
@@ -255,7 +255,7 @@ class TestPlaylistsViewClusterLoading:
         """Test that load_clusters refreshes the sidebar."""
         view = _make_view()
         # Mock _refresh_cluster_sidebar to avoid GTK calls
-        view._refresh_cluster_sidebar = MagicMock()  # type: ignore[method-assign]
+        view._refresh_cluster_sidebar = MagicMock()  # ty: ignore[invalid-assignment]
 
         # Create mock cluster results
         cluster = MagicMock()
@@ -274,13 +274,13 @@ class TestPlaylistsViewClusterLoading:
 
         assert len(view._clusters) == 1
         assert len(view._cluster_stats) == 1
-        view._refresh_cluster_sidebar.assert_called_once()  # type: ignore[attr-defined]
+        view._refresh_cluster_sidebar.assert_called_once()  # ty: ignore[unresolved-attribute]
         view._count_label.set_text.assert_called_once_with("1 cluster")
 
     def test_load_clusters_plural_label(self):
         """Test that cluster count label uses plural form."""
         view = _make_view()
-        view._refresh_cluster_sidebar = MagicMock()  # type: ignore[method-assign]
+        view._refresh_cluster_sidebar = MagicMock()  # ty: ignore[invalid-assignment]
 
         # Create mock cluster results
         clusters = []

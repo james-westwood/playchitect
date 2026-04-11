@@ -238,7 +238,7 @@ class TestPlayHistory:
 
         from playchitect.core.sequencer import sequence_fresh
 
-        result = sequence_fresh(tracks, features, history)
+        result = sequence_fresh(tracks, features, history)  # ty: ignore[invalid-argument-type]
 
         # Only first track should be in result (second has score < 0.1)
         assert len(result) == 1
