@@ -433,7 +433,11 @@
       "acceptance_criteria": "Clicking track A opens the preview panel. Clicking track B (while panel is open) immediately shows track B's information without closing/reopening. tests/gui/test_library_view.py: add test that simulates two sequential selections and asserts the preview panel reflects the second track. uv run pytest tests/ -v passes.",
       "completed": false,
       "priority": 1,
-      "note": ""
+      "note": "",
+      "files": [
+        "playchitect/gui/views/library_view.py",
+        "playchitect/gui/widgets/track_preview_panel.py"
+      ]
     },
     {
       "id": "BUG-02",
@@ -444,7 +448,10 @@
       "acceptance_criteria": "No track filepath appears more than once across all ClusterResult.tracks lists. tests/unit/test_clustering.py: add test with a dataset designed to produce overlaps and assert no duplicates in output. uv run pytest tests/ -v passes.",
       "completed": false,
       "priority": 1,
-      "note": ""
+      "note": "",
+      "files": [
+        "playchitect/core/clustering.py"
+      ]
     },
     {
       "id": "BUG-03",
@@ -455,7 +462,11 @@
       "acceptance_criteria": "Tracks with known keys (verifiable via a reference tool) display the correct key notation. Tracks with no detectable key display '\u2014' not a hardcoded fallback. uv run pytest tests/ -v passes.",
       "completed": false,
       "priority": 1,
-      "note": ""
+      "note": "",
+      "files": [
+        "playchitect/core/metadata_extractor.py",
+        "playchitect/gui/views/playlists_view.py"
+      ]
     },
     {
       "id": "BUG-04",
@@ -466,7 +477,11 @@
       "acceptance_criteria": "After running clustering, Export view shows all playlist names in the dropdown. Selecting a playlist and exporting produces a valid M3U file. 'Selected only' correctly filters to the chosen playlist. uv run pytest tests/ -v passes.",
       "completed": false,
       "priority": 1,
-      "note": ""
+      "note": "",
+      "files": [
+        "playchitect/gui/views/export_view.py",
+        "playchitect/gui/windows/main_window.py"
+      ]
     },
     {
       "id": "BUG-05",
@@ -477,7 +492,13 @@
       "acceptance_criteria": "App fits within a 1920x1080 display without horizontal scrollbars. Library columns are draggable to resize. Double-clicking the title bar maximises the window. uv run pytest tests/ -v passes.",
       "completed": false,
       "priority": 1,
-      "note": ""
+      "note": "",
+      "files": [
+        "playchitect/gui/views/library_view.py",
+        "playchitect/gui/views/playlists_view.py",
+        "playchitect/gui/widgets/track_preview_panel.py",
+        "playchitect/gui/windows/main_window.py"
+      ]
     },
     {
       "id": "BUG-06",
@@ -488,17 +509,74 @@
       "acceptance_criteria": "A synthetic IntensityFeatures with high RMS (>0.1), high percussiveness (>0.5), and high spectral centroid classifies as 'Energetic' or 'Aggressive', not 'Ethereal'. Existing mood classifier tests still pass. uv run pytest tests/ -v passes.",
       "completed": false,
       "priority": 2,
+      "note": "",
+      "files": [
+        "playchitect/core/mood_classifier.py",
+        "tests/unit/test_mood_classifier.py"
+      ]
+    },
+    {
+      "id": "GUI-01a",
+      "epic": "GUI UX",
+      "title": "rename_cluster_to_playlist_in_views_and_widgets",
+      "owner": "ralph",
+      "description": "Rename all user-facing occurrences of 'Cluster'/'cluster' to 'Playlist'/'playlist' in the GUI view and widget files only. This does NOT require renaming internal Python class names like ClusterResult \u2014 only strings visible to the user: labels, button text, toast notifications, dropdown options, log messages shown in the UI. Files in scope: playlists_view.py, export_view.py, set_builder_view.py, cluster_view.py, cluster_stats.py. Do NOT touch main_window.py or numbering in this task (covered by GUI-01b).",
+      "acceptance_criteria": "No user-visible string in playlists_view.py, export_view.py, set_builder_view.py, cluster_view.py, or cluster_stats.py contains the word 'Cluster' or 'cluster'. uv run pytest tests/ -v passes.",
+      "completed": false,
+      "priority": 1,
+      "files": [
+        "playchitect/gui/views/playlists_view.py",
+        "playchitect/gui/views/export_view.py",
+        "playchitect/gui/views/set_builder_view.py",
+        "playchitect/gui/widgets/cluster_view.py",
+        "playchitect/gui/widgets/cluster_stats.py"
+      ],
       "note": ""
     },
     {
-      "id": "GUI-01",
+      "id": "GUI-01b",
       "epic": "GUI UX",
-      "title": "rename_cluster_to_playlist_throughout_ui",
+      "title": "rename_cluster_in_main_window_and_fix_numbering",
       "owner": "ralph",
-      "description": "From a user perspective, each K-means cluster IS a playlist. Rename all user-facing occurrences of 'Cluster'/'cluster' to 'Playlist'/'playlist' throughout the GUI layer (labels, button text, window titles, toast notifications, export filenames, dropdown options, log messages shown in the UI). This does NOT require renaming internal Python class names like ClusterResult \u2014 only strings visible to the user. Files to update include at minimum: playlists_view.py, export_view.py, main_window.py, set_builder_view.py, cluster_view.py, cluster_stats.py. Also change cluster numbering from 0-based to 1-based (display 'Playlist 1' not 'Playlist 0').",
-      "acceptance_criteria": "No user-visible string in the running app contains the word 'Cluster' or 'cluster'. Playlists are numbered starting from 1. uv run pytest tests/ -v passes.",
+      "description": "Complete the Cluster\u2192Playlist rename in main_window.py (any user-visible strings only, not class names). Also fix playlist numbering from 0-based to 1-based everywhere in the GUI: wherever a playlist index is displayed to the user (e.g. 'Playlist 0', 'Cluster 0'), change to display 'Playlist 1', 'Playlist 2' etc. (index + 1). This applies to playlists_view.py sidebar list, cluster_stats.py headers, and any toast/log messages.",
+      "acceptance_criteria": "No user-visible string in main_window.py contains 'Cluster'/'cluster'. Playlists displayed to the user are numbered starting from 1, not 0. uv run pytest tests/ -v passes.",
       "completed": false,
       "priority": 1,
+      "files": [
+        "playchitect/gui/windows/main_window.py",
+        "playchitect/gui/views/playlists_view.py",
+        "playchitect/gui/widgets/cluster_stats.py"
+      ],
+      "note": ""
+    },
+    {
+      "id": "FEAT-01a",
+      "epic": "Core Algorithm",
+      "title": "duration_constrained_playlist_assembly_backend",
+      "owner": "ralph",
+      "description": "Implement a new function `build_duration_constrained_playlists(clusters: list[ClusterResult], target_duration_mins: float, tolerance: float = 0.1) -> list[ClusterResult]` in playchitect/core/clustering.py (or a new playchitect/core/playlist_builder.py). The function: (1) For each cluster, ranks its tracks by distance to the cluster centroid (closest first) using the feature vectors already computed. (2) Adds tracks in that order until the cumulative duration reaches target_duration_mins * (1 + tolerance). (3) Any track that doesn't fit its primary cluster is tried against the next-closest cluster's centroid; if it fits there within tolerance, it is added. (4) Returns a new list of ClusterResult objects with trimmed track lists. The target_duration_mins per playlist = user's total set duration / number of playlists.",
+      "acceptance_criteria": "tests/unit/test_playlist_builder.py (or test_clustering.py): add tests asserting that with a 90-min target the output playlist durations are all between 80 and 100 minutes. Function handles edge cases: fewer tracks than needed (returns all available), zero-duration tracks (skipped). uv run pytest tests/ -v passes.",
+      "completed": false,
+      "priority": 1,
+      "files": [
+        "playchitect/core/clustering.py",
+        "playchitect/core/metadata_extractor.py"
+      ],
+      "note": ""
+    },
+    {
+      "id": "FEAT-01b",
+      "epic": "Core Algorithm",
+      "title": "wire_duration_constraint_to_gui",
+      "owner": "ralph",
+      "description": "Wire the duration-constrained playlist assembly (FEAT-01a) into the GUI pipeline. In playchitect/gui/windows/main_window.py, after clustering completes and before results are passed to the PlaylitsView, call `build_duration_constrained_playlists()` with the user's target duration (read from the existing duration control in playlists_view.py or preferences). Ensure the total set duration and number of playlists fields in the UI are clearly labelled and their values are passed through correctly. Add a visible indicator in the Playlists view showing the actual duration of each playlist after trimming.",
+      "acceptance_criteria": "Setting target duration to 60 mins with 4 playlists and generating results in each playlist showing ~60 min of tracks (not the full library). Each playlist row in the sidebar shows its actual duration. uv run pytest tests/ -v passes.",
+      "completed": false,
+      "priority": 1,
+      "files": [
+        "playchitect/gui/windows/main_window.py",
+        "playchitect/gui/views/playlists_view.py"
+      ],
       "note": ""
     },
     {
@@ -510,7 +588,12 @@
       "acceptance_criteria": "Header bar contains no Sushi chip, no Arc dropdown, no Fresh toggle. Arc dropdown appears in Playlists view and is disabled until playlists are generated. Fresh toggle appears in Playlists view. Sushi status appears near the preview panel in Library view. uv run pytest tests/ -v passes.",
       "completed": false,
       "priority": 1,
-      "note": ""
+      "note": "",
+      "files": [
+        "playchitect/gui/windows/main_window.py",
+        "playchitect/gui/views/playlists_view.py",
+        "playchitect/gui/views/library_view.py"
+      ]
     },
     {
       "id": "GUI-03",
@@ -521,7 +604,11 @@
       "acceptance_criteria": "Clicking 'Open Folder' opens a folder picker; selecting a folder rescans the library. Clicking 'Preferences' opens the PreferencesWindow. No greyed-out menu items remain unless they have a visible disabled reason (e.g. 'Export \u2014 scan a library first'). uv run pytest tests/ -v passes.",
       "completed": false,
       "priority": 2,
-      "note": ""
+      "note": "",
+      "files": [
+        "playchitect/gui/windows/main_window.py",
+        "playchitect/gui/preferences_window.py"
+      ]
     },
     {
       "id": "GUI-04",
@@ -532,7 +619,10 @@
       "acceptance_criteria": "Single 'Sequence:' dropdown replaces both Sort by and Energy flow controls. Advanced options are hidden behind an expander. Selecting any option correctly applies the corresponding sequencing. uv run pytest tests/ -v passes.",
       "completed": false,
       "priority": 2,
-      "note": ""
+      "note": "",
+      "files": [
+        "playchitect/gui/views/playlists_view.py"
+      ]
     },
     {
       "id": "GUI-05",
@@ -543,7 +633,14 @@
       "acceptance_criteria": "Hovering over each named control for 1 second shows a non-empty tooltip in plain English. uv run pytest tests/ -v passes.",
       "completed": false,
       "priority": 3,
-      "note": ""
+      "note": "",
+      "files": [
+        "playchitect/gui/windows/main_window.py",
+        "playchitect/gui/views/playlists_view.py",
+        "playchitect/gui/views/library_view.py",
+        "playchitect/gui/views/export_view.py",
+        "playchitect/gui/views/set_builder_view.py"
+      ]
     },
     {
       "id": "GUI-06",
@@ -554,18 +651,10 @@
       "acceptance_criteria": "Vocal filter has a tooltip explaining its function. Option labels are updated to clearer wording. uv run pytest tests/ -v passes.",
       "completed": false,
       "priority": 3,
-      "note": ""
-    },
-    {
-      "id": "FEAT-01",
-      "epic": "Core Algorithm",
-      "title": "duration_constrained_playlist_assembly",
-      "owner": "ralph",
-      "description": "Currently clustering assigns ALL similar tracks to each cluster, ignoring the user's target duration. Change the playlist assembly pipeline so that: after K-means assigns tracks to clusters, each cluster's tracks are ranked by distance to their centroid (most similar first); then tracks are added to the playlist in that order until the target duration per playlist is reached (user-specified value, default 90 mins, tolerance +/-10%). Tracks that don't fit their primary cluster are offered to the next-closest cluster if they fit within its duration budget. Tracks that fit no playlist within tolerance are dropped and a count is logged. The target duration per playlist is the user's total set duration divided by the number of playlists. Implement this post-processing step in playchitect/core/clustering.py or a new playchitect/core/playlist_builder.py module.",
-      "acceptance_criteria": "With target_duration=90mins and n_playlists=6, each output playlist has a total track duration between 80 and 100 minutes. tests/unit/test_playlist_builder.py (or test_clustering.py): add tests that assert playlist duration is within tolerance. uv run pytest tests/ -v passes.",
-      "completed": false,
-      "priority": 1,
-      "note": ""
+      "note": "",
+      "files": [
+        "playchitect/gui/views/playlists_view.py"
+      ]
     },
     {
       "id": "FEAT-02",
@@ -576,7 +665,12 @@
       "acceptance_criteria": "Clicking 'Generate Set' with a 90-min target produces 4-6 named chapters whose total duration sums to 80-100 minutes. Each chapter has an auto-generated name. Chapters are displayed as an ordered list in SetBuilderView. Chapter names are editable in-place. tests/unit/test_set_builder.py: add tests for chapter generation. uv run pytest tests/ -v passes.",
       "completed": false,
       "priority": 2,
-      "note": ""
+      "note": "",
+      "files": [
+        "playchitect/core/energy_blocks.py",
+        "playchitect/core/arc_sequencer.py",
+        "playchitect/gui/views/set_builder_view.py"
+      ]
     },
     {
       "id": "FEAT-03",
@@ -587,7 +681,10 @@
       "acceptance_criteria": "Chapters expand/collapse on click. Tracks within a chapter can be reordered by drag-and-drop. Chapters themselves can be reordered. Chapter summary correctly reflects track count and total duration after any modifications. uv run pytest tests/ -v passes.",
       "completed": false,
       "priority": 2,
-      "note": ""
+      "note": "",
+      "files": [
+        "playchitect/gui/views/set_builder_view.py"
+      ]
     },
     {
       "id": "FEAT-04",
@@ -598,7 +695,11 @@
       "acceptance_criteria": "'Export as playlist' produces a single M3U with all tracks in chapter order. 'Export as chapters' produces one M3U per chapter with sequential numbering. File names use the chapter names the user has set. uv run pytest tests/ -v passes.",
       "completed": false,
       "priority": 2,
-      "note": ""
+      "note": "",
+      "files": [
+        "playchitect/gui/views/set_builder_view.py",
+        "playchitect/core/export.py"
+      ]
     },
     {
       "id": "FEAT-H1",

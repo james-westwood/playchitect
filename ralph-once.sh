@@ -71,6 +71,7 @@ TASK_TITLE=$(next_task_field title "$FORCED_TASK_ID")
 TASK_DESC=$(next_task_field description "$FORCED_TASK_ID")
 TASK_AC=$(next_task_field acceptance_criteria "$FORCED_TASK_ID")
 TASK_EPIC=$(next_task_field epic "$FORCED_TASK_ID")
+
 TASK_NOTE=$(python3 -c "
 import json
 with open('prd.json') as f: prd = json.load(f)
@@ -81,11 +82,16 @@ else:
 print(t.get('note', ''))
 " 2>/dev/null || true)
 
-# Extract GitHub issue number from note field (e.g. "GitHub issue #176" -> "176")
-CLOSES_LINE=""
-if [[ "$TASK_NOTE" =~ \#([0-9]+) ]]; then
-  CLOSES_LINE="Closes #${BASH_REMATCH[1]}"
-fi
+TASK_FILES=$(python3 -c "
+import json
+with open('prd.json') as f: prd = json.load(f)
+if '$FORCED_TASK_ID':
+    t = next(x for x in prd['tasks'] if x['id'] == '$FORCED_TASK_ID')
+else:
+    t = [x for x in prd['tasks'] if not x['completed'] and x.get('owner') != 'human'][0]
+files = t.get('files', [])
+print('\n'.join(files))
+" 2>/dev/null || true)
 
 # Check if human-owned (only relevant when auto-picking)
 if [[ -z "$FORCED_TASK_ID" ]]; then
@@ -102,12 +108,51 @@ if incomplete: print(incomplete[0].get('owner', ''))
   fi
 fi
 
+# ── Create GitHub issue if not already linked ──────────────────────────────────
+
+CLOSES_LINE=""
+if [[ "$TASK_NOTE" =~ \#([0-9]+) ]]; then
+  # Existing issue number in note field — reuse it
+  CLOSES_LINE="Closes #${BASH_REMATCH[1]}"
+  echo "  Linked issue: #${BASH_REMATCH[1]} (from prd.json note)"
+else
+  # No issue yet — create one now
+  echo "--- Creating GitHub issue for [$TASK_ID] ---"
+  ISSUE_URL=$(gh issue create \
+    --title "[$TASK_ID] $TASK_TITLE" \
+    --body "$(printf '%s\n\n**Acceptance criteria:**\n%s' "$TASK_DESC" "$TASK_AC")" \
+    --label "type-bug" 2>/dev/null || \
+  gh issue create \
+    --title "[$TASK_ID] $TASK_TITLE" \
+    --body "$(printf '%s\n\n**Acceptance criteria:**\n%s' "$TASK_DESC" "$TASK_AC")" 2>/dev/null || true)
+  ISSUE_NUMBER=$(echo "$ISSUE_URL" | grep -oE '[0-9]+$' || true)
+  if [[ -n "$ISSUE_NUMBER" ]]; then
+    CLOSES_LINE="Closes #${ISSUE_NUMBER}"
+    # Write issue number back to prd.json so future runs don't recreate it
+    python3 -c "
+import json
+with open('prd.json') as f: prd = json.load(f)
+for t in prd['tasks']:
+    if t['id'] == '$TASK_ID':
+        t['note'] = 'GitHub issue #$ISSUE_NUMBER'
+        break
+with open('prd.json', 'w') as f:
+    json.dump(prd, f, indent=2)
+    f.write('\n')
+"
+    echo "  Created GitHub issue #${ISSUE_NUMBER}: $ISSUE_URL"
+  else
+    echo "  Warning: could not create GitHub issue — continuing without Closes link"
+  fi
+fi
+
 BRANCH="ralph/task-${TASK_ID}-${TASK_TITLE}"
 
 # Fixed assignment — kimi codes, GLM reviews
 CODER="kimi-k2.5"
 REVIEWER="glm-5.1"
 
+echo ""
 echo "  Task:     [$TASK_ID] $TASK_TITLE"
 echo "  Epic:     $TASK_EPIC"
 echo "  Branch:   $BRANCH"
@@ -124,6 +169,13 @@ git checkout -b "$BRANCH"
 
 echo "--- Coding ($CODER) ---"
 
+FILES_HINT=""
+if [[ -n "$TASK_FILES" ]]; then
+  FILES_HINT="
+Files likely relevant to this task (read these first):
+$TASK_FILES"
+fi
+
 CODER_PROMPT="You are the CODER implementing task [$TASK_ID] $TASK_TITLE for the playchitect project. Another AI will review your work — write clean, production-quality code.
 
 Read CLAUDE.md for project conventions.
@@ -131,6 +183,7 @@ Read CLAUDE.md for project conventions.
 Epic: $TASK_EPIC
 Description: $TASK_DESC
 Acceptance criteria: $TASK_AC
+${FILES_HINT}
 
 Implementation steps:
 1. Write source files under playchitect/ (core logic) or tests/ (tests)
@@ -187,6 +240,8 @@ echo "PR #$PR_NUMBER: $PR_URL"
 
 echo ""
 echo "--- Reviewing ($REVIEWER) ---"
+# Wait for GitHub to propagate the PR before fetching the diff
+sleep 5
 PR_DIFF=$(gh pr diff "$PR_NUMBER")
 
 REVIEW_PROMPT="You are the code reviewer for a pull request in the playchitect project.
@@ -229,7 +284,7 @@ EOF
 
 echo ""
 echo "--- Enabling auto-merge on PR #$PR_NUMBER (squash, waits for CI) ---"
-gh pr merge "$PR_NUMBER" --auto --squash
+gh pr merge "$PR_NUMBER" --auto --squash --delete-branch
 
 echo ""
 echo "=== Ralph done — PR open, auto-merge enabled ==="
