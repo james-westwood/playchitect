@@ -18,6 +18,17 @@
       "note": "GitHub issue #176"
     },
     {
+      "id": "FIX-05",
+      "epic": "Stability",
+      "title": "fix_selection_changed_signature_library_view",
+      "owner": "ralph",
+      "description": "In playchitect/gui/views/library_view.py, _on_selection_changed() is defined with only 2 parameters (self, selection, _position) but Gtk.SingleSelection emits selection-changed with 3 arguments (selection, position, n_items). Add the missing _n_items: int parameter to the method signature.",
+      "acceptance_criteria": "Clicking a track in LibraryView no longer raises TypeError. tests/gui/test_library_view.py: add or update a test that calls _on_selection_changed with 3 arguments and asserts track-selected is emitted. uv run pytest tests/ -v passes.",
+      "completed": false,
+      "priority": 1,
+      "note": "GitHub issue #178"
+    },
+    {
       "id": "FIX-01",
       "epic": "Stability",
       "title": "downgrade_pca_bootstrap_warning",
