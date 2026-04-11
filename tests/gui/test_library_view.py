@@ -205,6 +205,7 @@ def library_view() -> LibraryView:
     v._search_entry = MagicMock()
     v._spinner = MagicMock()
     v._open_btn = MagicMock()
+    v._column_view = MagicMock()  # Needed for _on_activate tests
 
     # Format buttons
     v._format_buttons = {}
@@ -456,6 +457,77 @@ class TestSelectionChanged:
         assert signal_2_name == "track-selected"
         assert signal_2_args[0].title == "Track B"
         assert signal_2_args[0].filepath == "/music/track_b.flac"
+
+    def test_on_activate_emits_track_selected(self, library_view: LibraryView) -> None:
+        """_on_activate emits track-selected signal when row is activated.
+
+        This is the key BUG-01 fix test: clicking the same (already selected) track
+        should still emit track-selected, because selection-changed does not fire
+        when clicking the already-selected row.
+
+        Acceptance criteria (c): tests/gui/test_library_view.py has a test that
+        calls _on_activate with the current selection index and asserts
+        track-selected is emitted.
+        """
+        from unittest.mock import patch
+
+        # Add a track and select it
+        track = _make_library_track(title="Test Track", filepath="/music/test.flac")
+        library_view._store.append(track)
+        library_view._selection._selected_index = 0  # Select the track
+
+        emitted: list[tuple[str, tuple[Any, ...]]] = []
+
+        def mock_emit(signal_name: str, *args: Any) -> None:
+            emitted.append((signal_name, args))
+
+        with patch.object(library_view, "emit", mock_emit):
+            # Call _on_activate with the current selection position
+            # This simulates the user clicking the already-selected row
+            library_view._on_activate(library_view._column_view, 0)
+
+        # Should emit track-selected signal
+        assert len(emitted) == 1
+        signal_name, args = emitted[0]
+        assert signal_name == "track-selected"
+        assert len(args) == 1
+        assert args[0].title == "Test Track"
+        assert args[0].filepath == "/music/test.flac"
+
+    def test_on_activate_same_track_refreshes_panel(self, library_view: LibraryView) -> None:
+        """Clicking the same track twice (via activate) refreshes the panel.
+
+        BUG-01 acceptance criteria (b): Clicking the SAME (already selected) track
+        while panel is open also refreshes the panel. This test verifies that
+        _on_activate emits the signal even when the selection hasn't changed.
+        """
+        from unittest.mock import patch
+
+        # Add a track
+        track = _make_library_track(title="Same Track", filepath="/music/same.flac")
+        library_view._store.append(track)
+        library_view._selection._selected_index = 0
+
+        emitted: list[tuple[str, tuple[Any, ...]]] = []
+
+        def mock_emit(signal_name: str, *args: Any) -> None:
+            emitted.append((signal_name, args))
+
+        with patch.object(library_view, "emit", mock_emit):
+            # First activation (user clicks the track)
+            library_view._on_activate(library_view._column_view, 0)
+
+            # Second activation (user clicks the SAME track again)
+            # selection-changed wouldn't fire here, but activate does
+            library_view._on_activate(library_view._column_view, 0)
+
+        # Both activations should emit track-selected
+        assert len(emitted) == 2
+
+        # Both should be for the same track
+        for signal_name, args in emitted:
+            assert signal_name == "track-selected"
+            assert args[0].title == "Same Track"
 
 
 class TestTrackCount:
