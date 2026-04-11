@@ -14,9 +14,13 @@ for Subspace Clustering of High-Dimensional Sparse Data. IEEE TKDE 19(8).
 
 import logging
 from dataclasses import dataclass
+from typing import TYPE_CHECKING
 
 import numpy as np
 from sklearn.decomposition import PCA
+
+if TYPE_CHECKING:
+    from playchitect.utils.weight_config import WeightOverrides
 
 logger = logging.getLogger(__name__)
 
@@ -87,24 +91,46 @@ def select_weights(
     X_scaled: np.ndarray,
     genre: str | None = None,
     random_state: int = 42,
+    weight_overrides: "WeightOverrides | None" = None,
 ) -> WeightProfile:
     """
     Select the best available weight strategy for the given data.
 
     Fallback hierarchy:
-      1. PCA communality weights (≥40 tracks, bootstrap-stable)
-      2. Heuristic genre weights (when genre is known)
-      3. Uniform weights (1/8 each)
+      1. User-provided weight overrides (if specified)
+      2. PCA communality weights (≥40 tracks, bootstrap-stable)
+      3. Heuristic genre weights (when genre is known)
+      4. Uniform weights (1/8 each)
 
     Args:
         X_scaled: Standardised feature matrix, shape (n_tracks, 8)
         genre: Optional genre hint — one of 'techno', 'house', 'ambient', 'dnb'
         random_state: Seed for reproducible bootstrap
+        weight_overrides: Optional user-specified weight overrides. When provided,
+                         these weights are used directly with source='user'.
 
     Returns:
-        WeightProfile with selected weights and source metadata
+        WeightProfile with selected weights and source metadata.
+        Source is 'user' when weight_overrides are provided, otherwise
+        one of 'pca', 'heuristic', or 'uniform'.
     """
     n_tracks = len(X_scaled)
+
+    # If user overrides are provided, use them directly
+    if weight_overrides is not None:
+        # Build weights array from overrides
+        from playchitect.utils.weight_config import apply_weight_overrides
+
+        # Start with uniform weights and apply overrides
+        base_weights = np.ones(len(FEATURE_NAMES)) / len(FEATURE_NAMES)
+        final_weights = apply_weight_overrides(base_weights, weight_overrides, FEATURE_NAMES)
+
+        return WeightProfile(
+            weights=final_weights,
+            source="user",
+            genre=genre,
+            n_tracks=n_tracks,
+        )
 
     if n_tracks >= _MIN_TRACKS_PCA:
         profile = learn_weights_pca(X_scaled, random_state=random_state)
