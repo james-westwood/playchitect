@@ -124,7 +124,7 @@ class TestHarmonicOrderingDropdown:
         )
 
     # Hollow: sets up a mock model but only checks hasattr for the method name;
-    # get_harmonic_mode_options() is never called to verify it returns ["Strict", "Loose", "Random"].
+    # get_harmonic_mode_options() is never called to verify the returned list contents.
     @pytest.mark.hollow
     def test_harmonic_mode_options_available(self) -> None:
         """Verify harmonic mode dropdown has expected options."""
