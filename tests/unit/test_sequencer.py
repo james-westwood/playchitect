@@ -106,7 +106,7 @@ class TestSequencer:
     def test_hardness_property(self):
         """Test the hardness calculation in IntensityFeatures."""
         feat = IntensityFeatures(
-            filepath=Path("test.flac"),
+            file_path=Path("test.flac"),
             file_hash="hash",
             rms_energy=0.5,
             brightness=0.5,
