@@ -412,7 +412,18 @@ class LibraryView(Gtk.Box):
     def _on_selection_changed(
         self, selection: Gtk.SingleSelection, _position: int, _n_items: int
     ) -> None:
-        """Emit track-selected signal when selection changes."""
+        """Emit track-selected signal when selection changes.
+
+        This handler is connected to Gtk.SingleSelection's "selection-changed" signal
+        and emits our custom "track-selected" signal with the selected track. This
+        ensures the preview panel and other listeners are notified whenever the
+        user selects a different track.
+
+        BUG-01 Fix: This method always emits the signal for every selection change,
+        including when switching from track A to track B while the preview panel
+        is already open. This ensures the panel updates to show the newly selected
+        track without requiring a close/reopen cycle.
+        """
         item = selection.get_selected_item()
         if item is not None:
             self.emit("track-selected", item)
