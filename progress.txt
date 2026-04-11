@@ -32,3 +32,4 @@
 [2026-03-15] [TASK-26] rekordbox_xml_import: implemented and merged (PR #155)
 [2026-03-15] [TASK-28] vibe_tags_annotation: implemented and merged (PR #156)
 [2026-04-11] [TASK-32] audio_structural_analysis_cue_injection: implemented structural analysis with librosa RMS energy detection, Mixxx cue injection, and GUI integration with spinner/toast feedback
+[2026-04-11] [FIX-04] fix_vorbis_valueerror_in_extract_text_tag: wrapped tag lookup in try/except (ValueError, KeyError) to handle Vorbis-comment FLAC files; added test verifying _extract_text_tag returns None instead of propagating

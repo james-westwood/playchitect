@@ -13,7 +13,7 @@
       "owner": "ralph",
       "description": "In playchitect/core/metadata_extractor.py, _extract_text_tag() uses `if tag in audio` (line ~301) which triggers mutagen's __contains__ -> __getitem__ -> ValueError on Vorbis-comment FLAC files. Wrap the tag lookup in a try/except: replace `if tag in audio: value = audio[tag]` with a try/except (ValueError, KeyError) block that continues to the next tag name on exception. This silences the spurious bare ValueError and allows extraction to complete for genre, mood, and any other tags that follow.",
       "acceptance_criteria": "tests/unit/test_metadata_extractor.py: add a test where a mock mutagen object's __contains__ raises ValueError; assert _extract_text_tag returns None instead of propagating. Scanning a FLAC library no longer logs \"Error extracting metadata from ...:\" with an empty message. uv run pytest tests/ -v passes.",
-      "completed": false,
+      "completed": true,
       "priority": 1,
       "note": "GitHub issue #176"
     },

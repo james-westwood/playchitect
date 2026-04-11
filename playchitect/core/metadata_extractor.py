@@ -298,20 +298,28 @@ class MetadataExtractor:
             Tag value as string, or None if not found
         """
         for tag in tag_names:
-            if tag in audio:
-                value = audio[tag]
-
-                # Handle list values
-                if isinstance(value, list) and len(value) > 0:
-                    value = value[0]
-
-                # Convert to string
-                try:
-                    text = str(value).strip()
-                    if text:
-                        return text
-                except Exception:
+            # Wrap tag lookup in try/except to handle Vorbis comment ValueError
+            # mutagen's __contains__ can trigger __getitem__ which raises ValueError
+            try:
+                if tag in audio:
+                    value = audio[tag]
+                else:
                     continue
+            except (ValueError, KeyError):
+                # Silently skip tags that cause mutagen errors (e.g., Vorbis FLAC)
+                continue
+
+            # Handle list values
+            if isinstance(value, list) and len(value) > 0:
+                value = value[0]
+
+            # Convert to string
+            try:
+                text = str(value).strip()
+                if text:
+                    return text
+            except Exception:
+                continue
 
         return None
 
