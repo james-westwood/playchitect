@@ -381,7 +381,7 @@
       "note": "GitHub issue #87"
     },
     {
-      "id": "TASK-29",
+      "id": "TASK-32",
       "epic": "DJ Ecosystem Integration",
       "title": "audio_structural_analysis_cue_injection",
       "owner": "ralph",
@@ -393,14 +393,14 @@
     },
     {
       "id": "TASK-H2",
-      "epic": "Integrations — Research",
+      "epic": "Integrations \u2014 Research",
       "title": "realtime_next_track_sidecar_feasibility",
       "owner": "human",
-      "description": "Research and decide on the feasibility of a real-time 'Next Track' sidecar integration with Mixxx. Concept: a bridge between Mixxx's active performance and Playchitect's sequencing logic. As a set plays in Mixxx, Playchitect updates its view in real-time to show current position in the ramp and recommends next tracks based on live energy. Potential path: Mixxx JavaScript controller script broadcasts current track metadata via local WebSocket or OSC; Playchitect listens and highlights 'Now Playing'; dynamic re-sequencing if the DJ deviates from the architected plan. This is a research/decision task — evaluate the Mixxx controller scripting API, WebSocket/OSC feasibility, and decide whether to build a spike or shelve.",
+      "description": "Research and decide on the feasibility of a real-time 'Next Track' sidecar integration with Mixxx. Concept: a bridge between Mixxx's active performance and Playchitect's sequencing logic. As a set plays in Mixxx, Playchitect updates its view in real-time to show current position in the ramp and recommends next tracks based on live energy. Potential path: Mixxx JavaScript controller script broadcasts current track metadata via local WebSocket or OSC; Playchitect listens and highlights 'Now Playing'; dynamic re-sequencing if the DJ deviates from the architected plan. This is a research/decision task \u2014 evaluate the Mixxx controller scripting API, WebSocket/OSC feasibility, and decide whether to build a spike or shelve.",
       "acceptance_criteria": "Human decision: either a GitHub comment on #84 with a go/no-go verdict and rough technical plan, or a new task added to prd.json for the implementation spike.",
       "completed": false,
       "priority": 9,
-      "note": "GitHub issue #84. Labelled 'out-of-the-box' — ambitious idea, needs human judgement before ralph can act."
+      "note": "GitHub issue #84. Labelled 'out-of-the-box' \u2014 ambitious idea, needs human judgement before ralph can act."
     },
     {
       "id": "TASK-H1",
