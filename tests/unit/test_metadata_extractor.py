@@ -434,6 +434,55 @@ class TestMetadataExtractor:
         extractor = MetadataExtractor()
         assert extractor._extract_text_tag(MockAudio(), ["artist"]) is None
 
+    def test_extract_text_tag_vorbis_valueerror(self):
+        """Test _extract_text_tag handles ValueError from mutagen __contains__ (FIX-04).
+
+        Vorbis-comment FLAC files can trigger ValueError when mutagen's __contains__
+        calls __getitem__ internally. This should be caught and extraction should
+        continue to the next tag name.
+        """
+
+        class VorbisMockAudio:
+            """Mock that raises ValueError on __contains__ like some Vorbis files."""
+
+            def __init__(self, value_error_tags: set[str], good_tags: dict[str, str]):
+                self.value_error_tags = value_error_tags
+                self.good_tags = good_tags
+
+            def __contains__(self, key):
+                if key in self.value_error_tags:
+                    raise ValueError("Vorbis comment error")
+                return key in self.good_tags
+
+            def __getitem__(self, key):
+                if key in self.value_error_tags:
+                    raise ValueError("Vorbis comment error")
+                return [self.good_tags[key]]
+
+        extractor = MetadataExtractor()
+
+        # Test: ValueError on first tag, should continue to second
+        mock = VorbisMockAudio(value_error_tags={"genre"}, good_tags={"TCON": "Techno"})
+        result = extractor._extract_text_tag(mock, ["genre", "TCON", "\xa9gen"])
+        assert result == "Techno"
+
+        # Test: ValueError on all tags should return None
+        mock_all_bad = VorbisMockAudio(value_error_tags={"genre", "TCON", "\xa9gen"}, good_tags={})
+        result = extractor._extract_text_tag(mock_all_bad, ["genre", "TCON", "\xa9gen"])
+        assert result is None
+
+        # Test: KeyError should also be handled
+        class KeyErrorMockAudio:
+            def __contains__(self, key):
+                raise KeyError("Missing key")
+
+            def __getitem__(self, key):
+                raise KeyError("Missing key")
+
+        mock_keyerror = KeyErrorMockAudio()
+        result = extractor._extract_text_tag(mock_keyerror, ["artist", "title"])
+        assert result is None
+
     def test_extract_batch_progress_log(self, monkeypatch):
         """Test batch progress logging (line 317)."""
         extractor = MetadataExtractor()
