@@ -244,6 +244,54 @@ class TestLoadTrack:
 
         panel._title_label.set_text.assert_called_once_with("my_song")
 
+    def test_load_track_updates_panel_on_sequential_selections(
+        self, panel: TrackPreviewPanel
+    ) -> None:
+        """Verify load_track correctly updates panel when switching tracks (BUG-01).
+
+        This test simulates the BUG-01 scenario: user selects track A, then while
+        the preview panel is still open, selects track B. The panel should update
+        to show track B's information without requiring a close/reopen cycle.
+        """
+        track_a = FakeLibraryTrackModel(
+            title="Track A",
+            artist="Artist A",
+            bpm=120.0,
+            filepath="/music/track_a.flac",
+        )
+        track_b = FakeLibraryTrackModel(
+            title="Track B",
+            artist="Artist B",
+            bpm=128.0,
+            filepath="/music/track_b.flac",
+        )
+
+        with patch.object(panel, "_load_cover_art"):
+            with patch.object(panel, "_extract_album_info", return_value=""):
+                with patch.object(panel, "_extract_key", return_value=None):
+                    # First selection: track A
+                    panel.load_track(track_a)  # ty: ignore[invalid-argument-type]
+
+                    # Verify track A is loaded
+                    assert panel._current_track is track_a
+                    panel._title_label.set_text.assert_called_with("Track A")
+                    panel._artist_label.set_text.assert_called_with("Artist A")
+                    panel._bpm_pill.set_text.assert_called_with("120 BPM")
+
+                    # Reset mock call history
+                    panel._title_label.set_text.reset_mock()
+                    panel._artist_label.set_text.reset_mock()
+                    panel._bpm_pill.set_text.reset_mock()
+
+                    # Second selection: track B (while panel is still open)
+                    panel.load_track(track_b)  # ty: ignore[invalid-argument-type]
+
+                    # Verify track B is now loaded (BUG-01 fix verification)
+                    assert panel._current_track is track_b
+                    panel._title_label.set_text.assert_called_with("Track B")
+                    panel._artist_label.set_text.assert_called_with("Artist B")
+                    panel._bpm_pill.set_text.assert_called_with("128 BPM")
+
 
 class TestCoverArtFallback:
     """Test cover art fallback to placeholder icon."""
