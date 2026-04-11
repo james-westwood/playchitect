@@ -191,6 +191,7 @@ def library_view() -> LibraryView:
     v._scan_thread = None
     v._tag_store = MagicMock()
     v._tag_store.get_tags = MagicMock(return_value=[])
+    v._selection_change_pending = False
 
     # Fake model chain
     v._store = _FakeListStore()
@@ -528,6 +529,47 @@ class TestSelectionChanged:
         for signal_name, args in emitted:
             assert signal_name == "track-selected"
             assert args[0].title == "Same Track"
+
+    def test_selection_changed_and_activate_deduplication(self, library_view: LibraryView) -> None:
+        """Clicking a different track emits track-selected exactly ONCE.
+
+        When clicking a DIFFERENT track, both selection-changed AND activate fire.
+        This test verifies the deduplication guard prevents double emission.
+
+        Acceptance criteria: Clicking a DIFFERENT track emits track-selected exactly ONCE.
+        """
+        from unittest.mock import patch
+
+        # Add two tracks
+        track_a = _make_library_track(title="Track A", filepath="/music/track_a.flac")
+        track_b = _make_library_track(title="Track B", filepath="/music/track_b.flac")
+        library_view._store.append(track_a)
+        library_view._store.append(track_b)
+
+        emitted: list[tuple[str, tuple[Any, ...]]] = []
+
+        def mock_emit(signal_name: str, *args: Any) -> None:
+            emitted.append((signal_name, args))
+
+        with patch.object(library_view, "emit", mock_emit):
+            # Simulate clicking track B when track A was previously selected
+            # First, selection-changed fires (GTK behavior for different row)
+            library_view._selection._selected_index = 1
+            library_view._on_selection_changed(library_view._selection, 1, 2)
+
+            # Then, activate ALSO fires (GTK behavior on every row click)
+            # The deduplication guard should skip this emission
+            library_view._on_activate(library_view._column_view, 1)
+
+        # Should have emitted exactly ONE track-selected signal
+        assert len(emitted) == 1
+        signal_name, args = emitted[0]
+        assert signal_name == "track-selected"
+        assert args[0].title == "Track B"
+        assert args[0].filepath == "/music/track_b.flac"
+
+        # Verify the flag was cleared
+        assert library_view._selection_change_pending is False
 
 
 class TestTrackCount:
