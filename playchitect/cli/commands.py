@@ -106,6 +106,12 @@ def cli() -> None:
     help="Clustering mode: single-genre (default), per-genre, or mixed-genre.",
 )
 @click.option(
+    "--genre",
+    type=click.Choice(["techno", "house", "ambient", "dnb"]),
+    default=None,
+    help="Genre hint for heuristic feature weights (techno, house, ambient, dnb).",
+)
+@click.option(
     "--genre-map",
     type=click.Path(exists=True, path_type=Path),
     default=None,
@@ -113,9 +119,9 @@ def cli() -> None:
 )
 @click.option(
     "--sequence-mode",
-    type=click.Choice(["ramp", "fixed", "harmonic"]),
+    type=click.Choice(["ramp", "build", "descent", "alternating", "fixed", "harmonic"]),
     default="fixed",
-    help="Sequencing: ramp (energy build), harmonic (Camelot mixing), fixed (no change).",
+    help="Sequencing: ramp, build, descent, alternating, harmonic (Camelot mixing), or fixed.",
 )
 @click.option(
     "--weight-file",
@@ -143,6 +149,7 @@ def scan(
     model_path: str | None,
     export_cue: bool,
     cluster_mode: str,
+    genre: str | None,
     genre_map: Path | None,
     sequence_mode: str,
     weight_file: Path | None,
@@ -338,12 +345,15 @@ def scan(
         weight_overrides=weight_overrides,
     )
 
+    # Use CLI --genre if provided, otherwise use auto-detected genre
+    effective_genre = genre or auto_genre
+
     if intensity_dict:
         clusters = clusterer.cluster_by_features(
             metadata_dict,
             intensity_dict,
             embedding_dict=embedding_dict,
-            genre=auto_genre,
+            genre=effective_genre,
             use_ewkm=learn_weights,
             cluster_mode=cluster_mode,
             genre_dict=genre_dict_resolved,
@@ -389,6 +399,18 @@ def scan(
         click.echo(
             "  (Mixed-genre mode: cross-genre playlists, genre labels not shown per cluster)"
         )
+
+    # Display weight source if available from clustering
+    if clusters and clusters[0].weight_source is not None:
+        weight_src = clusters[0].weight_source
+        feat_importance = clusters[0].feature_importance or {}
+        top_features = sorted(feat_importance.items(), key=lambda x: x[1], reverse=True)[:3]
+        top_str = ", ".join(f"{k}={v:.2f}" for k, v in top_features)
+        click.echo(f"  Weight source: {weight_src} | Top features: {top_str}")
+    elif not intensity_dict:
+        # BPM-only clustering path
+        click.echo("  Weight source: uniform (BPM-only clustering)")
+
     for i, cluster in enumerate(clusters):
         duration_min = cluster.total_duration / 60 if cluster.total_duration else 0
         genre_label = f" [{cluster.genre}]" if cluster.genre else ""
