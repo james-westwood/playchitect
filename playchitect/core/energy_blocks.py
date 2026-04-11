@@ -132,8 +132,8 @@ def suggest_blocks(
         )
 
     # Build block (20-50%)
-    if build_end > warm_up_end:
-        build_clusters = cluster_energies[warm_up_end:build_end]
+    build_clusters = cluster_energies[warm_up_end:build_end]
+    if build_clusters:
         energy_min = min(c[1] for c in build_clusters)
         energy_max = max(c[1] for c in build_clusters)
         track_count = sum(c[0].track_count for c in build_clusters)
@@ -149,8 +149,8 @@ def suggest_blocks(
         )
 
     # Peak block (50-80%)
-    if peak_end > build_end:
-        peak_clusters = cluster_energies[build_end:peak_end]
+    peak_clusters = cluster_energies[build_end:peak_end]
+    if peak_clusters:
         energy_min = min(c[1] for c in peak_clusters)
         energy_max = max(c[1] for c in peak_clusters)
         track_count = sum(c[0].track_count for c in peak_clusters)
@@ -166,8 +166,8 @@ def suggest_blocks(
         )
 
     # Sustain block (80-95%)
-    if sustain_end > peak_end:
-        sustain_clusters = cluster_energies[peak_end:sustain_end]
+    sustain_clusters = cluster_energies[peak_end:sustain_end]
+    if sustain_clusters:
         energy_min = min(c[1] for c in sustain_clusters)
         energy_max = max(c[1] for c in sustain_clusters)
         track_count = sum(c[0].track_count for c in sustain_clusters)
@@ -183,8 +183,8 @@ def suggest_blocks(
         )
 
     # Wind Down block (top 5% or remaining)
-    if sustain_end < n_clusters:
-        wind_down_clusters = cluster_energies[sustain_end:]
+    wind_down_clusters = cluster_energies[sustain_end:]
+    if wind_down_clusters:
         energy_min = min(c[1] for c in wind_down_clusters)
         energy_max = max(c[1] for c in wind_down_clusters)
         track_count = sum(c[0].track_count for c in wind_down_clusters)
