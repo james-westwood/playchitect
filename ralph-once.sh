@@ -6,7 +6,7 @@
 #   ./ralph-once.sh --task TASK-03  # force a specific task ID
 #
 # Requirements:
-#   - claude CLI, gemini CLI, gh CLI (authenticated)
+#   - opencode CLI, gh CLI (authenticated)
 
 set -euo pipefail
 
@@ -19,43 +19,26 @@ TODAY=$(date +%Y-%m-%d)
 
 # ── Helpers ───────────────────────────────────────────────────────────────────
 
-GEMINI_MODEL="gemini-2.5-pro"
+CODER_MODEL="opencode/kimi-k2.5"
+REVIEWER_MODEL="opencode/glm-5.1"
 
 run_coder() {
   local agent="$1" prompt="$2"
-  if [[ "$agent" == "claude" ]]; then
-    if env -u CLAUDECODE claude --dangerously-skip-permissions --print "$prompt"; then
-      return 0
-    else
-      echo "  Claude coder failed — falling back to Gemini" >&2
-      gemini -m "$GEMINI_MODEL" --yolo -p "$prompt"
-    fi
+  if opencode run -m "$CODER_MODEL" --dangerously-skip-permissions "$prompt"; then
+    return 0
   else
-    if gemini -m "$GEMINI_MODEL" --yolo -p "$prompt"; then
-      return 0
-    else
-      echo "  Gemini coder failed — falling back to Claude" >&2
-      env -u CLAUDECODE claude --dangerously-skip-permissions --print "$prompt"
-    fi
+    echo "  $CODER_MODEL coder failed — falling back to $REVIEWER_MODEL" >&2
+    opencode run -m "$REVIEWER_MODEL" --dangerously-skip-permissions "$prompt"
   fi
 }
 
 run_reviewer() {
   local agent="$1" prompt="$2"
-  if [[ "$agent" == "claude" ]]; then
-    if env -u CLAUDECODE claude --print "$prompt"; then
-      return 0
-    else
-      echo "  Claude reviewer failed — falling back to Gemini" >&2
-      gemini -m "$GEMINI_MODEL" -p "$prompt"
-    fi
+  if opencode run -m "$REVIEWER_MODEL" "$prompt"; then
+    return 0
   else
-    if gemini -m "$GEMINI_MODEL" -p "$prompt"; then
-      return 0
-    else
-      echo "  Gemini reviewer failed — falling back to Claude" >&2
-      env -u CLAUDECODE claude --print "$prompt"
-    fi
+    echo "  $REVIEWER_MODEL reviewer failed — falling back to $CODER_MODEL" >&2
+    opencode run -m "$CODER_MODEL" "$prompt"
   fi
 }
 
@@ -74,9 +57,9 @@ print(t['$field'])
 
 # ── Preflight ─────────────────────────────────────────────────────────────────
 
-command -v gh     >/dev/null 2>&1 || { echo "ERROR: 'gh' not found"; exit 1; }
-command -v gemini >/dev/null 2>&1 || { echo "ERROR: 'gemini' not found"; exit 1; }
-gh auth status    >/dev/null 2>&1 || { echo "ERROR: not authenticated with gh — run: gh auth login"; exit 1; }
+command -v gh       >/dev/null 2>&1 || { echo "ERROR: 'gh' not found"; exit 1; }
+command -v opencode >/dev/null 2>&1 || { echo "ERROR: 'opencode' not found"; exit 1; }
+gh auth status      >/dev/null 2>&1 || { echo "ERROR: not authenticated with gh — run: gh auth login"; exit 1; }
 
 # ── Resolve task ──────────────────────────────────────────────────────────────
 
@@ -106,10 +89,9 @@ fi
 
 BRANCH="ralph/task-${TASK_ID}-${TASK_TITLE}"
 
-# Randomly assign coder/reviewer — Gemini has a generous free tier so use it
-if (( RANDOM % 2 == 0 )); then CODER="claude"; REVIEWER="gemini"
-else                            CODER="gemini"; REVIEWER="claude"
-fi
+# Fixed assignment — kimi codes, GLM reviews
+CODER="kimi-k2.5"
+REVIEWER="glm-5.1"
 
 echo "  Task:     [$TASK_ID] $TASK_TITLE"
 echo "  Epic:     $TASK_EPIC"
