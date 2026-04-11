@@ -11,6 +11,8 @@ from pathlib import Path
 from typing import TYPE_CHECKING
 from unittest.mock import MagicMock, patch
 
+import pytest
+
 if TYPE_CHECKING:
     from playchitect.gui.views.playlists_view import PlaylistsView
 
@@ -50,6 +52,10 @@ def _make_view() -> PlaylistsView:
 class TestEnergyFlowGUIControls:
     """Tests for energy flow UI controls - Issue #39 acceptance criteria."""
 
+    # Hollow: _energy_flow_dropdown is not set in _make_view(), so hasattr returns
+    # False unless the class defines it as a class-level attribute. Either way it
+    # never checks the widget is a real Gtk.DropDown with the right options.
+    @pytest.mark.hollow
     def test_energy_flow_dropdown_exists(self) -> None:
         """Verify PlaylistsView has an energy flow dropdown."""
         view = _make_view()
@@ -57,6 +63,9 @@ class TestEnergyFlowGUIControls:
             "PlaylistsView should have _energy_flow_dropdown per issue #39"
         )
 
+    # Hollow: only checks the method name exists via hasattr();
+    # get_energy_flow_options() is never called to verify it returns expected values.
+    @pytest.mark.hollow
     def test_energy_flow_options_in_dropdown(self) -> None:
         """Verify energy flow dropdown has expected options."""
         view = _make_view()
@@ -66,6 +75,9 @@ class TestEnergyFlowGUIControls:
             "PlaylistsView should have get_energy_flow_options() per issue #39"
         )
 
+    # Hollow: only checks the method name exists via hasattr(); the 'Build Up'
+    # option is never verified to be present in the real dropdown model.
+    @pytest.mark.hollow
     def test_energy_flow_build_option_available(self) -> None:
         """Verify 'Build Up' option is available in energy flow."""
         view = _make_view()
@@ -75,6 +87,9 @@ class TestEnergyFlowGUIControls:
             "PlaylistsView should have get_energy_flow_mode() per issue #39"
         )
 
+    # Hollow: only checks the method name exists via hasattr(); the 'Cool Down'
+    # option is never verified to be present in the real dropdown model.
+    @pytest.mark.hollow
     def test_energy_flow_cool_down_option_available(self) -> None:
         """Verify 'Cool Down' option is available in energy flow."""
         view = _make_view()
@@ -84,6 +99,9 @@ class TestEnergyFlowGUIControls:
             "PlaylistsView should have set_energy_flow_mode() per issue #39"
         )
 
+    # Hollow: constructs a mock_model with the expected options but never passes it
+    # to the view; falls back to a bare hasattr() check, so the mock setup is dead code.
+    @pytest.mark.hollow
     def test_energy_flow_constant_option_available(self) -> None:
         """Verify 'Constant Energy' option is available in energy flow."""
         view = _make_view()
@@ -101,6 +119,9 @@ class TestEnergyFlowGUIControls:
 class TestEnergyFlowVisualization:
     """Tests for energy flow visualization - Issue #39."""
 
+    # Hollow: only checks the method name exists via hasattr();
+    # update_energy_flow_visualization() is never called to verify it does anything.
+    @pytest.mark.hollow
     def test_energy_flow_visualization_available(self) -> None:
         """Verify energy flow visualization is available."""
         view = _make_view()
@@ -109,6 +130,10 @@ class TestEnergyFlowVisualization:
             "PlaylistsView should have update_energy_flow_visualization() per issue #39"
         )
 
+    # Hollow: _energy_heatmap is not set in _make_view() and no class-level default
+    # exists, so this will always fail unless the real class defines it — which means
+    # it tests the class definition, not any runtime behaviour.
+    @pytest.mark.hollow
     def test_energy_heatmap_available(self) -> None:
         """Verify energy heatmap alongside tracks."""
         view = _make_view()
@@ -122,6 +147,9 @@ class TestEnergyFlowVisualization:
 class TestEnergyFlowSequenceTrigger:
     """Tests for triggering energy flow sequencing - Issue #39."""
 
+    # Hollow: patch.object replaces get_energy_flow_mode with a mock returning "build",
+    # then immediately calls and asserts that mock — the real method is never exercised.
+    @pytest.mark.hollow
     def test_generate_playlist_respects_energy_flow_setting(self) -> None:
         """Verify generate_playlist uses energy flow ordering when selected."""
         view = _make_view()
@@ -135,6 +163,9 @@ class TestEnergyFlowSequenceTrigger:
             result = view.get_energy_flow_mode()
             assert result == "build", "Energy flow mode should be retrieved"
 
+    # Hollow: `assert mock_seq.called or True` is a tautology — always passes
+    # regardless of whether sequence_by_strategy was ever called.
+    @pytest.mark.hollow
     def test_energy_flow_ordering_passed_to_sequencer(self) -> None:
         """Verify energy flow ordering is passed to the sequencer."""
         view = _make_view()
@@ -156,6 +187,10 @@ class TestEnergyFlowSequenceTrigger:
 class TestEnergyFlowTooltip:
     """Tests for energy flow tooltips - Issue #39."""
 
+    # Hollow: the test itself calls set_tooltip_text() on line 165, then asserts it
+    # was called on line 166 — the assertion is trivially true because we just called it.
+    # No real GTK widget or production code path is exercised.
+    @pytest.mark.hollow
     def test_energy_flow_tooltip_exists(self) -> None:
         """Verify energy flow dropdown has tooltip."""
         view = _make_view()
@@ -169,6 +204,10 @@ class TestEnergyFlowTooltip:
 class TestEnergyFlowStatePersistence:
     """Tests for energy flow state - Issue #39."""
 
+    # Hollow: the mock is configured to return "ramp" via .unpack(), but the real
+    # get_energy_flow_mode() likely uses .get_string() on a GTK StringList item, not
+    # .unpack(). The assertion validates the mock's return value, not the real logic.
+    @pytest.mark.hollow
     def test_default_energy_flow_mode(self) -> None:
         """Verify default energy flow mode is 'ramp'."""
         view = _make_view()
