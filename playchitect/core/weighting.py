@@ -121,7 +121,6 @@ def select_weights(
         # Build weights array from overrides
         from playchitect.utils.weight_config import apply_weight_overrides
 
-        # Start with uniform weights and apply overrides
         base_weights = np.ones(len(FEATURE_NAMES)) / len(FEATURE_NAMES)
         final_weights = apply_weight_overrides(base_weights, weight_overrides, FEATURE_NAMES)
 
