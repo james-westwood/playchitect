@@ -565,7 +565,10 @@ class PlaychitectWindow(Adw.ApplicationWindow):
         """Handle track selection in library view."""
         logger.debug("Track selected: %s", track.display_title)
         # Load track into preview panel if visible
-        if self._track_preview.get_visible():
+        # BUG-01 Fix: Use is_visible() instead of get_visible() to check the full
+        # parent widget chain, ensuring we only load when the panel is actually
+        # shown in the UI, not just when its local visibility flag is set.
+        if self._track_preview.is_visible():
             self._track_preview.load_track(track)
 
     def _on_preview_toggled(self, _view: LibraryView, active: bool) -> None:

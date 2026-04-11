@@ -266,6 +266,9 @@ class LibraryView(Gtk.Box):
         self._column_view.set_show_row_separators(True)
         self._column_view.set_show_column_separators(False)
         self._column_view.add_css_class("data-table")
+        # Connect to activate signal to handle re-clicking the same row
+        # (selection-changed doesn't fire when clicking an already-selected row)
+        self._column_view.connect("activate", self._on_activate)
 
         # Define columns: (header, width, sort_attr, bind_callback)
         columns = [
@@ -425,6 +428,26 @@ class LibraryView(Gtk.Box):
         track without requiring a close/reopen cycle.
         """
         item = selection.get_selected_item()
+        if item is not None:
+            self.emit("track-selected", item)
+
+    def _on_activate(self, _column_view: Gtk.ColumnView, position: int) -> None:
+        """Emit track-selected signal when a row is activated (clicked/entered).
+
+        This handler is connected to Gtk.ColumnView's "activate" signal and handles
+        the case where the user clicks on the already-selected row. In this case,
+        "selection-changed" does not fire, but "activate" does, allowing us to
+        refresh the preview panel even when re-selecting the current track.
+
+        BUG-01 Fix: This ensures the preview panel refreshes when clicking the same
+        track that's already selected, which is essential for users who want to
+        re-trigger the preview without first deselecting.
+
+        Args:
+            _column_view: The ColumnView that emitted the signal.
+            position: The index of the activated row in the model.
+        """
+        item = self._selection.get_selected_item()
         if item is not None:
             self.emit("track-selected", item)
 
