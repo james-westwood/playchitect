@@ -209,14 +209,15 @@ $REVIEW_TEXT
 EOF
 )"
 
-# ── Merge ─────────────────────────────────────────────────────────────────────
+# ── Enable auto-merge (CI must pass before GitHub merges) ─────────────────────
 
 echo ""
-echo "--- Merging PR #$PR_NUMBER ---"
-gh pr merge "$PR_NUMBER" --merge --delete-branch
-
-git checkout "$MAIN_BRANCH"
-git pull --ff-only origin "$MAIN_BRANCH"
+echo "--- Enabling auto-merge on PR #$PR_NUMBER (squash, waits for CI) ---"
+gh pr merge "$PR_NUMBER" --auto --squash
 
 echo ""
-echo "=== Done: [$TASK_ID] $TASK_TITLE | $PR_URL ==="
+echo "=== Ralph done — PR open, auto-merge enabled ==="
+echo "    Task:  [$TASK_ID] $TASK_TITLE"
+echo "    PR:    $PR_URL"
+echo ""
+echo "Delivery manager: monitor CI, verify ACs, then PR will self-merge when green."
