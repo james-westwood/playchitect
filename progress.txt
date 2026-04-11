@@ -31,3 +31,4 @@
 [2026-03-15] [TASK-25] mixxx_bidirectional_sync: implemented and merged (PR #154)
 [2026-03-15] [TASK-26] rekordbox_xml_import: implemented and merged (PR #155)
 [2026-03-15] [TASK-28] vibe_tags_annotation: implemented and merged (PR #156)
+[2026-04-11] [TASK-29] vibe_profiling_salience_scoring: Updated compute_vibe_profile signature to include optional metadata parameter for API compliance; all tests pass
