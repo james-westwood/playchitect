@@ -11,6 +11,8 @@ from pathlib import Path
 from typing import TYPE_CHECKING
 from unittest.mock import MagicMock, patch
 
+import pytest
+
 if TYPE_CHECKING:
     from playchitect.gui.views.playlists_view import PlaylistsView
 
@@ -50,6 +52,9 @@ def _make_view() -> PlaylistsView:
 class TestHarmonicMixingGUI:
     """Tests for harmonic mixing UI integration - Issue #37 acceptance criteria."""
 
+    # Hollow: _make_view() injects _harmonic_switch as a MagicMock, so hasattr is
+    # always True regardless of whether the real class defines the attribute.
+    @pytest.mark.hollow
     def test_harmonic_switch_exists_in_toolbar(self) -> None:
         """Verify PlaylistsView has a harmonic mixing Switch widget."""
         view = _make_view()
@@ -57,6 +62,9 @@ class TestHarmonicMixingGUI:
             "PlaylistsView should have _harmonic_switch per issue #37"
         )
 
+    # Hollow: only checks the method name exists via hasattr(); never calls
+    # get_harmonic_ordering() to verify it returns the correct value.
+    @pytest.mark.hollow
     def test_harmonic_switch_getter_exists(self) -> None:
         """Verify there's a getter for harmonic mixing state."""
         view = _make_view()
@@ -64,6 +72,9 @@ class TestHarmonicMixingGUI:
             "PlaylistsView should have get_harmonic_ordering() method per issue #37"
         )
 
+    # Hollow: only checks the method name exists via hasattr(); never calls
+    # set_harmonic_ordering() to verify it updates any state.
+    @pytest.mark.hollow
     def test_harmonic_switch_setter_exists(self) -> None:
         """Verify there's a setter for harmonic mixing state."""
         view = _make_view()
@@ -102,6 +113,9 @@ class TestHarmonicMixingGUI:
 class TestHarmonicOrderingDropdown:
     """Tests for harmonic ordering options dropdown - Issue #37."""
 
+    # Hollow: _harmonic_mode_dropdown is a class-level attribute (Any = None) so
+    # hasattr is always True; never checks the widget is actually a Gtk.DropDown.
+    @pytest.mark.hollow
     def test_harmonic_mode_dropdown_exists(self) -> None:
         """Verify there's a dropdown for harmonic mode selection."""
         view = _make_view()
@@ -109,6 +123,9 @@ class TestHarmonicOrderingDropdown:
             "PlaylistsView should have _harmonic_mode_dropdown per issue #37"
         )
 
+    # Hollow: sets up a mock model but only checks hasattr for the method name;
+    # get_harmonic_mode_options() is never called to verify it returns ["Strict", "Loose", "Random"].
+    @pytest.mark.hollow
     def test_harmonic_mode_options_available(self) -> None:
         """Verify harmonic mode dropdown has expected options."""
         view = _make_view()
@@ -125,6 +142,9 @@ class TestHarmonicOrderingDropdown:
 class TestHarmonicVisualization:
     """Tests for harmonic visualization feedback - Issue #37."""
 
+    # Hollow: only checks the method name exists via hasattr();
+    # update_harmonic_visualization() is never called to verify it triggers a refresh.
+    @pytest.mark.hollow
     def test_harmonic_color_coding_available(self) -> None:
         """Verify track list supports harmonic color coding."""
         view = _make_view()
@@ -134,6 +154,9 @@ class TestHarmonicVisualization:
             "PlaylistsView should have update_harmonic_visualization() per issue #37"
         )
 
+    # Hollow: only verifies TrackModel stores a camelot_key attribute;
+    # does not test any tooltip display or UI rendering behaviour.
+    @pytest.mark.hollow
     def test_color_coding_tooltip_present(self) -> None:
         """Verify tooltips are available for harmonic ordering."""
         from playchitect.gui.widgets.track_list import TrackModel
@@ -150,6 +173,9 @@ class TestHarmonicVisualization:
 class TestHarmonicSequenceTrigger:
     """Tests for triggering harmonic sequencing - Issue #37."""
 
+    # Hollow: patch.object replaces get_harmonic_ordering with a mock returning True,
+    # then calls and asserts that mock — the real method is never exercised.
+    @pytest.mark.hollow
     def test_generate_playlist_respects_harmonic_setting(self) -> None:
         """Verify generate_playlist uses harmonic ordering when enabled."""
         view = _make_view()
@@ -159,6 +185,9 @@ class TestHarmonicSequenceTrigger:
             result = view.get_harmonic_ordering()
             assert result is True, "Harmonic ordering should be used when switch is on"
 
+    # Hollow: `assert mock_seq.called or True` is a tautology — always passes
+    # regardless of whether sequence_harmonic was ever called.
+    @pytest.mark.hollow
     def test_harmonic_ordering_passed_to_sequencer(self) -> None:
         """Verify harmonic ordering is passed to the sequencer."""
         view = _make_view()
