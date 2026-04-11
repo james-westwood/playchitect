@@ -226,6 +226,11 @@ class IntensityFeatures:
         """Convert to dictionary."""
         result = asdict(self)
         result["filepath"] = str(self.filepath)
+        # Remove file_path (kw_only param) as it's redundant with filepath and not JSON serializable
+        result.pop("file_path", None)
+        result.pop("sub_bass", None)
+        result.pop("duration_secs", None)
+        result.pop("sample_rate", None)
         return result
 
     @overload
@@ -269,7 +274,7 @@ class IntensityFeatures:
         have the camelot_key, key_index, dynamic_range, energy_gradient,
         or drop_density fields.
         """
-        data["filepath"] = Path(data["filepath"])
+        data["file_path"] = Path(data.pop("filepath", "."))
         # Handle old cache files missing harmonic fields
         if "camelot_key" not in data:
             data["camelot_key"] = "8B"  # Default to C major
