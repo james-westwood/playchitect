@@ -2,7 +2,8 @@
 Integration with Mixxx DJ software database.
 
 Provides read-only synchronization of ratings, play counts, history, and cues
-from the Mixxx SQLite database.
+from the Mixxx SQLite database. Also supports writing cue points for structural
+analysis integration.
 """
 
 import logging
@@ -154,3 +155,85 @@ class MixxxSync:
             conn.close()
 
         return metadata
+
+    def write_cue_points(
+        self, db_path: Path, track_path: Path, cue_points: dict[str, float]
+    ) -> int:
+        """
+        Write cue points to Mixxx database as hot cues.
+
+        Inserts or replaces rows in the cues table with type=1 (hot cues).
+        Positions are converted from milliseconds to samples at 44100 Hz.
+
+        Args:
+            db_path: Path to mixxxdb.sqlite (must be writable)
+            track_path: Path to the audio file (must exist in track_locations)
+            cue_points: Dict mapping cue names to positions in milliseconds
+                       (e.g., {'cue_1_ms': 12345.0, 'cue_2_ms': 67890.0})
+
+        Returns:
+            Number of cue points written
+
+        Raises:
+            FileNotFoundError: If db_path doesn't exist
+            ValueError: If track not found in Mixxx library
+            sqlite3.Error: If database operations fail
+        """
+        if not db_path.exists():
+            raise FileNotFoundError(f"Mixxx database not found: {db_path}")
+
+        conn: sqlite3.Connection | None = None
+        try:
+            # Open writable connection (not read-only like _connect())
+            conn = sqlite3.connect(db_path)
+            conn.row_factory = sqlite3.Row
+            cursor = conn.cursor()
+
+            # Find track_id from track_locations
+            cursor.execute(
+                "SELECT id FROM track_locations WHERE location = ? AND fs_deleted = 0",
+                (str(track_path.resolve()),),
+            )
+            row = cursor.fetchone()
+
+            if row is None:
+                raise ValueError(f"Track not found in Mixxx library: {track_path}")
+
+            track_id = row["id"]
+
+            # Sample rate for position conversion (Mixxx standard is 44100)
+            sample_rate = 44100
+
+            # Write each cue point as a hot cue (type=1)
+            written = 0
+            for idx, (cue_name, position_ms) in enumerate(cue_points.items()):
+                # Convert milliseconds to samples
+                position_samples = int((position_ms / 1000.0) * sample_rate)
+
+                # Use hotcue index starting from 4 to avoid clobbering user-set cues 0-3
+                hotcue_idx = idx + 4
+
+                # Create a label from the cue name
+                label = cue_name.replace("_", " ").title()
+
+                # Insert or replace cue
+                cursor.execute(
+                    """
+                    INSERT OR REPLACE INTO cues
+                    (track_id, type, position, length, hotcue, label)
+                    VALUES (?, 1, ?, 0, ?, ?)
+                    """,
+                    (track_id, position_samples, hotcue_idx, label),
+                )
+                written += 1
+
+            conn.commit()
+            logger.info(f"Wrote {written} cue points to Mixxx DB for {track_path.name}")
+            return written
+
+        except sqlite3.Error as e:
+            logger.error(f"Database error writing cues: {e}")
+            raise
+        finally:
+            if conn:
+                conn.close()
