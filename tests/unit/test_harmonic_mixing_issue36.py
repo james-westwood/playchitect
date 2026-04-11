@@ -6,6 +6,8 @@ and harmonic ordering in the sequencer.
 
 from pathlib import Path
 
+import pytest
+
 from playchitect.core.intensity_analyzer import (
     IntensityFeatures,
     harmonic_compatibility,
@@ -18,6 +20,9 @@ from playchitect.core.sequencer import (
 class TestKeyDetection:
     """Tests for musical key detection - Issue #36 acceptance criteria."""
 
+    # Hollow: constructs IntensityFeatures without camelot_key, so hasattr checks
+    # whether the field has a default — it never verifies key detection logic ran.
+    @pytest.mark.hollow
     def test_intensity_features_has_camelot_key(self) -> None:
         """IntensityFeatures should have camelot_key attribute."""
         features = IntensityFeatures(
@@ -37,6 +42,10 @@ class TestKeyDetection:
             "IntensityFeatures should have camelot_key attribute per issue #36"
         )
 
+    # Hollow: explicitly passes camelot_key="8B" to the constructor, then asserts
+    # the stored value matches the Camelot format — only tests Python's own assignment,
+    # not any key-detection or parsing logic.
+    @pytest.mark.hollow
     def test_camelot_key_format(self) -> None:
         """Camelot key should be in correct format (e.g., '8B', '11A')."""
         features = IntensityFeatures(
@@ -86,6 +95,9 @@ class TestKeyCompatibility:
 class TestHarmonicSequencing:
     """Tests for harmonic sequencing - Issue #36 acceptance criteria."""
 
+    # Hollow: callable() only confirms the import succeeded; it does not call
+    # sequence_harmonic() with any data to verify correct behaviour.
+    @pytest.mark.hollow
     def test_sequence_harmonic_function_exists(self) -> None:
         """sequence_harmonic function should exist in sequencer."""
         assert callable(sequence_harmonic)
@@ -221,6 +233,9 @@ class TestCLIHarmonicOrdering:
             "scan command should support 'harmonic' sequence mode per issue #36"
         )
 
+    # Hollow: only checks that "--cluster-mode" appears in help text; does not
+    # invoke the CLI with --cluster-mode to verify it affects clustering behaviour.
+    @pytest.mark.hollow
     def test_cluster_mode_harmonic_available(self) -> None:
         """CLI should support --cluster-mode with harmonic consideration."""
         from click.testing import CliRunner

@@ -121,3 +121,6 @@ python-version = "3.13"
 testpaths = ["tests"]
 python_files = ["test_*.py"]
 addopts = "-v --cov=playchitect --cov-report=html --cov-report=term"
+markers = [
+    "hollow: test verifies structure or naming only — no behaviour exercised; needs a real implementation",
+]
