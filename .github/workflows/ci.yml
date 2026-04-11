@@ -29,6 +29,9 @@ jobs:
           uv run ty --version
           uv run ruff --version
 
+      - name: Type check (production code only)
+        run: uv run ty check playchitect/core playchitect/cli playchitect/utils
+
       - name: Pre-commit checks (lint, format, type)
         run: SKIP=pytest-unit,cli-smoke-test,gui-smoke-test uv run pre-commit run --all-files
 
