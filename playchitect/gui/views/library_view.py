@@ -142,6 +142,7 @@ class LibraryView(Gtk.Box):
         self._tag_filter = ""
         self._scan_thread: threading.Thread | None = None
         self._tag_store = VibeTagStore()
+        self._selection_change_pending = False
 
         # Model chain: ListStore → FilterListModel → SortListModel → Selection
         self._store = Gio.ListStore(item_type=LibraryTrackModel)
@@ -421,17 +422,13 @@ class LibraryView(Gtk.Box):
         and emits our custom "track-selected" signal with the selected track. This
         ensures the preview panel and other listeners are notified whenever the
         user selects a different track.
-
-        BUG-01 Fix: This method always emits the signal for every selection change,
-        including when switching from track A to track B while the preview panel
-        is already open. This ensures the panel updates to show the newly selected
-        track without requiring a close/reopen cycle.
         """
         item = selection.get_selected_item()
         if item is not None:
+            self._selection_change_pending = True
             self.emit("track-selected", item)
 
-    def _on_activate(self, _column_view: Gtk.ColumnView, position: int) -> None:
+    def _on_activate(self, _column_view: Gtk.ColumnView, _position: int) -> None:
         """Emit track-selected signal when a row is activated (clicked/entered).
 
         This handler is connected to Gtk.ColumnView's "activate" signal and handles
@@ -439,14 +436,13 @@ class LibraryView(Gtk.Box):
         "selection-changed" does not fire, but "activate" does, allowing us to
         refresh the preview panel even when re-selecting the current track.
 
-        BUG-01 Fix: This ensures the preview panel refreshes when clicking the same
-        track that's already selected, which is essential for users who want to
-        re-trigger the preview without first deselecting.
-
         Args:
             _column_view: The ColumnView that emitted the signal.
-            position: The index of the activated row in the model.
+            _position: The index of the activated row in the model.
         """
+        if self._selection_change_pending:
+            self._selection_change_pending = False
+            return  # selection-changed already emitted, skip duplicate
         item = self._selection.get_selected_item()
         if item is not None:
             self.emit("track-selected", item)
