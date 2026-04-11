@@ -414,6 +414,49 @@ class TestSelectionChanged:
         # Should not emit anything when there's no selection
         assert len(emitted) == 0
 
+    def test_sequential_selections_emit_correct_tracks(self, library_view: LibraryView) -> None:
+        """Sequential track selections emit track-selected with the correct track each time.
+
+        This test verifies BUG-01 fix: clicking track A then track B while preview panel
+        is open should update the panel to show track B's information.
+        """
+        from unittest.mock import patch
+
+        # Add two tracks
+        track_a = _make_library_track(title="Track A", filepath="/music/track_a.flac")
+        track_b = _make_library_track(title="Track B", filepath="/music/track_b.flac")
+        library_view._store.append(track_a)
+        library_view._store.append(track_b)
+
+        emitted: list[tuple[str, tuple[Any, ...]]] = []
+
+        def mock_emit(signal_name: str, *args: Any) -> None:
+            emitted.append((signal_name, args))
+
+        with patch.object(library_view, "emit", mock_emit):
+            # First selection: track A
+            library_view._selection._selected_index = 0
+            library_view._on_selection_changed(library_view._selection, 0, 2)
+
+            # Second selection: track B (while preview panel is still open)
+            library_view._selection._selected_index = 1
+            library_view._on_selection_changed(library_view._selection, 1, 2)
+
+        # Should have emitted two signals
+        assert len(emitted) == 2
+
+        # First signal should be track A
+        signal_1_name, signal_1_args = emitted[0]
+        assert signal_1_name == "track-selected"
+        assert signal_1_args[0].title == "Track A"
+        assert signal_1_args[0].filepath == "/music/track_a.flac"
+
+        # Second signal should be track B (verifies BUG-01 fix)
+        signal_2_name, signal_2_args = emitted[1]
+        assert signal_2_name == "track-selected"
+        assert signal_2_args[0].title == "Track B"
+        assert signal_2_args[0].filepath == "/music/track_b.flac"
+
 
 class TestTrackCount:
     """Test track count updates."""

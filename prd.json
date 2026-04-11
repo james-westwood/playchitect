@@ -431,9 +431,9 @@
       "owner": "ralph",
       "description": "In playchitect/gui/views/library_view.py and/or track_preview_panel.py, clicking a different track while the preview panel is already open does not update the panel contents. The panel only reflects the newly selected track if it is closed and reopened. Root cause: the track-selected signal is either not re-emitted on re-selection, or the preview panel is not listening to subsequent emissions after the first open. Fix so that every selection-change event updates the panel in place.",
       "acceptance_criteria": "Clicking track A opens the preview panel. Clicking track B (while panel is open) immediately shows track B's information without closing/reopening. tests/gui/test_library_view.py: add test that simulates two sequential selections and asserts the preview panel reflects the second track. uv run pytest tests/ -v passes.",
-      "completed": false,
+      "completed": true,
       "priority": 1,
-      "note": "",
+      "note": "GitHub issue #187",
       "files": [
         "playchitect/gui/views/library_view.py",
         "playchitect/gui/widgets/track_preview_panel.py"
