@@ -71,6 +71,21 @@ TASK_TITLE=$(next_task_field title "$FORCED_TASK_ID")
 TASK_DESC=$(next_task_field description "$FORCED_TASK_ID")
 TASK_AC=$(next_task_field acceptance_criteria "$FORCED_TASK_ID")
 TASK_EPIC=$(next_task_field epic "$FORCED_TASK_ID")
+TASK_NOTE=$(python3 -c "
+import json
+with open('prd.json') as f: prd = json.load(f)
+if '$FORCED_TASK_ID':
+    t = next(x for x in prd['tasks'] if x['id'] == '$FORCED_TASK_ID')
+else:
+    t = [x for x in prd['tasks'] if not x['completed'] and x.get('owner') != 'human'][0]
+print(t.get('note', ''))
+" 2>/dev/null || true)
+
+# Extract GitHub issue number from note field (e.g. "GitHub issue #176" -> "176")
+CLOSES_LINE=""
+if [[ "$TASK_NOTE" =~ \#([0-9]+) ]]; then
+  CLOSES_LINE="Closes #${BASH_REMATCH[1]}"
+fi
 
 # Check if human-owned (only relevant when auto-picking)
 if [[ -z "$FORCED_TASK_ID" ]]; then
@@ -156,7 +171,8 @@ $TASK_DESC
 
 ### Acceptance Criteria
 $TASK_AC
-
+${CLOSES_LINE:+
+$CLOSES_LINE}
 ---
 *Ralph Loop — multi-agent AI pair programming*
 EOF
