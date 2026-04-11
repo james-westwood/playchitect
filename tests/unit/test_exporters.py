@@ -92,7 +92,7 @@ def features_dict(sample_cluster: ClusterResult) -> dict[Path, IntensityFeatures
     """Create a sample intensity features dictionary."""
     features_list = [
         IntensityFeatures(
-            filepath=sample_cluster.tracks[0],
+            file_path=sample_cluster.tracks[0],
             file_hash="hash1",
             rms_energy=0.5,
             brightness=0.6,
@@ -105,7 +105,7 @@ def features_dict(sample_cluster: ClusterResult) -> dict[Path, IntensityFeatures
             key_index=0.0,
         ),
         IntensityFeatures(
-            filepath=sample_cluster.tracks[1],
+            file_path=sample_cluster.tracks[1],
             file_hash="hash2",
             rms_energy=0.6,
             brightness=0.7,

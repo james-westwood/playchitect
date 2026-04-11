@@ -22,7 +22,7 @@ def _make_features(
     onset: float = 0.65,
 ) -> IntensityFeatures:
     return IntensityFeatures(
-        filepath=Path("test.mp3"),
+        file_path=Path("test.mp3"),
         file_hash=file_hash,
         rms_energy=rms,
         brightness=brightness,

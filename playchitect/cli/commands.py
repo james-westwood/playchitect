@@ -119,9 +119,9 @@ def cli() -> None:
 )
 @click.option(
     "--sequence-mode",
-    type=click.Choice(["ramp", "build", "descent", "alternating", "fixed"]),
+    type=click.Choice(["ramp", "build", "descent", "alternating", "fixed", "harmonic"]),
     default="fixed",
-    help="Sequencing: ramp, build, descent, alternating, or fixed.",
+    help="Sequencing: ramp, build, descent, alternating, harmonic (Camelot mixing), or fixed.",
 )
 @click.option(
     "--tag-mood",

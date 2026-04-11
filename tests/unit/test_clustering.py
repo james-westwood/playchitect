@@ -34,7 +34,7 @@ def make_intensity(
     onset: float = 0.5,
 ) -> IntensityFeatures:
     return IntensityFeatures(
-        filepath=Path(name),
+        file_path=Path(name),
         file_hash="deadbeef",
         rms_energy=rms,
         brightness=brightness,
