@@ -37,6 +37,7 @@ class TestTrackMetadata:
             duration=180.5,
             year=2023,
             genre="Techno",
+            mood="Passionate",
         )
 
         assert metadata.bpm == 128.0
@@ -46,11 +47,14 @@ class TestTrackMetadata:
         assert metadata.duration == 180.5
         assert metadata.year == 2023
         assert metadata.genre == "Techno"
+        assert metadata.mood == "Passionate"
 
     def test_track_metadata_to_dict(self):
         """Test conversion to dictionary."""
         filepath = Path("/path/to/track.mp3")
-        metadata = TrackMetadata(filepath=filepath, bpm=128.0, artist="Test Artist")
+        metadata = TrackMetadata(
+            filepath=filepath, bpm=128.0, artist="Test Artist", mood="Cheerful"
+        )
 
         result = metadata.to_dict()
 
@@ -58,6 +62,7 @@ class TestTrackMetadata:
         assert result["filepath"] == str(filepath)
         assert result["bpm"] == 128.0
         assert result["artist"] == "Test Artist"
+        assert result["mood"] == "Cheerful"
         assert result["title"] is None
 
 
@@ -307,7 +312,7 @@ class TestMetadataExtractor:
 
         class MockAudio:
             def __init__(self):
-                self.tags = {"date": ["2020"]}
+                self.tags = {"date": ["2020"], "mood": ["Passionate"]}
                 self.info = type("Info", (), {"length": 180.5})()
 
             def __getitem__(self, key):
@@ -328,6 +333,36 @@ class TestMetadataExtractor:
 
         assert metadata.year == 2020
         assert metadata.duration == 180.5
+        assert metadata.mood == "Passionate"
+
+    def test_update_mood(self, tmp_path, monkeypatch):
+        """Test update_mood method."""
+
+        class MockAudio:
+            def __init__(self):
+                self.tags = {}
+
+            def __setitem__(self, key, value):
+                self.tags[key] = value
+
+            def save(self):
+                pass
+
+        monkeypatch.setattr(
+            "playchitect.core.metadata_extractor.MutagenFile", lambda p: MockAudio()
+        )
+
+        extractor = MetadataExtractor()
+        test_file = tmp_path / "test.mp3"
+        test_file.touch()
+
+        # Mock cache
+        extractor._cache[test_file] = TrackMetadata(filepath=test_file)
+
+        success = extractor.update_mood(test_file, "Cheerful")
+
+        assert success is True
+        assert extractor._cache[test_file].mood == "Cheerful"
 
     def test_extract_last_ditch_exception(self, tmp_path, monkeypatch):
         """Test last-ditch BPM exception is swallowed (lines 144-145)."""

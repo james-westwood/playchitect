@@ -38,7 +38,7 @@ from gi.repository import (  # type: ignore[unresolved-import]  # noqa: E402
 from playchitect.core.clustering import ClusterResult, PlaylistClusterer  # noqa: E402
 from playchitect.core.intensity_analyzer import IntensityAnalyzer  # noqa: E402
 from playchitect.core.metadata_extractor import TrackMetadata  # noqa: E402
-from playchitect.core.sequencer import sequence_by_strategy  # noqa: E402, F401
+from playchitect.core.sequencer import sequence_by_strategy, sequence_harmonic  # noqa: E402, F401
 from playchitect.gui.widgets.cluster_stats import ClusterStats  # noqa: E402
 from playchitect.gui.widgets.energy_arc_widget import EnergyArcWidget  # noqa: E402
 from playchitect.gui.widgets.track_list import TrackListWidget, TrackModel  # noqa: E402
@@ -126,6 +126,8 @@ class PlaylistsView(Gtk.Box):
     """
 
     # Class attributes for widget references (ensure hasattr works with test mocks)
+    _harmonic_mode_dropdown: Any = None
+    _harmonic_switch: Any = None
     _energy_flow_dropdown: Any = None
     _energy_heatmap: Any = None
 
@@ -213,6 +215,15 @@ class PlaylistsView(Gtk.Box):
         self._harmonic_switch.set_tooltip_text("Enable harmonic key sequencing")
         self._harmonic_switch.connect("notify::active", self._on_harmonic_switch_toggled)
         harmonic_box.append(self._harmonic_switch)
+
+        # Harmonic mode dropdown (Strict, Loose, Random)
+        self._harmonic_mode_dropdown = Gtk.DropDown(
+            model=Gtk.StringList.new(["Strict", "Loose", "Random"])
+        )
+        self._harmonic_mode_dropdown.set_selected(0)  # Default to "Strict"
+        self._harmonic_mode_dropdown.set_tooltip_text("Harmonic matching mode")
+        self._harmonic_mode_dropdown.set_sensitive(False)  # Disabled until switch is on
+        harmonic_box.append(self._harmonic_mode_dropdown)
 
         self._action_bar.pack_start(harmonic_box)
 
@@ -477,10 +488,13 @@ class PlaylistsView(Gtk.Box):
 
     def _on_harmonic_switch_toggled(self, switch: Gtk.Switch, _param: object) -> None:
         """Handle harmonic mixing switch toggle - reload tracks with new sequencing."""
+        active = switch.get_active()
+        # Enable/disable the mode dropdown based on switch state
+        self._harmonic_mode_dropdown.set_sensitive(active)
         # Reload current cluster tracks if one is selected
         if self._selected_cluster_id is not None:
             self._load_tracks_for_cluster(self._selected_cluster_id)
-            logger.info("Harmonic mixing %s", "enabled" if switch.get_active() else "disabled")
+            logger.info("Harmonic mixing %s", "enabled" if active else "disabled")
 
     def _on_vocal_filter_changed(self, _btn: Gtk.ToggleButton) -> None:
         """Handle vocal filter chip change - reload track list if cluster selected."""
@@ -802,6 +816,35 @@ class PlaylistsView(Gtk.Box):
         self._track_list.clear()
         self._count_label.set_text("0 clusters")
         self._update_stats_display(None)
+
+    # ── Issue #37: Harmonic Mixing Controls ────────────────────────────────────
+
+    def get_harmonic_ordering(self) -> bool:
+        """Return True if harmonic ordering is enabled."""
+        return self._harmonic_switch.get_active()
+
+    def set_harmonic_ordering(self, enabled: bool) -> None:
+        """Enable or disable harmonic ordering."""
+        self._harmonic_switch.set_active(enabled)
+        # Handle case where _harmonic_mode_dropdown might not exist or be None (test mocks)
+        dropdown = getattr(self, "_harmonic_mode_dropdown", None)
+        if dropdown is not None:
+            dropdown.set_sensitive(enabled)
+
+    def get_harmonic_mode_options(self) -> list[str]:
+        """Return the available harmonic mode options."""
+        model = self._harmonic_mode_dropdown.get_model()
+        options = []
+        for i in range(model.get_n_items()):
+            item = model.get_item(i)
+            if item is not None:
+                options.append(item.get_string())
+        return options
+
+    def update_harmonic_visualization(self) -> None:
+        """Update harmonic color coding in the track list."""
+        # Trigger a refresh of the track list to apply color coding
+        self._track_list.refresh()
 
     # ── Issue #39: Energy Flow Controls ─────────────────────────────────────────
 

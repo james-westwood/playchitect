@@ -119,9 +119,15 @@ def cli() -> None:
 )
 @click.option(
     "--sequence-mode",
-    type=click.Choice(["ramp", "build", "descent", "alternating", "fixed", "harmonic"]),
+    type=click.Choice(["ramp", "build", "descent", "alternating", "fixed", "harmonic", "timbre"]),
     default="fixed",
-    help="Sequencing: ramp, build, descent, alternating, harmonic (Camelot mixing), or fixed.",
+    help="Sequencing: ramp, build, descent, alternating, harmonic (Camelot), timbre, or fixed.",
+)
+@click.option(
+    "--tag-mood",
+    is_flag=True,
+    default=False,
+    help="Write the detected primary mood (Vibe) back to the audio file tags.",
 )
 @click.option(
     "--weight-file",
@@ -152,6 +158,7 @@ def scan(
     genre: str | None,
     genre_map: Path | None,
     sequence_mode: str,
+    tag_mood: bool,
     weight_file: Path | None,
     learn_weights: bool,
 ) -> None:
@@ -286,7 +293,19 @@ def scan(
                     embedding_dict = {}
                     for file_path in files:
                         try:
-                            embedding_dict[file_path] = emb_extractor.analyze(file_path)
+                            feat = emb_extractor.analyze(file_path)
+                            embedding_dict[file_path] = feat
+
+                            # Auto-tag mood if requested
+                            if tag_mood and feat.primary_mood:
+                                if not dry_run:
+                                    extractor.update_mood(file_path, feat.primary_mood)
+                                else:
+                                    logger.info(
+                                        "[DRY RUN] Would tag %s with mood: %s",
+                                        file_path.name,
+                                        feat.primary_mood,
+                                    )
                         except Exception as exc:
                             logger.warning("Embedding failed for %s: %s", file_path.name, exc)
 
