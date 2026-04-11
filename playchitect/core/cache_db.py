@@ -104,7 +104,7 @@ def _row_to_features(file_hash: str, row: tuple) -> IntensityFeatures:
 
     rms, brightness, sub_bass, kick, harmonics, perc, onset = row
     return IntensityFeatures(
-        filepath=Path(),  # caller is responsible for setting the real filepath
+        file_path=Path(),  # caller is responsible for setting the real filepath
         file_hash=file_hash,
         rms_energy=rms,
         brightness=brightness,

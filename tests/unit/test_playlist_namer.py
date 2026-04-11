@@ -257,7 +257,7 @@ class TestNameAllClusters:
     ) -> IntensityFeatures:
         """Create an IntensityFeatures for testing."""
         features = IntensityFeatures(
-            filepath=filepath,
+            file_path=filepath,
             file_hash="hash123",
             rms_energy=rms,
             brightness=brightness,

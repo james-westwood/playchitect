@@ -165,7 +165,7 @@ class TestFastPerformanceChecks:
         metadata_dict = {p: TrackMetadata(filepath=p, bpm=120.0) for p in paths}
         intensity_dict = {
             p: IntensityFeatures(
-                filepath=p,
+                file_path=p,
                 file_hash="fakehash",
                 rms_energy=random.random(),
                 brightness=random.random(),

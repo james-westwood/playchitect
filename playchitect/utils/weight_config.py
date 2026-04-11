@@ -177,6 +177,14 @@ def apply_weight_overrides(
     return result
 
 
+def _has_any_overrides(overrides: WeightOverrides) -> bool:
+    """Check if any field in the overrides has a non-None value."""
+    for field_name in WeightOverrides.__dataclass_fields__:
+        if getattr(overrides, field_name) is not None:
+            return True
+    return False
+
+
 def validate_weights(overrides: WeightOverrides) -> None:
     """Validate that weight overrides meet the required constraints.
 
