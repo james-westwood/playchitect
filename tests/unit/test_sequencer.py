@@ -45,7 +45,7 @@ class TestSequencer:
         for i, p in enumerate(paths):
             # Hardness will be roughly proportional to i
             intensity_dict[p] = IntensityFeatures(
-                filepath=p,
+                file_path=p,
                 file_hash=f"hash_{i}",
                 rms_energy=0.2 * i,
                 brightness=0.2 * i,
@@ -158,7 +158,7 @@ class TestSequencer:
 
         intensity = {
             p: IntensityFeatures(
-                filepath=p,
+                file_path=p,
                 file_hash="h",
                 rms_energy=0.5,
                 brightness=0.5,
@@ -208,7 +208,7 @@ class TestSequencer:
 
         intensity = {
             p: IntensityFeatures(
-                filepath=p,
+                file_path=p,
                 file_hash="h",
                 rms_energy=0.5,
                 brightness=0.5,
@@ -287,7 +287,7 @@ class TestFiveRhythms:
     def _create_intensity_features(self, path: Path, rms_energy: float) -> IntensityFeatures:
         """Create IntensityFeatures with specified RMS energy."""
         return IntensityFeatures(
-            filepath=path,
+            file_path=path,
             file_hash=f"hash_{path.stem}",
             rms_energy=rms_energy,
             brightness=0.5,
@@ -437,7 +437,7 @@ class TestSequenceHarmonic:
     ) -> IntensityFeatures:
         """Create IntensityFeatures with specified energy and key."""
         return IntensityFeatures(
-            filepath=path,
+            file_path=path,
             file_hash=f"hash_{path.stem}",
             rms_energy=rms_energy,
             brightness=0.5,
@@ -551,7 +551,7 @@ class TestSequenceByStrategy:
     ) -> IntensityFeatures:
         """Create IntensityFeatures with specified values."""
         return IntensityFeatures(
-            filepath=path,
+            file_path=path,
             file_hash=f"hash_{path.stem}",
             rms_energy=rms_energy,
             brightness=0.5,

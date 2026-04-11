@@ -946,7 +946,7 @@ class TestIntegration:
 
 def _make_fixture_features(filepath: Path) -> IntensityFeatures:
     return IntensityFeatures(
-        filepath=filepath,
+        file_path=filepath,
         file_hash="deadbeef",
         rms_energy=0.5,
         brightness=0.6,

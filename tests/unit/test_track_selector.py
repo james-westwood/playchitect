@@ -28,7 +28,7 @@ def _make_intensity(
     bass_harmonics: float = 0.5,
 ) -> IntensityFeatures:
     return IntensityFeatures(
-        filepath=path,
+        file_path=path,
         file_hash="abc123",
         rms_energy=rms_energy,
         brightness=brightness,
