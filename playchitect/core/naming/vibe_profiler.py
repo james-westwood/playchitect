@@ -13,6 +13,7 @@ import numpy as np
 if TYPE_CHECKING:
     from playchitect.core.clustering import ClusterResult
     from playchitect.core.intensity_analyzer import IntensityFeatures
+    from playchitect.core.metadata_extractor import TrackMetadata
 
 # BPM bucketing thresholds
 _BPM_SLOW_THRESHOLD: float = 100.0
@@ -56,6 +57,7 @@ class VibeProfile:
 def compute_vibe_profile(
     cluster: "ClusterResult",
     features: dict[Path, "IntensityFeatures"],
+    metadata: dict[Path, "TrackMetadata"] | None = None,
 ) -> VibeProfile:
     """Compute vibe profile for a cluster.
 
@@ -65,6 +67,7 @@ def compute_vibe_profile(
     Args:
         cluster: ClusterResult containing tracks and basic stats
         features: Mapping of file path → IntensityFeatures
+        metadata: Optional mapping of file path → TrackMetadata (for API compliance)
 
     Returns:
         VibeProfile with averaged features and mood distribution
