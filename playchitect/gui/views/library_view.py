@@ -409,7 +409,9 @@ class LibraryView(Gtk.Box):
             self._filter.changed(Gtk.FilterChange.DIFFERENT)
             self._update_footer()
 
-    def _on_selection_changed(self, selection: Gtk.SingleSelection, _position: int) -> None:
+    def _on_selection_changed(
+        self, selection: Gtk.SingleSelection, _position: int, _n_items: int
+    ) -> None:
         """Emit track-selected signal when selection changes."""
         item = selection.get_selected_item()
         if item is not None:

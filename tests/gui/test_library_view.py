@@ -359,6 +359,62 @@ class TestSignalsDefined:
         assert "track-selected" in LibraryView.__gsignals__
 
 
+class TestSelectionChanged:
+    """Test _on_selection_changed handler signature and behavior."""
+
+    def test_selection_changed_accepts_three_args(self, library_view: LibraryView) -> None:
+        """_on_selection_changed accepts 3 arguments (selection, position, n_items)."""
+        track = _make_library_track(title="Test Track")
+        library_view._store.append(track)
+        library_view._selection._selected_index = 0  # Select the track
+
+        # Should not raise TypeError when called with 3 arguments
+        library_view._on_selection_changed(library_view._selection, 0, 1)
+
+    def test_selection_changed_emits_track_selected(self, library_view: LibraryView) -> None:
+        """_on_selection_changed emits 'track-selected' signal when track selected."""
+        from unittest.mock import patch
+
+        track = _make_library_track(title="Test Track")
+        library_view._store.append(track)
+        library_view._selection._selected_index = 0
+
+        # Capture emitted signals
+        emitted: list[tuple[str, tuple[Any, ...]]] = []
+
+        def mock_emit(signal_name: str, *args: Any) -> None:
+            emitted.append((signal_name, args))
+
+        with patch.object(library_view, "emit", mock_emit):
+            library_view._on_selection_changed(library_view._selection, 0, 1)
+
+        assert len(emitted) == 1
+        signal_name, args = emitted[0]
+        assert signal_name == "track-selected"
+        assert len(args) == 1
+        assert args[0].title == "Test Track"
+
+    def test_selection_changed_no_emit_when_no_selection(self, library_view: LibraryView) -> None:
+        """_on_selection_changed does not emit signal when no track is selected."""
+        from unittest.mock import patch
+
+        # Add a track but don't select it
+        track = _make_library_track(title="Test Track")
+        library_view._store.append(track)
+        library_view._selection._selected_index = -1  # No selection
+
+        emitted: list[tuple[str, tuple[Any, ...]]] = []
+
+        def mock_emit(signal_name: str, *args: Any) -> None:
+            emitted.append((signal_name, args))
+
+        with patch.object(library_view, "emit", mock_emit):
+            library_view._on_selection_changed(library_view._selection, -1, 1)
+
+        # Should not emit anything when there's no selection
+        assert len(emitted) == 0
+
+
 class TestTrackCount:
     """Test track count updates."""
 
