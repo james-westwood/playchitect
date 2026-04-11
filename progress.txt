@@ -5,3 +5,4 @@
 [2026-04-11] [TASK-32] audio_structural_analysis_cue_injection: implemented structural analysis with librosa RMS energy detection, Mixxx cue injection, and GUI integration with spinner/toast feedback
 [2026-04-11] [FIX-04] fix_vorbis_valueerror_in_extract_text_tag: wrapped tag lookup in try/except (ValueError, KeyError) to handle Vorbis-comment FLAC files; added test verifying _extract_text_tag returns None instead of propagating
 [2026-04-11] [FIX-05] fix_selection_changed_signature_library_view: added missing _n_items parameter to _on_selection_changed() signature to match GTK's selection-changed signal; added 3 tests verifying correct argument handling and track-selected emission
+[2026-04-11] [FIX-06] fix_suggest_blocks_empty_slice_valueerror: changed block section guards from index checks to slice truthiness checks to prevent ValueError on empty slices with small libraries

@@ -35,7 +35,7 @@
       "owner": "ralph",
       "description": "In playchitect/core/energy_blocks.py, suggest_blocks() crashes with ValueError: min() iterable argument is empty when a small library produces a peak_clusters slice that is empty despite peak_end > build_end passing. Fix: change each block section guard from \"if peak_end > build_end\" to \"if peak_clusters\" (check the slice itself is non-empty) before calling min()/max(). Apply the same defensive guard to the build, peak, sustain, and outro block sections.",
       "acceptance_criteria": "suggest_blocks() with 1 cluster returns a list without raising. Add test: suggest_blocks with a single cluster. uv run pytest tests/ -v passes.",
-      "completed": false,
+      "completed": true,
       "priority": 1,
       "note": "GitHub issue #179"
     },
