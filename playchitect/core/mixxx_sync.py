@@ -210,8 +210,8 @@ class MixxxSync:
                 # Convert milliseconds to samples
                 position_samples = int((position_ms / 1000.0) * sample_rate)
 
-                # Use hotcue index starting from 0
-                hotcue_idx = idx
+                # Use hotcue index starting from 4 to avoid clobbering user-set cues 0-3
+                hotcue_idx = idx + 4
 
                 # Create a label from the cue name
                 label = cue_name.replace("_", " ").title()

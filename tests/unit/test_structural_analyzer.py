@@ -5,12 +5,14 @@ Tests for intro/outro detection, drop detection, and cue point prediction
 using synthetic audio fixtures.
 """
 
+import sqlite3
 from pathlib import Path
 
 import numpy as np
 import pytest
 
 # Import after pytest fixtures are defined
+from playchitect.core.mixxx_sync import MixxxSync
 from playchitect.core.structural_analyzer import (
     StructuralAnalysis,
     StructuralAnalyzer,
@@ -36,7 +38,6 @@ def synthetic_intro_outro_audio(tmp_path: Path) -> Path:
     # Build the signal: silence -> loud tone -> silence
     silence1_duration = 5.0
     loud_duration = 10.0
-    silence2_duration = 5.0
 
     # Create envelope
     envelope = np.zeros_like(t)
@@ -260,3 +261,79 @@ class TestIntegration:
         assert cue_points["cue_1_ms"] > 0
         assert cue_points["cue_2_ms"] > 0
         assert cue_points["cue_1_ms"] < cue_points["cue_2_ms"]
+
+
+def _make_mixxx_db(db_path: Path, track_path: Path | None = None) -> None:
+    """Create a minimal Mixxx-schema SQLite DB at db_path."""
+    conn = sqlite3.connect(db_path)
+    conn.executescript("""
+        CREATE TABLE track_locations (
+            id INTEGER PRIMARY KEY,
+            location TEXT NOT NULL,
+            fs_deleted INTEGER NOT NULL DEFAULT 0
+        );
+        CREATE TABLE cues (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            track_id INTEGER NOT NULL,
+            type INTEGER NOT NULL,
+            position INTEGER NOT NULL,
+            length INTEGER NOT NULL DEFAULT 0,
+            hotcue INTEGER,
+            label TEXT
+        );
+    """)
+    if track_path is not None:
+        conn.execute(
+            "INSERT INTO track_locations VALUES (1, ?, 0)",
+            (str(track_path.resolve()),),
+        )
+    conn.commit()
+    conn.close()
+
+
+class TestWriteCuePoints:
+    """Tests for MixxxSync.write_cue_points against an in-memory Mixxx DB."""
+
+    def test_write_cue_points_inserts_rows(self, tmp_path: Path) -> None:
+        """write_cue_points inserts cue rows with type=1 and hotcue offset 4."""
+        db_path = tmp_path / "mixxxdb.sqlite"
+        track_path = tmp_path / "fake.mp3"
+        track_path.touch()
+        _make_mixxx_db(db_path, track_path)
+
+        sync = MixxxSync()
+        count = sync.write_cue_points(
+            db_path, track_path, {"cue_1_ms": 5000.0, "cue_2_ms": 175000.0}
+        )
+
+        assert count == 2
+        conn = sqlite3.connect(db_path)
+        rows = conn.execute("SELECT type, hotcue FROM cues ORDER BY hotcue").fetchall()
+        conn.close()
+        assert len(rows) == 2
+        assert all(r[0] == 1 for r in rows)  # type == 1 (hot cue)
+        assert rows[0][1] == 4  # first cue at offset 4
+        assert rows[1][1] == 5  # second cue at offset 5
+
+    def test_write_cue_points_file_not_found(self, tmp_path: Path) -> None:
+        """write_cue_points raises FileNotFoundError for a missing DB."""
+        sync = MixxxSync()
+        with pytest.raises(FileNotFoundError):
+            sync.write_cue_points(
+                tmp_path / "nonexistent.sqlite",
+                tmp_path / "fake.mp3",
+                {"cue_1_ms": 1000.0},
+            )
+
+    def test_write_cue_points_track_not_in_library(self, tmp_path: Path) -> None:
+        """write_cue_points raises ValueError when track absent from track_locations."""
+        db_path = tmp_path / "empty.sqlite"
+        _make_mixxx_db(db_path)  # no tracks inserted
+
+        sync = MixxxSync()
+        with pytest.raises(ValueError, match="not found in Mixxx library"):
+            sync.write_cue_points(
+                db_path,
+                tmp_path / "missing_track.mp3",
+                {"cue_1_ms": 1000.0},
+            )
