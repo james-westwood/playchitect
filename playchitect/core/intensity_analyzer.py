@@ -85,6 +85,15 @@ def harmonic_compatibility(key_a: str, key_b: str) -> bool:
         if diff == 1 or diff == 11:  # 11 because 1 and 12 are adjacent
             return True
 
+    # Relative minor/major compatibility
+    # Relative keys are 3 semitones apart on the Camelot wheel
+    # (3 positions apart with letter flip: e.g., 8B <-> 5A, 12A <-> 3B)
+    if letter_a != letter_b:
+        diff = abs(num_a - num_b)
+        # Relative keys are 3 apart (accounting for wrap-around)
+        if diff == 3 or diff == 9:  # 9 = 12 - 3 (wrap-around case)
+            return True
+
     return False
 
 
@@ -152,59 +161,52 @@ def _analyze_worker(args: tuple[str, str]) -> tuple[str, dict[str, Any]]:
 class IntensityFeatures:
     """Container for intensity analysis features."""
 
-    # File identification
-    filepath: Path = field(init=False)  # Set via file_path parameter
+    # Required fields
     file_hash: str  # MD5 hash for cache validation
-
-    # Energy features
     rms_energy: float  # Overall loudness (0-1)
-
-    # Spectral features
     brightness: float  # Spectral centroid, RMS-weighted (0-1)
 
-    # Bass energy (3-way split for techno)
+    # Bass energy (can be provided via sub_bass alias)
     sub_bass_energy: float = 0.0  # 20-60Hz (sub-kick, rumble)
+
+    # Other required fields with defaults
     kick_energy: float = 0.0  # 60-120Hz (main kick fundamental)
     bass_harmonics: float = 0.0  # 120-250Hz (bass notes)
-
-    # Rhythmic features
     percussiveness: float = 0.0  # HPSS ratio (0-1)
     onset_strength: float = 0.0  # Beat intensity (0-1)
-
-    # Harmonic features
     camelot_key: str = "8B"  # Camelot Wheel notation (e.g., '8B')
     key_index: float = 0.0  # Chroma bin index 0-11 as float
 
-    # Energy flow features (metadata, not clustering dimensions)
+    # File identification (handled via file_path parameter)
+    filepath: Path = field(init=False)
+
+    # Optional fields with defaults
     dynamic_range: float = 0.0  # Range of RMS energy (0-1)
     energy_gradient: float = 0.0  # Trend of energy over time (-1 to 1)
     drop_density: float = 0.0  # Normalised drops per minute (0-1)
-
-    # Timbre/texture features (metadata, not clustering dimensions)
     spectral_flatness: float = 0.0  # Noisiness vs tonal (0-1)
     zero_crossing_rate: float = 0.0  # Noisiness / high-freq content (0-1)
     mfcc_variance: float = 0.0  # Spectral shape complexity (0-1)
     spectral_rolloff_85: float = 0.0  # Frequency where 85% energy is below (0-1)
-
-    # Structural/vocal features (metadata, not clustering dimensions)
     vocal_presence: float = 0.0  # Vocal content in 200-800Hz harmonic band (0-1)
     intro_length_secs: float = 0.0  # Time until energy exceeds threshold (seconds)
-
-    # Mood classification (not part of feature vector)
     mood_label: str = "Ethereal"  # Mood classification label
 
-    # Alternative parameter names for test compatibility
-    file_path: str | Path | None = field(default=None, kw_only=True)
-    sub_bass: float | None = field(default=None, kw_only=True)
-    duration_secs: float | None = field(default=None, kw_only=True)
-    sample_rate: int | None = field(default=None, kw_only=True)
+    # Alternative parameter names for backwards compatibility (tests use different names)
+    file_path: str | Path | None = field(default=None, kw_only=True)  # filepath alias
+    sub_bass: float | None = field(default=None, kw_only=True)  # sub_bass_energy alias
+    duration_secs: float | None = field(default=None, kw_only=True)  # Not used but in tests
+    sample_rate: int | None = field(default=None, kw_only=True)  # Not used but in tests
 
     def __post_init__(self) -> None:
-        """Handle alternative parameter names."""
+        """Handle alternative parameter names and set filepath."""
         if self.file_path is not None:
             self.filepath = Path(self.file_path)
+        # If filepath wasn't set via file_path, ensure it's a Path
         if not hasattr(self, "filepath") or self.filepath is None:
             raise ValueError("filepath must be provided via file_path parameter")
+
+        # Handle sub_bass alias for sub_bass_energy
         if self.sub_bass is not None:
             self.sub_bass_energy = self.sub_bass
 

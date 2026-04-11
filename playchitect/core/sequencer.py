@@ -204,13 +204,15 @@ class Sequencer:
             cluster: Cluster to sequence.
             metadata_dict: Path -> Metadata mapping.
             intensity_dict: Path -> Intensity mapping.
-            mode: 'ramp' (energy build) | 'fixed' (no change)
+            mode: 'ramp' (energy build) | 'harmonic' (Camelot key mixing) | 'fixed' (no change)
 
         Returns:
             List of track paths in sequenced order.
         """
         if mode == "ramp":
             return self._sequence_ramp(cluster, metadata_dict, intensity_dict)
+        elif mode == "harmonic":
+            return sequence_harmonic(cluster.tracks, intensity_dict)
 
         logger.debug("Unknown or 'fixed' sequence mode '%s', returning original order", mode)
         return cluster.tracks
@@ -411,7 +413,7 @@ def _harmonic_score(key_a: str, key_b: str) -> int:
 
     Returns:
         Score from 0-2 where:
-        - 2: Compatible (same number or adjacent with same letter)
+        - 2: Compatible (same number, adjacent same letter, or relative minor/major)
         - 1: Same number, different letter (mode switch - acceptable)
         - 0: Incompatible
     """
@@ -432,6 +434,13 @@ def _harmonic_score(key_a: str, key_b: str) -> int:
     if letter_a == letter_b:
         diff = abs(num_a - num_b)
         if diff == 1 or diff == 11:
+            return 2
+
+    # Relative minor/major compatibility (3 positions apart with letter flip)
+    # e.g., 8B (C major) <-> 5A (A minor), 12A <-> 3B
+    if letter_a != letter_b:
+        diff = abs(num_a - num_b)
+        if diff == 3 or diff == 9:  # 9 = 12 - 3 (wrap-around)
             return 2
 
     return 0
