@@ -431,7 +431,7 @@
       "owner": "ralph",
       "description": "Fix double-emission regression introduced by PR #189.\n\nCURRENT BUG: In library_view.py, _on_activate now fires on EVERY row click, including clicks on different rows where selection-changed also fires. This means load_track() in main_window.py is called twice per click on a different track \u2014 a performance regression.\n\nREQUIRED FIX: Add a deduplication guard so _on_activate only emits when selection-changed has NOT already emitted for the same click:\n\nIn LibraryView.__init__, add: self._selection_change_pending = False\n\nIn _on_selection_changed, set the flag before emitting:\n    self._selection_change_pending = True\n    self.emit(\"track-selected\", item)\n\nIn _on_activate, check and clear the flag:\n    if self._selection_change_pending:\n        self._selection_change_pending = False\n        return  # selection-changed already emitted, skip duplicate\n    item = self._selection.get_selected_item()\n    if item is not None:\n        self.emit(\"track-selected\", item)\n\nAlso rename  to  in _on_activate since it is unused.\nRemove \"BUG-01 Fix:\" tag from the docstring.",
       "acceptance_criteria": "Clicking a DIFFERENT track emits track-selected exactly ONCE. Clicking the SAME (already selected) track emits track-selected once. Add a test that simulates both selection-changed AND activate firing for the same click and asserts track-selected is emitted only once. All 1201 tests pass.",
-      "completed": false,
+      "completed": true,
       "priority": 1,
       "note": "GitHub issue #187",
       "files": [
