@@ -132,7 +132,7 @@ class TestApplyWeightOverrides:
         result = apply_weight_overrides(weights, overrides)
 
         assert result[0] == 2.0  # bpm is first feature
-        assert result[1] == 0.1  # others unchanged
+        assert result[1] == 0.125  # others normalized to uniform (1/8)
 
     def test_apply_multiple_overrides(self) -> None:
         """Can apply multiple weight overrides."""

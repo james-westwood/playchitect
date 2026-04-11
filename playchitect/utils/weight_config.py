@@ -117,6 +117,25 @@ def apply_weight_overrides(
                    or if weights have more than 2 dimensions.
     """
     result = weights.copy()
+    n_features = len(feature_names)
+
+    # Check for unsupported dimensions
+    if result.ndim > 2:
+        raise ValueError(f"Unsupported weights ndim: {result.ndim}")
+
+    # Only normalize uniform weights if there are actual overrides to apply
+    has_overrides = _has_any_overrides(overrides)
+
+    if has_overrides:
+        # Normalize weights if they are uniform (all same value)
+        if result.ndim == 1:
+            if np.allclose(result, result[0]):
+                result = np.ones(n_features) / n_features
+        elif result.ndim == 2:
+            # For 2D weights, check if all values in each row are the same
+            # and if all rows have the same value
+            if np.allclose(result, result[0, 0]):
+                result = np.full((result.shape[0], n_features), 1.0 / n_features)
 
     # Check for unsupported dimensions
     if result.ndim > 2:
@@ -156,6 +175,14 @@ def apply_weight_overrides(
                 raise ValueError(f"Unsupported weights ndim: {result.ndim}")
 
     return result
+
+
+def _has_any_overrides(overrides: WeightOverrides) -> bool:
+    """Check if any field in the overrides has a non-None value."""
+    for field_name in WeightOverrides.__dataclass_fields__:
+        if getattr(overrides, field_name) is not None:
+            return True
+    return False
 
 
 def validate_weights(overrides: WeightOverrides) -> None:
