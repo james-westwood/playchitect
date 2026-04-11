@@ -17,6 +17,9 @@ from playchitect.core.sequencer import sequence_by_timbre
 class TestTimbreTextureFeatures:
     """Tests for timbre/texture feature extraction - Issue #40 acceptance criteria."""
 
+    # Hollow: passes spectral_flatness=0.3 to the constructor then checks hasattr and
+    # asserts == 0.3 — only tests Python's dataclass field storage, not any calculation.
+    @pytest.mark.hollow
     def test_intensity_features_has_spectral_flatness(self) -> None:
         """IntensityFeatures should have spectral_flatness attribute."""
         features = IntensityFeatures(
@@ -40,6 +43,9 @@ class TestTimbreTextureFeatures:
         )
         assert features.spectral_flatness == 0.3
 
+    # Hollow: passes zero_crossing_rate=0.15 to the constructor then checks hasattr and
+    # asserts == 0.15 — only tests Python's dataclass field storage, not any calculation.
+    @pytest.mark.hollow
     def test_intensity_features_has_zero_crossing_rate(self) -> None:
         """IntensityFeatures should have zero_crossing_rate attribute."""
         features = IntensityFeatures(
@@ -63,6 +69,9 @@ class TestTimbreTextureFeatures:
         )
         assert features.zero_crossing_rate == 0.15
 
+    # Hollow: passes mfcc_variance=0.5 to the constructor then checks hasattr and
+    # asserts == 0.5 — only tests Python's dataclass field storage, not any calculation.
+    @pytest.mark.hollow
     def test_intensity_features_has_mfcc_variance(self) -> None:
         """IntensityFeatures should have mfcc_variance attribute."""
         features = IntensityFeatures(
@@ -86,6 +95,9 @@ class TestTimbreTextureFeatures:
         )
         assert features.mfcc_variance == 0.5
 
+    # Hollow: passes spectral_rolloff_85=0.7 to the constructor then checks hasattr and
+    # asserts == 0.7 — only tests Python's dataclass field storage, not any calculation.
+    @pytest.mark.hollow
     def test_intensity_features_has_spectral_rolloff_85(self) -> None:
         """IntensityFeatures should have spectral_rolloff_85 attribute."""
         features = IntensityFeatures(
@@ -113,6 +125,9 @@ class TestTimbreTextureFeatures:
 class TestSpectralFlatnessCalculation:
     """Tests for spectral flatness calculation - Issue #40."""
 
+    # Hollow: manually sets spectral_flatness=0.1 in the constructor then asserts < 0.3 —
+    # only tests arithmetic on the value we wrote in, not any audio analysis.
+    @pytest.mark.hollow
     def test_spectral_flatness_tonal_track(self) -> None:
         """Tonal/clean track should have low spectral flatness."""
         features = IntensityFeatures(
@@ -133,6 +148,9 @@ class TestSpectralFlatnessCalculation:
         )
         assert features.spectral_flatness < 0.3, "Tonal track should have low spectral flatness"
 
+    # Hollow: manually sets spectral_flatness=0.7 in the constructor then asserts > 0.5 —
+    # only tests arithmetic on the value we wrote in, not any audio analysis.
+    @pytest.mark.hollow
     def test_spectral_flatness_noisy_track(self) -> None:
         """Noisy/textured track should have high spectral flatness."""
         features = IntensityFeatures(
@@ -153,6 +171,9 @@ class TestSpectralFlatnessCalculation:
         )
         assert features.spectral_flatness > 0.5, "Noisy track should have high spectral flatness"
 
+    # Hollow: verifies the dataclass default value for spectral_flatness — useful as a
+    # contract test but exercises no calculation or analysis logic.
+    @pytest.mark.hollow
     def test_spectral_flatness_defaults_to_zero(self) -> None:
         """Missing spectral_flatness should default to 0.0."""
         features = IntensityFeatures(
@@ -176,6 +197,9 @@ class TestSpectralFlatnessCalculation:
 class TestMFCCVarianceCalculation:
     """Tests for MFCC variance calculation - Issue #40."""
 
+    # Hollow: manually sets mfcc_variance=0.8 in the constructor then asserts > 0.5 —
+    # only tests arithmetic on the value we wrote in, not any MFCC computation.
+    @pytest.mark.hollow
     def test_mfcc_variance_complex_timbre(self) -> None:
         """Track with complex timbre should have higher MFCC variance."""
         features = IntensityFeatures(
@@ -196,6 +220,9 @@ class TestMFCCVarianceCalculation:
         )
         assert features.mfcc_variance > 0.5, "Complex timbre should have high MFCC variance"
 
+    # Hollow: manually sets mfcc_variance=0.2 in the constructor then asserts < 0.4 —
+    # only tests arithmetic on the value we wrote in, not any MFCC computation.
+    @pytest.mark.hollow
     def test_mfcc_variance_simple_timbre(self) -> None:
         """Track with simple timbre should have lower MFCC variance."""
         features = IntensityFeatures(
@@ -220,6 +247,9 @@ class TestMFCCVarianceCalculation:
 class TestTimbreBasedSequencing:
     """Tests for timbre-based sequencing - Issue #40 acceptance criteria."""
 
+    # Hollow: callable() only confirms the import succeeded; it does not call
+    # sequence_by_timbre() with any data to verify correct behaviour.
+    @pytest.mark.hollow
     def test_sequence_by_timbre_exists(self) -> None:
         """sequence_by_timbre function should exist in sequencer."""
         assert callable(sequence_by_timbre), (
@@ -348,6 +378,10 @@ class TestTimbreBasedSequencing:
 class TestTimbreFeatureVector:
     """Tests for timbre feature vector - Issue #40."""
 
+    # Hollow: manually builds a Python list from stored field values and checks
+    # len == 4 and values in [0, 1] — no clustering code is invoked; this tests
+    # the test author's arithmetic, not the production implementation.
+    @pytest.mark.hollow
     def test_timbre_features_used_for_clustering(self) -> None:
         """Verify timbre features can be used for clustering."""
         features = IntensityFeatures(
@@ -397,6 +431,9 @@ class TestCLITimbreMode:
             "scan command should support 'timbre' sequence mode per issue #40"
         )
 
+    # Hollow: only checks that "--sequence-mode" appears in help text; does not
+    # invoke the CLI with --sequence-mode timbre to verify it affects sequencing.
+    @pytest.mark.hollow
     def test_sort_by_timbre_available(self) -> None:
         """CLI should support sorting by timbre similarity."""
         from click.testing import CliRunner
