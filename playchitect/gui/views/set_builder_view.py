@@ -715,7 +715,7 @@ class SetBuilderView(Gtk.Box):
         """Load tracks for the selected block into the browser."""
         self._browser_store.remove_all()
 
-        # Get tracks from clusters assigned to this block
+        # Get tracks from playlists assigned to this block
         track_paths: list[Path] = []
         for cluster_id in block.cluster_ids:
             for cluster in self._clusters:

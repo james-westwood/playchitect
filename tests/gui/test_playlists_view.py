@@ -179,7 +179,7 @@ class TestPlaylistsViewPublicAPI:
         assert view._cluster_stats == []
         assert view._selected_cluster_id is None
         view._track_list.clear.assert_called_once()
-        view._count_label.set_text.assert_called_with("0 clusters")
+        view._count_label.set_text.assert_called_with("0 playlists")
 
 
 # ── TestPlaylistsViewStatsDisplay ───────────────────────────────────────────
@@ -275,7 +275,7 @@ class TestPlaylistsViewClusterLoading:
         assert len(view._clusters) == 1
         assert len(view._cluster_stats) == 1
         view._refresh_cluster_sidebar.assert_called_once()  # ty: ignore[unresolved-attribute]
-        view._count_label.set_text.assert_called_once_with("1 cluster")
+        view._count_label.set_text.assert_called_once_with("1 playlist")
 
     def test_load_clusters_plural_label(self):
         """Test that cluster count label uses plural form."""
@@ -300,7 +300,7 @@ class TestPlaylistsViewClusterLoading:
 
         view.load_clusters(clusters)
 
-        view._count_label.set_text.assert_called_once_with("3 clusters")
+        view._count_label.set_text.assert_called_once_with("3 playlists")
 
 
 # ── TestPlaylistsViewInstantiation ──────────────────────────────────────────

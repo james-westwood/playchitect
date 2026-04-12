@@ -327,8 +327,8 @@ class PlaylistsView(Gtk.Box):
         self._spinner.set_visible(False)
         self._action_bar.pack_end(self._spinner)
 
-        # Right: Cluster count label
-        self._count_label = Gtk.Label(label="0 clusters")
+        # Right: Playlist count label
+        self._count_label = Gtk.Label(label="0 playlists")
         self._count_label.set_margin_end(12)
         self._count_label.add_css_class("caption")
         self._count_label.add_css_class("dim-label")
@@ -374,7 +374,7 @@ class PlaylistsView(Gtk.Box):
 
         # Placeholder for empty state
         self._cluster_placeholder = Gtk.Label(
-            label="No clusters yet.\nClick 'Generate Playlists' to analyze tracks."
+            label="No playlists yet.\nClick 'Generate Playlists' to analyze tracks."
         )
         self._cluster_placeholder.set_justify(Gtk.Justification.CENTER)
         self._cluster_placeholder.add_css_class("dim-label")
@@ -647,7 +647,7 @@ class PlaylistsView(Gtk.Box):
 
         # Update count label
         count = len(self._cluster_stats)
-        noun = "cluster" if count == 1 else "clusters"
+        noun = "playlist" if count == 1 else "playlists"
         self._count_label.set_text(f"{count} {noun}")
 
         # Emit signal with clusters for other views (Export, Set Builder)
@@ -809,7 +809,7 @@ class PlaylistsView(Gtk.Box):
 
         # Update count
         count = len(self._cluster_stats)
-        noun = "cluster" if count == 1 else "clusters"
+        noun = "playlist" if count == 1 else "playlists"
         self._count_label.set_text(f"{count} {noun}")
 
     def get_selected_cluster_id(self) -> int | str | None:
@@ -827,7 +827,7 @@ class PlaylistsView(Gtk.Box):
         self._selected_cluster_id = None
         self._refresh_cluster_sidebar()
         self._track_list.clear()
-        self._count_label.set_text("0 clusters")
+        self._count_label.set_text("0 playlists")
         self._update_stats_display(None)
 
     # ── Issue #37: Harmonic Mixing Controls ────────────────────────────────────
