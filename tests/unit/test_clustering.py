@@ -821,3 +821,47 @@ class TestDetermineOptimalK:
         # abs(5 - 3) = 2 <= 2, so it should return 5.
         k = clusterer._determine_optimal_k(features, {}, len(features))
         assert k == 5
+
+
+class TestDeduplication:
+    """Test that duplicate tracks are removed from clusters."""
+
+    def test_no_duplicate_tracks_in_cluster_results(self) -> None:
+        """Verify no track appears in more than one cluster."""
+        meta: dict[Path, TrackMetadata] = {}
+        intensity: dict[Path, IntensityFeatures] = {}
+
+        for i in range(30):
+            p = Path(f"track_{i}.mp3")
+            base_bpm = 125.0 + (i % 5) * 10
+            base_rms = 0.3 + (i % 3) * 0.2
+            meta[p] = TrackMetadata(
+                filepath=p, bpm=base_bpm + np.random.randn() * 2, duration=300.0
+            )
+            intensity[p] = IntensityFeatures(
+                file_path=p,
+                file_hash=f"hash{i}",
+                rms_energy=base_rms + np.random.randn() * 0.1,
+                brightness=0.5 + np.random.randn() * 0.1,
+                sub_bass_energy=0.3 + np.random.randn() * 0.1,
+                kick_energy=0.6 + np.random.randn() * 0.1,
+                bass_harmonics=0.4 + np.random.randn() * 0.1,
+                percussiveness=0.5 + np.random.randn() * 0.1,
+                onset_strength=0.5 + np.random.randn() * 0.1,
+                camelot_key="8B",
+                key_index=0.0,
+            )
+
+        clusterer = PlaylistClusterer(
+            target_tracks_per_playlist=10, min_clusters=3, random_state=42
+        )
+        results = clusterer.cluster_by_features(meta, intensity)
+
+        all_tracks: list[Path] = []
+        for r in results:
+            all_tracks.extend(r.tracks)
+
+        unique_tracks = set(all_tracks)
+        assert len(all_tracks) == len(unique_tracks), (
+            f"Found duplicate tracks: {len(all_tracks)} total vs {len(unique_tracks)} unique"
+        )
