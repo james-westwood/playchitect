@@ -461,6 +461,16 @@ Rules:
     if echo "$PRECOMMIT_OUTPUT" | grep -q "^.*Failed$\|hook id:"; then
       log "  Pre-commit failed (round $_pc_round) — invoking coder to fix..."
       echo "$PRECOMMIT_OUTPUT" | tee -a "$LOG_FILE"
+
+      # detect-secrets failure is a hard stop — never bypass security checks.
+      if echo "$PRECOMMIT_OUTPUT" | grep -q "detect-secrets"; then
+        log "  ABORT: detect-secrets hook failed. Closing PR and stopping loop — manual review required."
+        if [[ -n "${PR_NUMBER:-}" ]]; then
+          gh pr close "$PR_NUMBER" --comment "Closing: detect-secrets pre-commit hook failed. Manual review required before this can be merged." 2>/dev/null || true
+        fi
+        exit 1
+      fi
+
       if [[ $_pc_round -lt $MAX_PRECOMMIT_ROUNDS ]]; then
         PRECOMMIT_FIX_PROMPT="You are the CODER who just implemented task [$TASK_ID] $TASK_TITLE for the playchitect project.
 
@@ -480,7 +490,8 @@ Fix steps:
 Do NOT push."
         run_coder "$CODER" "$PRECOMMIT_FIX_PROMPT" 2>&1 | tee -a "$LOG_FILE"
       else
-        log "  Pre-commit still failing after $MAX_PRECOMMIT_ROUNDS rounds — pushing anyway (CI will catch it)."
+        log "  ABORT: pre-commit still failing after $MAX_PRECOMMIT_ROUNDS rounds — stopping. Manual fix required."
+        exit 1
       fi
     else
       log "  Pre-commit gate passed."
