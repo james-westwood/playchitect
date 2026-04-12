@@ -48,8 +48,11 @@ def compatibility_score(
     bpm_diff = abs(bpm_a - bpm_b)
     bpm_score = max(0.0, 1.0 - (bpm_diff / _BPM_NORMALIZATION))
 
-    # Key compatibility score (0 or 1)
-    key_score = 1.0 if harmonic_compatibility(feat_a.camelot_key, feat_b.camelot_key) else 0.0
+    # Key compatibility score (0 or 1) - None keys score as 0
+    if feat_a.camelot_key is not None and feat_b.camelot_key is not None:
+        key_score = 1.0 if harmonic_compatibility(feat_a.camelot_key, feat_b.camelot_key) else 0.0
+    else:
+        key_score = 0.0
 
     # Energy similarity score (0 to 1)
     energy_score = 1.0 - abs(feat_a.rms_energy - feat_b.rms_energy)

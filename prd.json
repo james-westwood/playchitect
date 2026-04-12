@@ -460,7 +460,7 @@
       "owner": "ralph",
       "description": "All tracks in the Playlists view are showing Key '8B'. Investigate: (1) Is key detection running at all, or is a default/fallback being returned? (2) Check playchitect/core/metadata_extractor.py and any key detection module for where the key field is populated. (3) If key detection relies on a library (e.g. librosa, keyfinder) that is not running correctly, fix the detection pipeline. (4) If the key column is populated from a tag that is missing on most files, fall back gracefully to None and display '\u2014' rather than a wrong value.",
       "acceptance_criteria": "Tracks with known keys (verifiable via a reference tool) display the correct key notation. Tracks with no detectable key display '\u2014' not a hardcoded fallback. uv run pytest tests/ -v passes.",
-      "completed": false,
+      "completed": true,
       "priority": 1,
       "note": "GitHub issue #193",
       "files": [
