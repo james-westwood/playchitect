@@ -446,9 +446,9 @@
       "owner": "ralph",
       "description": "The clustering output can assign the same track to multiple clusters (e.g. when it sits equidistant between centroids), and there is no deduplication pass. Add a post-clustering deduplication step: after cluster assignment, for each track that appears in more than one cluster, keep it only in the cluster whose centroid it is closest to and remove it from others. This should be applied in clustering.py before returning ClusterResult objects to the UI.",
       "acceptance_criteria": "No track filepath appears more than once across all ClusterResult.tracks lists. tests/unit/test_clustering.py: add test with a dataset designed to produce overlaps and assert no duplicates in output. uv run pytest tests/ -v passes.",
-      "completed": false,
+      "completed": true,
       "priority": 1,
-      "note": "",
+      "note": "GitHub issue #191",
       "files": [
         "playchitect/core/clustering.py"
       ]
