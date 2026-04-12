@@ -507,7 +507,7 @@
       "owner": "ralph",
       "description": "The rule-based mood classifier in playchitect/core/mood_classifier.py returns 'Ethereal' (the catch-all default at line ~110) for nearly all electronic/techno tracks because the threshold rules for Energetic, Aggressive, Hypnotic etc. are not calibrated for this genre. Review and recalibrate the decision-tree thresholds using typical electronic music feature ranges. In particular: high RMS + high spectral centroid + high percussiveness should resolve to 'Energetic' or 'Aggressive', not fall through to 'Ethereal'. Add unit tests that assert specific mood labels for synthetic feature vectors representative of techno/house/dnb.",
       "acceptance_criteria": "A synthetic IntensityFeatures with high RMS (>0.1), high percussiveness (>0.5), and high spectral centroid classifies as 'Energetic' or 'Aggressive', not 'Ethereal'. Existing mood classifier tests still pass. uv run pytest tests/ -v passes.",
-      "completed": false,
+      "completed": true,
       "priority": 2,
       "note": "",
       "files": [

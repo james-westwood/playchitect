@@ -12,3 +12,4 @@
 [2026-04-12] [BUG-03] fix_key_detection_returning_8b_for_all_tracks: added confidence threshold to _calculate_key to detect flat chroma (synth/noise tracks); changed camelot_key default from "8B" to None; updated from_dict fallback to None; tracks with no detectable key now display "—" instead of hardcoded "8B"
 [2026-04-12] [BUG-04] fix_export_no_playlists_available_after_clustering: added clusters-generated signal from PlaylistsView; wired main_window to pass clusters to ExportView on signal; renamed all cluster->playlist references in ExportView per GUI-01
 [2026-04-12] [BUG-05] fix_layout_overflow_and_column_resizing: implemented and merged (PR #198)
+[2026-04-12] [BUG-06] fix_mood_classifier_all_ethereal_for_electronic_music: implemented and merged (PR #199)
