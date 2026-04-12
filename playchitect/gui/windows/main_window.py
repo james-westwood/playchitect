@@ -292,7 +292,7 @@ class PlaychitectWindow(Adw.ApplicationWindow):
         library_paned.set_start_child(self._library_view)
         library_paned.set_end_child(self._track_preview)
         library_paned.set_shrink_end_child(False)
-        library_paned.set_position(600)
+        library_paned.set_position(700)
         stack.add_titled(library_paned, "library", "Library")
 
         # Playlists view (using new PlaylistsView)

@@ -138,6 +138,10 @@ class TrackPreviewPanel(Gtk.Box):
         self.set_margin_end(12)
         self.set_margin_top(12)
         self.set_margin_bottom(12)
+        self.set_hexpand(False)
+        self.set_vexpand(False)
+        self.set_size_request(280, -1)
+        self.set_valign(Gtk.Align.START)
 
         # State
         self._current_track: LibraryTrackModel | None = None

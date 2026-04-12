@@ -259,9 +259,11 @@ class LibraryView(Gtk.Box):
 
     def _build_column_view(self) -> None:
         """Build the ColumnView with track columns."""
-        scroll = Gtk.ScrolledWindow()
-        scroll.set_vexpand(True)
-        scroll.set_policy(Gtk.PolicyType.NEVER, Gtk.PolicyType.AUTOMATIC)
+        self._scroll = Gtk.ScrolledWindow()
+        self._scroll.set_vexpand(True)
+        self._scroll.set_hexpand(True)
+        self._scroll.set_max_content_width(1200)
+        self._scroll.set_policy(Gtk.PolicyType.AUTOMATIC, Gtk.PolicyType.AUTOMATIC)
 
         self._column_view = Gtk.ColumnView(model=self._selection)
         self._column_view.set_show_row_separators(True)
@@ -290,8 +292,7 @@ class LibraryView(Gtk.Box):
             col = Gtk.ColumnViewColumn(title=header, factory=factory)
             col.set_fixed_width(width)
             col.set_resizable(True)
-            if header == "Title":
-                col.set_expand(True)
+            col.set_expand(header == "Title")
 
             if sort_attr:
                 col.set_sorter(Gtk.CustomSorter.new(_compare_tracks(sort_attr), None))
@@ -301,8 +302,8 @@ class LibraryView(Gtk.Box):
         # Wire sorter
         self._sort_model.set_sorter(self._column_view.get_sorter())
 
-        scroll.set_child(self._column_view)
-        self.append(scroll)
+        self._scroll.set_child(self._column_view)
+        self.append(self._scroll)
 
     def _bind_title(self, _factory: Gtk.SignalListItemFactory, item: Gtk.ListItem) -> None:
         """Bind title column."""

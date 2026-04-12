@@ -154,6 +154,7 @@ class PlaylistsView(Gtk.Box):
     def _build_toolbar(self) -> None:
         """Build the top ActionBar toolbar."""
         self._action_bar = Gtk.ActionBar()
+        self._action_bar.set_hexpand(False)
 
         # Left: Generate Playlists button (primary style)
         self._generate_btn = Gtk.Button(label="Generate Playlists")
@@ -164,6 +165,7 @@ class PlaylistsView(Gtk.Box):
         # Left: Playlist size controls box
         controls_box = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL, spacing=12)
         controls_box.set_margin_start(12)
+        controls_box.set_hexpand(False)
 
         # Size value SpinButton with label
         size_box = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL, spacing=6)
@@ -208,6 +210,7 @@ class PlaylistsView(Gtk.Box):
         # Center: Harmonic mixing control
         harmonic_box = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL, spacing=6)
         harmonic_box.set_margin_start(12)
+        harmonic_box.set_hexpand(False)
         harmonic_label = Gtk.Label(label="Harmonic mixing")
         harmonic_box.append(harmonic_label)
 
@@ -231,6 +234,7 @@ class PlaylistsView(Gtk.Box):
         # Center: Sort by control (TASK-12)
         sort_box = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL, spacing=6)
         sort_box.set_margin_start(12)
+        sort_box.set_hexpand(False)
         sort_label = Gtk.Label(label="Sort by:")
         sort_box.append(sort_label)
 
@@ -254,6 +258,7 @@ class PlaylistsView(Gtk.Box):
         # TASK-14: Timbre similarity scale
         timbre_box = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL, spacing=6)
         timbre_box.set_margin_start(12)
+        timbre_box.set_hexpand(False)
         timbre_label = Gtk.Label(label="Timbre similarity:")
         timbre_box.append(timbre_label)
 
@@ -274,6 +279,7 @@ class PlaylistsView(Gtk.Box):
         # TASK-16: Vocal filter chips
         vocal_box = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL, spacing=6)
         vocal_box.set_margin_start(12)
+        vocal_box.set_hexpand(False)
         vocal_label = Gtk.Label(label="Vocals:")
         vocal_box.append(vocal_label)
 
@@ -300,6 +306,7 @@ class PlaylistsView(Gtk.Box):
         # Issue #39: Energy flow dropdown
         energy_flow_box = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL, spacing=6)
         energy_flow_box.set_margin_start(12)
+        energy_flow_box.set_hexpand(False)
         energy_flow_label = Gtk.Label(label="Energy flow:")
         energy_flow_box.append(energy_flow_label)
 
