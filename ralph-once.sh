@@ -19,8 +19,8 @@ TODAY=$(date +%Y-%m-%d)
 
 # ── Helpers ───────────────────────────────────────────────────────────────────
 
-CODER_MODEL="opencode/nemotron-3-super-free"
-REVIEWER_MODEL="opencode/big-pickle"
+CODER_MODEL="opencode/big-pickle"
+REVIEWER_MODEL="opencode/kimi-k2.5"
 
 run_coder() {
   local agent="$1" prompt="$2"
