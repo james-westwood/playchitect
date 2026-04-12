@@ -77,6 +77,9 @@ class ClusterResult:
     opener: Path | None = field(default=None)
     closer: Path | None = field(default=None)
 
+    # Centroid in normalized feature space (for deduplication)
+    centroid: np.ndarray | None = field(default=None, repr=False)
+
 
 # Genre-aware clustering modes
 _CLUSTER_MODE_SINGLE = "single-genre"
@@ -173,7 +176,9 @@ class PlaylistClusterer:
         kmeans = KMeans(n_clusters=optimal_k, random_state=self.random_state, n_init=10)
         labels = kmeans.fit_predict(bpms_normalized)
 
-        results = self._build_cluster_results(tracks, labels, optimal_k, valid_tracks)
+        results = self._build_cluster_results(
+            tracks, labels, optimal_k, valid_tracks, cluster_centers=kmeans.cluster_centers_
+        )
         results.sort(key=lambda r: r.bpm_mean)
 
         for r in results:
@@ -420,7 +425,9 @@ class PlaylistClusterer:
             raw_features=features,
             per_cluster_importance=per_cluster_importance,
             weight_source=weight_source,
+            cluster_centers=kmeans.cluster_centers_,
         )
+        results = self._deduplicate_clusters(results, features_for_kmeans, valid_paths)
         results.sort(key=lambda r: r.bpm_mean)
 
         # Propagate PCA variance to all cluster results when embeddings were used
@@ -555,6 +562,7 @@ class PlaylistClusterer:
         per_cluster_importance: list[dict[str, float]] | None = None,
         feature_importance: dict[str, float] | None = None,
         weight_source: str | None = None,
+        cluster_centers: np.ndarray | None = None,
     ) -> list[ClusterResult]:
         """Build ClusterResult list from K-means labels."""
         results = []
@@ -606,6 +614,11 @@ class PlaylistClusterer:
                 if mood_counts:
                     dominant_mood = max(mood_counts, key=mood_counts.get)  # type: ignore
 
+            # Determine centroid for deduplication (use first D dimensions from kmeans center)
+            centroid: np.ndarray | None = None
+            if cluster_centers is not None and cid < len(cluster_centers):
+                centroid = cluster_centers[cid, :]
+
             results.append(
                 ClusterResult(
                     cluster_id=cid,
@@ -618,6 +631,7 @@ class PlaylistClusterer:
                     feature_importance=f_importance,
                     weight_source=weight_source,
                     mood=dominant_mood,
+                    centroid=centroid,
                 )
             )
 
@@ -746,6 +760,82 @@ class PlaylistClusterer:
                 total_duration=float(sum(durations)),
             )
         ]
+
+    def _deduplicate_clusters(
+        self,
+        results: list[ClusterResult],
+        features: np.ndarray,
+        track_order: list[Path],
+    ) -> list[ClusterResult]:
+        """
+        Remove duplicate tracks from clusters.
+
+        For each track that appears in multiple clusters, keep it only in the
+        cluster whose centroid it is closest to.
+
+        Args:
+            results: List of ClusterResult objects
+            features: Normalized feature matrix (N, D) for all tracks, indexed by track_order
+            track_order: Order of tracks that corresponds to features rows
+
+        Returns:
+            Deduped ClusterResult list
+        """
+        if not results:
+            return results
+
+        # Build track -> feature index map
+        track_to_idx: dict[Path, int] = {t: i for i, t in enumerate(track_order)}
+
+        # Build cluster_id -> centroid map
+        cluster_centroids: dict[int | str, np.ndarray] = {}
+        for r in results:
+            if r.centroid is not None:
+                cluster_centroids[r.cluster_id] = r.centroid
+
+        if not cluster_centroids:
+            return results
+
+        # Determine which cluster each track belongs to (closest centroid)
+        track_to_cluster: dict[Path, int | str] = {}
+        for track, idx in track_to_idx.items():
+            if idx >= len(features):
+                continue
+            track_vec = features[idx]
+            min_dist = float("inf")
+            best_cluster: int | str = 0
+            for cluster_id, centroid in cluster_centroids.items():
+                dist = float(np.linalg.norm(track_vec - centroid))
+                if dist < min_dist:
+                    min_dist = dist
+                    best_cluster = cluster_id
+            track_to_cluster[track] = best_cluster
+
+        # Rebuild cluster results with only closest-cluster tracks
+        deduped: list[ClusterResult] = []
+        for r in results:
+            kept_tracks = [t for t in r.tracks if track_to_cluster.get(t) == r.cluster_id]
+            deduped.append(
+                ClusterResult(
+                    cluster_id=r.cluster_id,
+                    tracks=kept_tracks,
+                    bpm_mean=r.bpm_mean,
+                    bpm_std=r.bpm_std,
+                    track_count=len(kept_tracks),
+                    total_duration=r.total_duration,
+                    feature_means=r.feature_means,
+                    feature_importance=r.feature_importance,
+                    weight_source=r.weight_source,
+                    embedding_variance_explained=r.embedding_variance_explained,
+                    genre=r.genre,
+                    mood=r.mood,
+                    opener=r.opener,
+                    closer=r.closer,
+                    centroid=r.centroid,
+                )
+            )
+
+        return deduped
 
     def split_cluster(self, cluster: ClusterResult, target_size: int) -> list[ClusterResult]:
         """
