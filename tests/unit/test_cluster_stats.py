@@ -330,7 +330,7 @@ class TestClusterLabel:
             hardness_mean=0.5,
             total_duration=3600.0,
         )
-        assert stats.cluster_label == "Cluster 2"
+        assert stats.cluster_label == "Playlist 2"
 
     def test_string_id(self):
         stats = ClusterStats(
@@ -343,7 +343,7 @@ class TestClusterLabel:
             hardness_mean=0.3,
             total_duration=1800.0,
         )
-        assert stats.cluster_label == "Cluster 1a"
+        assert stats.cluster_label == "Playlist 1a"
 
 
 # ── TestTopFeatures ───────────────────────────────────────────────────────────
@@ -552,7 +552,7 @@ class TestStr:
             total_duration=5400.0,
         )
         result = str(stats)
-        assert "Cluster 3" in result
+        assert "Playlist 3" in result
         assert "120–128 BPM" in result
         assert "15 tracks" in result
         assert "1h 30m" in result

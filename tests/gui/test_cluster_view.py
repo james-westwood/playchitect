@@ -172,7 +172,7 @@ class TestClusterViewPanelLoadClusters:
         panel = _make_panel()
         panel.load_clusters([])
 
-        panel._header_label.set_text.assert_called_with("Clusters")
+        panel._header_label.set_text.assert_called_with("Playlists")
 
     def test_load_multiple_hides_placeholder(self):
         panel = _make_panel()
@@ -185,13 +185,13 @@ class TestClusterViewPanelLoadClusters:
         panel = _make_panel()
         with patch.object(panel, "_add_card"):
             panel.load_clusters([_make_stats(1)])
-        panel._header_label.set_text.assert_called_with("1 cluster")
+        panel._header_label.set_text.assert_called_with("1 playlist")
 
     def test_load_plural_header(self):
         panel = _make_panel()
         with patch.object(panel, "_add_card"):
             panel.load_clusters([_make_stats(1), _make_stats(2), _make_stats(3)])
-        panel._header_label.set_text.assert_called_with("3 clusters")
+        panel._header_label.set_text.assert_called_with("3 playlists")
 
     def test_existing_cards_cleared_before_load(self):
         panel = _make_panel()
