@@ -38,6 +38,9 @@ from gi.repository import (  # type: ignore[unresolved-import]  # noqa: E402
 from playchitect.core.clustering import ClusterResult, PlaylistClusterer  # noqa: E402
 from playchitect.core.intensity_analyzer import IntensityAnalyzer  # noqa: E402
 from playchitect.core.metadata_extractor import TrackMetadata  # noqa: E402
+from playchitect.core.playlist_builder import (  # noqa: E402
+    build_duration_constrained_playlists,
+)
 from playchitect.core.sequencer import sequence_by_strategy, sequence_harmonic  # noqa: E402, F401
 from playchitect.gui.widgets.cluster_stats import ClusterStats  # noqa: E402
 from playchitect.gui.widgets.energy_arc_widget import EnergyArcWidget  # noqa: E402
@@ -86,6 +89,13 @@ class ClusterRowWidget(Gtk.ListBoxRow):
         count_badge.add_css_class("caption")
         count_badge.add_css_class("dim-label")
         box.append(count_badge)
+
+        # Duration badge
+        self._duration_badge = Gtk.Label(label=self._stats.duration_str)
+        self._duration_badge.add_css_class("caption")
+        self._duration_badge.add_css_class("dim-label")
+        self._duration_badge.set_tooltip_text("Actual duration after trimming")
+        box.append(self._duration_badge)
 
         # Spacer
         spacer = Gtk.Box()
@@ -626,6 +636,28 @@ class PlaylistsView(Gtk.Box):
                 filtered_intensity,
                 n_playlists=n_playlists,
             )
+
+            # Apply duration constraint if in tracks mode (trim to target duration)
+            if unit_selected == 0 and self._clusters:
+                target_duration_per_playlist: float = float(size_value)
+                if n_playlists and n_playlists > 0:
+                    target_duration_per_playlist = target_duration_per_playlist / n_playlists
+
+                if target_duration_per_playlist > 0:
+                    try:
+                        self._clusters = build_duration_constrained_playlists(
+                            self._clusters,
+                            target_duration_per_playlist,
+                            tolerance=0.1,
+                            metadata_dict=filtered_metadata,
+                            features_dict=filtered_intensity,
+                        )
+                        logger.debug(
+                            "Applied duration constraint: %.1f min per playlist",
+                            target_duration_per_playlist,
+                        )
+                    except ValueError as e:
+                        logger.warning("Duration constraint skipped: %s", e)
 
             # Convert to stats
             self._cluster_stats = ClusterStats.from_results(self._clusters)
