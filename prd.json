@@ -531,8 +531,7 @@
         "playchitect/gui/widgets/cluster_view.py",
         "playchitect/gui/widgets/cluster_stats.py"
       ],
-      "note": "",
-      "blocked": true
+      "note": ""
     },
     {
       "id": "GUI-01b",
@@ -548,8 +547,7 @@
         "playchitect/gui/views/playlists_view.py",
         "playchitect/gui/widgets/cluster_stats.py"
       ],
-      "note": "",
-      "blocked": true
+      "note": ""
     },
     {
       "id": "FEAT-01a",
@@ -558,7 +556,7 @@
       "owner": "ralph",
       "description": "Implement a new function `build_duration_constrained_playlists(clusters: list[ClusterResult], target_duration_mins: float, tolerance: float = 0.1) -> list[ClusterResult]` in playchitect/core/clustering.py (or a new playchitect/core/playlist_builder.py). The function: (1) For each cluster, ranks its tracks by distance to the cluster centroid (closest first) using the feature vectors already computed. (2) Adds tracks in that order until the cumulative duration reaches target_duration_mins * (1 + tolerance). (3) Any track that doesn't fit its primary cluster is tried against the next-closest cluster's centroid; if it fits there within tolerance, it is added. (4) Returns a new list of ClusterResult objects with trimmed track lists. The target_duration_mins per playlist = user's total set duration / number of playlists.",
       "acceptance_criteria": "tests/unit/test_playlist_builder.py (or test_clustering.py): add tests asserting that with a 90-min target the output playlist durations are all between 80 and 100 minutes. Function handles edge cases: fewer tracks than needed (returns all available), zero-duration tracks (skipped). uv run pytest tests/ -v passes.",
-      "completed": false,
+      "completed": true,
       "priority": 1,
       "files": [
         "playchitect/core/clustering.py",
@@ -595,8 +593,7 @@
         "playchitect/gui/windows/main_window.py",
         "playchitect/gui/views/playlists_view.py",
         "playchitect/gui/views/library_view.py"
-      ],
-      "blocked": true
+      ]
     },
     {
       "id": "GUI-03",
@@ -611,8 +608,7 @@
       "files": [
         "playchitect/gui/windows/main_window.py",
         "playchitect/gui/preferences_window.py"
-      ],
-      "blocked": true
+      ]
     },
     {
       "id": "GUI-04",
@@ -626,8 +622,7 @@
       "note": "",
       "files": [
         "playchitect/gui/views/playlists_view.py"
-      ],
-      "blocked": true
+      ]
     },
     {
       "id": "GUI-05",
@@ -645,8 +640,7 @@
         "playchitect/gui/views/library_view.py",
         "playchitect/gui/views/export_view.py",
         "playchitect/gui/views/set_builder_view.py"
-      ],
-      "blocked": true
+      ]
     },
     {
       "id": "GUI-06",
@@ -660,8 +654,7 @@
       "note": "",
       "files": [
         "playchitect/gui/views/playlists_view.py"
-      ],
-      "blocked": true
+      ]
     },
     {
       "id": "FEAT-02",
