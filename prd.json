@@ -531,7 +531,8 @@
         "playchitect/gui/widgets/cluster_view.py",
         "playchitect/gui/widgets/cluster_stats.py"
       ],
-      "note": ""
+      "note": "",
+      "blocked": true
     },
     {
       "id": "GUI-01b",
@@ -547,7 +548,8 @@
         "playchitect/gui/views/playlists_view.py",
         "playchitect/gui/widgets/cluster_stats.py"
       ],
-      "note": ""
+      "note": "",
+      "blocked": true
     },
     {
       "id": "FEAT-01a",
@@ -593,7 +595,8 @@
         "playchitect/gui/windows/main_window.py",
         "playchitect/gui/views/playlists_view.py",
         "playchitect/gui/views/library_view.py"
-      ]
+      ],
+      "blocked": true
     },
     {
       "id": "GUI-03",
@@ -608,7 +611,8 @@
       "files": [
         "playchitect/gui/windows/main_window.py",
         "playchitect/gui/preferences_window.py"
-      ]
+      ],
+      "blocked": true
     },
     {
       "id": "GUI-04",
@@ -622,7 +626,8 @@
       "note": "",
       "files": [
         "playchitect/gui/views/playlists_view.py"
-      ]
+      ],
+      "blocked": true
     },
     {
       "id": "GUI-05",
@@ -640,7 +645,8 @@
         "playchitect/gui/views/library_view.py",
         "playchitect/gui/views/export_view.py",
         "playchitect/gui/views/set_builder_view.py"
-      ]
+      ],
+      "blocked": true
     },
     {
       "id": "GUI-06",
@@ -654,7 +660,8 @@
       "note": "",
       "files": [
         "playchitect/gui/views/playlists_view.py"
-      ]
+      ],
+      "blocked": true
     },
     {
       "id": "FEAT-02",
