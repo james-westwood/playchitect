@@ -24,6 +24,7 @@ from gi.repository import (  # type: ignore[unresolved-import]  # noqa: E402
 
 from playchitect.core.audio_scanner import AudioScanner  # noqa: E402
 from playchitect.core.metadata_extractor import MetadataExtractor  # noqa: E402
+from playchitect.core.track_previewer import TrackPreviewer  # noqa: E402
 from playchitect.core.vibe_tags import VibeTagStore  # noqa: E402
 
 logger = logging.getLogger(__name__)
@@ -143,6 +144,7 @@ class LibraryView(Gtk.Box):
         self._scan_thread: threading.Thread | None = None
         self._tag_store = VibeTagStore()
         self._selection_change_pending = False
+        self._previewer = TrackPreviewer()
 
         # Model chain: ListStore → FilterListModel → SortListModel → Selection
         self._store = Gio.ListStore(item_type=LibraryTrackModel)
@@ -200,6 +202,12 @@ class LibraryView(Gtk.Box):
         self._tag_filter_toggle.set_tooltip_text("Toggle Tag Filter")
         self._tag_filter_toggle.connect("toggled", self._on_tag_filter_toggled)
         toolbar.append(self._tag_filter_toggle)
+
+        # Preview availability status (Sushi chip - moved from header bar)
+        self._preview_chip = Gtk.Label()
+        self._preview_chip.add_css_class("caption")
+        self._update_preview_chip()
+        toolbar.append(self._preview_chip)
 
         # SearchBar (hidden by default)
         self._search_bar = Gtk.SearchBar()
@@ -378,6 +386,19 @@ class LibraryView(Gtk.Box):
         """Update footer label with track count."""
         count = self._filter_model.get_n_items()
         self._footer_label.set_text(f"{count} tracks")
+
+    def _update_preview_chip(self) -> None:
+        """Set the preview chip text and style to reflect preview availability."""
+        launcher = self._previewer.launcher_name()
+        if launcher == "sushi":
+            self._preview_chip.set_text("Sushi ✓")
+            self._preview_chip.set_tooltip_text("Quick Look via GNOME Sushi (Space)")
+        elif launcher == "xdg-open":
+            self._preview_chip.set_text("Preview: xdg-open")
+            self._preview_chip.set_tooltip_text("Quick Look via xdg-open (Space)")
+        else:
+            self._preview_chip.set_text("No preview")
+            self._preview_chip.set_tooltip_text("Install GNOME Sushi for Quick Look support")
 
     # ── Event Handlers ─────────────────────────────────────────────────────────
 
