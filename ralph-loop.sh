@@ -76,6 +76,14 @@ die() {
 # Gemini model to use — gemini-2.5-pro has a generous free tier and stable capacity
 GEMINI_MODEL="gemini-2.5-pro"
 
+# Strip ANSI escape codes and opencode internal tool-call lines from reviewer output
+# so that GitHub PR comments contain only the review text, not raw terminal noise.
+clean_review_output() {
+  sed 's/\x1b\[[0-9;?]*[a-zA-Z]//g' \
+  | grep -v -E '^\s*(> build|[✱←→✗◇◈✓]|\$) ' \
+  | sed '/^[[:space:]]*$/N;/^\n[[:space:]]*$/d'
+}
+
 # Coding agent — needs full file-system tool access
 # Each agent falls back to Claude on failure (rate limits, no capacity, etc.)
 run_coder() {
@@ -332,7 +340,7 @@ Be constructive and specific. End your review with exactly one of:
 Output only the review text. It will be posted as a GitHub PR comment."
 
         log "  Running reviewer ($REVIEWER)..."
-        REVIEW_TEXT=$(run_reviewer "$REVIEWER" "$REVIEW_PROMPT" 2>&1 | tee -a "$LOG_FILE")
+        REVIEW_TEXT=$(run_reviewer "$REVIEWER" "$REVIEW_PROMPT" 2>&1 | tee -a "$LOG_FILE" | clean_review_output)
         log "  Posting review comment..."
         gh pr comment "$PR_NUMBER" --body "$(cat <<EOF
 ## Code Review by \`$REVIEWER\`
@@ -553,7 +561,7 @@ Be constructive and specific. End your review with exactly one of:
 Output only the review text. It will be posted as a GitHub PR comment."
 
       log "  Running reviewer ($REVIEWER)..."
-      REVIEW_TEXT=$(run_reviewer "$REVIEWER" "$REVIEW_PROMPT" 2>&1 | tee -a "$LOG_FILE")
+      REVIEW_TEXT=$(run_reviewer "$REVIEWER" "$REVIEW_PROMPT" 2>&1 | tee -a "$LOG_FILE" | clean_review_output)
 
       log "  Posting review comment..."
       gh pr comment "$PR_NUMBER" --body "$(cat <<EOF
