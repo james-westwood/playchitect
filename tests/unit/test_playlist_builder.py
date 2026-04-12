@@ -114,11 +114,9 @@ class TestBuildDurationConstrainedPlaylists:
 
         all_durations = [c.total_duration / 60.0 for c in non_empty]
 
-        at_least_one_above_80 = any(d >= 80 for d in all_durations)
-        none_above_100 = all(d <= 100 for d in all_durations)
+        all_between_80_and_100 = all(80 <= d <= 100 for d in all_durations)
 
-        assert at_least_one_above_80, f"No playlist >= 80 mins: {all_durations}"
-        assert none_above_100, f"Playlist > 100 mins: {all_durations}"
+        assert all_between_80_and_100, f"Not all playlists between 80-100 mins: {all_durations}"
 
     def test_fewer_tracks_than_needed(self) -> None:
         """Test returns all available when fewer tracks than needed."""
