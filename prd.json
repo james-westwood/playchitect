@@ -522,7 +522,7 @@
       "owner": "ralph",
       "description": "Rename all user-facing occurrences of 'Cluster'/'cluster' to 'Playlist'/'playlist' in the GUI view and widget files only. This does NOT require renaming internal Python class names like ClusterResult \u2014 only strings visible to the user: labels, button text, toast notifications, dropdown options, log messages shown in the UI. Files in scope: playlists_view.py, export_view.py, set_builder_view.py, cluster_view.py, cluster_stats.py. Do NOT touch main_window.py or numbering in this task (covered by GUI-01b).",
       "acceptance_criteria": "No user-visible string in playlists_view.py, export_view.py, set_builder_view.py, cluster_view.py, or cluster_stats.py contains the word 'Cluster' or 'cluster'. uv run pytest tests/ -v passes.",
-      "completed": false,
+      "completed": true,
       "priority": 1,
       "files": [
         "playchitect/gui/views/playlists_view.py",
