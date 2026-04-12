@@ -462,7 +462,7 @@
       "acceptance_criteria": "Tracks with known keys (verifiable via a reference tool) display the correct key notation. Tracks with no detectable key display '\u2014' not a hardcoded fallback. uv run pytest tests/ -v passes.",
       "completed": false,
       "priority": 1,
-      "note": "",
+      "note": "GitHub issue #193",
       "files": [
         "playchitect/core/metadata_extractor.py",
         "playchitect/gui/views/playlists_view.py"

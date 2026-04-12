@@ -19,8 +19,8 @@ TODAY=$(date +%Y-%m-%d)
 
 # ── Helpers ───────────────────────────────────────────────────────────────────
 
-CODER_MODEL="opencode/kimi-k2.5"
-REVIEWER_MODEL="opencode/glm-5.1"
+CODER_MODEL="opencode/big-pickle"
+REVIEWER_MODEL="opencode/kimi-k2.5"
 
 run_coder() {
   local agent="$1" prompt="$2"
@@ -148,9 +148,9 @@ fi
 
 BRANCH="ralph/task-${TASK_ID}-${TASK_TITLE}"
 
-# Fixed assignment — kimi codes, GLM reviews
-CODER="kimi-k2.5"
-REVIEWER="glm-5.1"
+# Derive display names from model IDs (strip opencode/ prefix)
+CODER="${CODER_MODEL#opencode/}"
+REVIEWER="${REVIEWER_MODEL#opencode/}"
 
 echo ""
 echo "  Task:     [$TASK_ID] $TASK_TITLE"
