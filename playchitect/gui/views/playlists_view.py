@@ -637,11 +637,9 @@ class PlaylistsView(Gtk.Box):
                 n_playlists=n_playlists,
             )
 
-            # Apply duration constraint if in tracks mode (trim to target duration)
-            if unit_selected == 0 and self._clusters:
+            # Apply duration constraint in minutes mode (trim each playlist to target duration)
+            if unit_selected == 1 and self._clusters:
                 target_duration_per_playlist: float = float(size_value)
-                if n_playlists and n_playlists > 0:
-                    target_duration_per_playlist = target_duration_per_playlist / n_playlists
 
                 if target_duration_per_playlist > 0:
                     try:
