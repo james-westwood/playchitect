@@ -129,9 +129,9 @@ class TestIntensityFeatures:
 
         features = IntensityFeatures.from_dict(data)
 
-        # Should default to 8B (C major)
-        assert features.camelot_key == "8B"
-        assert features.key_index == 0.0
+        # Should default to None (key not detectable from old cache)
+        assert features.camelot_key is None
+        assert features.key_index is None
 
     def test_from_dict_energy_flow_backward_compat(self) -> None:
         """Test creating from old dictionary without energy flow fields."""
@@ -307,7 +307,11 @@ class TestKeyDetection:
         sample_rate = 22050
         duration = 1.0
         t = np.linspace(0, duration, int(sample_rate * duration))
-        audio = np.sin(2 * np.pi * 440 * t).astype(np.float32) * 0.5
+        # C major chord: C4 + E4 + G4 (all harmonics align with C major)
+        c4 = np.sin(2 * np.pi * 261.63 * t)
+        e4 = np.sin(2 * np.pi * 329.63 * t)
+        g4 = np.sin(2 * np.pi * 392.0 * t)
+        audio = (c4 + e4 + g4).astype(np.float32) * 0.3
 
         test_file = tmp_path / "test_key.wav"
         sf.write(test_file, audio, sample_rate)
@@ -319,7 +323,8 @@ class TestKeyDetection:
         # First analysis - should create cache with key info
         features1 = analyzer.analyze(test_file)
         assert hasattr(features1, "camelot_key")
-        assert features1.camelot_key in [
+        # Key detection may return None for weak chroma; both None and valid key are valid
+        assert features1.camelot_key is None or features1.camelot_key in [
             "1B",
             "2B",
             "3B",
@@ -354,6 +359,80 @@ class TestKeyDetection:
             number = int(camelot_key[:-1])
             assert 1 <= number <= 12
             assert key_index == float(i)
+
+    def test_flat_chroma_returns_none(self) -> None:
+        """Chroma with all equal bins (flat/noise) should return None."""
+        from unittest.mock import patch
+
+        import numpy as np
+
+        synthetic_chroma = np.ones((12, 100)) * 0.1
+
+        with patch(
+            "playchitect.core.intensity_analyzer.librosa.feature.chroma_cqt",
+            return_value=synthetic_chroma,
+        ):
+            analyzer = IntensityAnalyzer(sample_rate=22050, cache_enabled=False)
+            camelot_key, key_index = analyzer._calculate_key(np.zeros(1000), 22050)
+
+        assert camelot_key is None
+        assert key_index is None
+
+    def test_low_contrast_chroma_returns_none(self) -> None:
+        """Chroma where dominant bin is not significantly above mean returns None."""
+        from unittest.mock import patch
+
+        import numpy as np
+
+        synthetic_chroma = np.ones((12, 100)) * 0.1
+        synthetic_chroma[0, :] = 0.12
+
+        with patch(
+            "playchitect.core.intensity_analyzer.librosa.feature.chroma_cqt",
+            return_value=synthetic_chroma,
+        ):
+            analyzer = IntensityAnalyzer(sample_rate=22050, cache_enabled=False)
+            camelot_key, key_index = analyzer._calculate_key(np.zeros(1000), 22050)
+
+        assert camelot_key is None
+        assert key_index is None
+
+    def test_valid_chroma_with_high_contrast_returns_key(self) -> None:
+        """Chroma with clear dominant bin returns correct Camelot key."""
+        from unittest.mock import patch
+
+        import numpy as np
+
+        synthetic_chroma = np.ones((12, 100)) * 0.05
+        synthetic_chroma[7, :] = 0.5
+
+        with patch(
+            "playchitect.core.intensity_analyzer.librosa.feature.chroma_cqt",
+            return_value=synthetic_chroma,
+        ):
+            analyzer = IntensityAnalyzer(sample_rate=22050, cache_enabled=False)
+            camelot_key, key_index = analyzer._calculate_key(np.zeros(1000), 22050)
+
+        assert camelot_key == "9B"
+        assert key_index == 7.0
+
+    def test_analyze_flat_audio_returns_none_key(self, tmp_path: Path) -> None:
+        """analyze() on flat/empty audio returns None for key fields."""
+        import soundfile as sf
+
+        sample_rate = 22050
+        duration = 0.5
+        t = np.linspace(0, duration, int(sample_rate * duration))
+        audio = (np.random.randn(len(t)) * 0.001).astype(np.float32)
+
+        test_file = tmp_path / "flat.wav"
+        sf.write(test_file, audio, sample_rate)
+
+        analyzer = IntensityAnalyzer(sample_rate=sample_rate, cache_enabled=False)
+        features = analyzer.analyze(test_file)
+
+        assert features.camelot_key is None
+        assert features.key_index is None
 
 
 class TestIntensityAnalyzer:
