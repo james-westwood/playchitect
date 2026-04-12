@@ -103,7 +103,7 @@ class ClusterCard(Gtk.Frame):
         rename_btn = Gtk.Button()
         rename_btn.set_icon_name("document-edit-symbolic")
         rename_btn.add_css_class("flat")
-        rename_btn.set_tooltip_text("Rename cluster")
+        rename_btn.set_tooltip_text("Rename playlist")
         rename_btn.connect("clicked", self._on_rename_clicked)
 
         header.append(self._title_label)
@@ -288,7 +288,7 @@ class ClusterViewPanel(Gtk.Box):
         header.set_margin_top(6)
         header.set_margin_bottom(4)
 
-        self._header_label = Gtk.Label(label="Clusters")
+        self._header_label = Gtk.Label(label="Playlists")
         self._header_label.set_xalign(0.0)
         self._header_label.add_css_class("title-4")
         self._header_label.set_hexpand(True)
@@ -307,7 +307,7 @@ class ClusterViewPanel(Gtk.Box):
         self.append(scroll)
 
         # ── Empty state placeholder ───────────────────────────────────────────
-        self._placeholder = Gtk.Label(label="No clusters yet.\nRun analysis to group tracks.")
+        self._placeholder = Gtk.Label(label="No playlists yet.\nRun analysis to group tracks.")
         self._placeholder.set_justify(Gtk.Justification.CENTER)
         self._placeholder.add_css_class("dim-label")
         self._placeholder.set_vexpand(True)
@@ -325,7 +325,7 @@ class ClusterViewPanel(Gtk.Box):
 
         if not stats_list:
             self._placeholder.set_visible(True)
-            self._header_label.set_text("Clusters")
+            self._header_label.set_text("Playlists")
             return
 
         self._placeholder.set_visible(False)
@@ -334,7 +334,7 @@ class ClusterViewPanel(Gtk.Box):
         for stats in stats_list:
             self._add_card(stats, global_min, global_max)
 
-        noun = "cluster" if len(stats_list) == 1 else "clusters"
+        noun = "playlist" if len(stats_list) == 1 else "playlists"
         self._header_label.set_text(f"{len(stats_list)} {noun}")
 
     def update_cluster(self, stats: ClusterStats) -> None:

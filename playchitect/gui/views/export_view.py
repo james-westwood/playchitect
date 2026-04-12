@@ -56,7 +56,7 @@ class ExportView(Gtk.Box):
 
     Features:
     - Format selection (M3U, CUE, and future DJ software formats)
-    - Playlist/cluster selection (all or selected only)
+    - Playlist selection (all or selected only)
     - Destination directory selection with persistence
     - Export action with background threading
     - Export status display
@@ -170,7 +170,7 @@ class ExportView(Gtk.Box):
 
         playlists_box.append(radio_box)
 
-        # Cluster dropdown (insensitive unless 'Selected only' is active)
+        # Playlist dropdown (insensitive unless 'Selected only' is active)
         dropdown_box = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL, spacing=8)
         dropdown_box.set_margin_start(8)
         dropdown_box.set_margin_top(4)
@@ -235,7 +235,7 @@ class ExportView(Gtk.Box):
         # Sync with Mixxx button (enabled - requires config)
         self._sync_button = Gtk.Button(label="↺ Sync with Mixxx")
         self._sync_button.set_sensitive(True)
-        self._sync_button.set_tooltip_text("Sync clusters as crates to Mixxx database")
+        self._sync_button.set_tooltip_text("Sync playlists as crates to Mixxx database")
         self._sync_button.connect("clicked", self._on_sync_mixxx_clicked)
         action_box.append(self._sync_button)
 

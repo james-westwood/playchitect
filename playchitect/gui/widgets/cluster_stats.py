@@ -25,7 +25,7 @@ _BAR_WIDTH: int = 10
 
 @dataclass(frozen=True)
 class ClusterStats:
-    """Computed display values for a single cluster.
+    """Computed display values for a single playlist.
 
     All string properties are ready to embed directly into UI labels.
     """
@@ -101,7 +101,7 @@ class ClusterStats:
 
     @property
     def intensity_label(self) -> str:
-        """Categorical label for the cluster's intensity level."""
+        """Categorical label for the playlist's intensity level."""
         if self.intensity_mean >= _VERY_HIGH_THRESHOLD:
             return "Very High"
         if self.intensity_mean >= _HIGH_THRESHOLD:
@@ -153,13 +153,13 @@ class ClusterStats:
 
     @property
     def cluster_label(self) -> str:
-        """Short display label, e.g. ``'Cluster 1'`` or ``'1a'`` for split clusters."""
-        return f"Cluster {self.cluster_id}"
+        """Short display label, e.g. ``'Playlist 1'`` or ``'1a'`` for split playlists."""
+        return f"Playlist {self.cluster_id}"
 
     def bpm_range_fraction(self, global_min: float, global_max: float) -> float:
-        """Position of this cluster's mean BPM within the global BPM range [0, 1].
+        """Position of this playlist's mean BPM within the global BPM range [0, 1].
 
-        Used for rendering a relative position indicator across all cluster cards.
+        Used for rendering a relative position indicator across all playlist cards.
         Returns 0.0 if ``global_min == global_max``.
         """
         span = global_max - global_min
@@ -178,7 +178,7 @@ class ClusterStats:
 
     @staticmethod
     def global_bpm_range(stats: list[ClusterStats]) -> tuple[float, float]:
-        """Return ``(global_min_bpm, global_max_bpm)`` across all cluster stats.
+        """Return ``(global_min_bpm, global_max_bpm)`` across all playlist stats.
 
         Useful for normalising BPM bars so all cards share the same scale.
         Returns ``(0.0, 200.0)`` when the list is empty.
