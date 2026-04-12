@@ -2,6 +2,8 @@
 
 from pathlib import Path
 
+import pytest
+
 from playchitect.core.intensity_analyzer import IntensityFeatures
 from playchitect.core.mood_classifier import classify_mood
 
@@ -234,3 +236,107 @@ class TestMoodClassifier:
         for expected_mood, features in test_cases:
             actual_mood = classify_mood(features)
             assert actual_mood == expected_mood, f"Expected {expected_mood}, got {actual_mood}"
+
+
+class TestElectronicMusicMoodClassification:
+    """Tests for electronic music mood classification (techno/house/dnb).
+
+    These tests verify the fix for BUG-06 where electronic/techno tracks
+    were incorrectly classified as 'Ethereal' due to miscalibrated thresholds.
+    """
+
+    @pytest.mark.parametrize(
+        "rms_energy,brightness,percussiveness,onset_strength,expected_mood",
+        [
+            pytest.param(
+                0.15,
+                0.6,
+                0.6,
+                0.4,
+                "Energetic",
+                id="techno-high-energy",
+            ),
+            pytest.param(
+                0.12,
+                0.55,
+                0.51,
+                0.3,
+                "Energetic",
+                id="house-typical",
+            ),
+            pytest.param(
+                0.4,
+                0.7,
+                0.8,
+                0.7,
+                "Aggressive",
+                id="dnb-aggressive",
+            ),
+            pytest.param(
+                0.2,
+                0.65,
+                0.55,
+                0.35,
+                "Energetic",
+                id="techno-bright",
+            ),
+            pytest.param(
+                0.18,
+                0.7,
+                0.52,
+                0.3,
+                "Energetic",
+                id="house-bright",
+            ),
+        ],
+    )
+    def test_electronic_music_not_ethereal(
+        self,
+        rms_energy: float,
+        brightness: float,
+        percussiveness: float,
+        onset_strength: float,
+        expected_mood: str,
+    ) -> None:
+        """High RMS + high percussiveness + high brightness should NOT be Ethereal."""
+        features = IntensityFeatures(
+            file_path=Path("test.mp3"),
+            file_hash="abc123",
+            rms_energy=rms_energy,
+            brightness=brightness,
+            sub_bass_energy=0.3,
+            kick_energy=0.4,
+            bass_harmonics=0.3,
+            percussiveness=percussiveness,
+            onset_strength=onset_strength,
+            camelot_key="8B",
+            key_index=0.0,
+            dynamic_range=0.4,
+            vocal_presence=0.1,
+        )
+        mood = classify_mood(features)
+        assert mood != "Ethereal", (
+            f"Electronic music with rms={rms_energy}, brightness={brightness}, "
+            f"percussiveness={percussiveness} should not be Ethereal"
+        )
+        assert mood == expected_mood, f"Expected {expected_mood}, got {mood}"
+
+    def test_acceptance_criteria_high_rms_percussive_bright_not_ethereal(
+        self,
+    ) -> None:
+        """Acceptance criteria: high RMS (>0.1) + high percussiveness (>0.5) + high brightness."""
+        features = IntensityFeatures(
+            file_path=Path("test.mp3"),
+            file_hash="abc123",
+            rms_energy=0.15,
+            brightness=0.6,
+            sub_bass_energy=0.3,
+            kick_energy=0.4,
+            bass_harmonics=0.3,
+            percussiveness=0.6,
+            onset_strength=0.4,
+            camelot_key="8B",
+            key_index=0.0,
+        )
+        mood = classify_mood(features)
+        assert mood in ("Energetic", "Aggressive"), f"Expected Energetic or Aggressive, got {mood}"
