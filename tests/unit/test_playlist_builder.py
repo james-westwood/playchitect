@@ -31,7 +31,7 @@ def make_intensity(
     """Create IntensityFeatures for testing."""
     return IntensityFeatures(
         file_path=Path(name),
-        file_hash="deadbeef",
+        file_hash="deadbeef",  # pragma: allowlist secret
         rms_energy=rms,
         brightness=brightness,
         sub_bass_energy=sub_bass,
