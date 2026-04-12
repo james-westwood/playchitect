@@ -20,7 +20,9 @@
 #   ./ralph-loop.sh --claude-only               # Claude codes and reviews (no Gemini/opencode)
 #   ./ralph-loop.sh --gemini-only               # Gemini codes and reviews (no Claude/opencode)
 #   ./ralph-loop.sh --opencode-only             # opencode codes and reviews (no Claude/Gemini)
-#   ./ralph-loop.sh --opencode-model google/gemini-2.0-flash  # override opencode model
+#   ./ralph-loop.sh --opencode-model google/gemini-2.0-flash        # override both opencode models
+#   ./ralph-loop.sh --opencode-coder-model opencode/big-pickle       # override coder only
+#   ./ralph-loop.sh --opencode-reviewer-model opencode/kimi-k2.5     # override reviewer only
 #   ./ralph-loop.sh --claude-only --skip-review # Claude only, no review step
 #   ./ralph-loop.sh --resume                    # resume stale branch if one exists for current task
 #
@@ -39,7 +41,8 @@ MAX_ITERATIONS=10
 SKIP_REVIEW=false
 MODEL_MODE="random"  # random | claude | gemini | opencode
 RESUME=false
-OPENCODE_MODEL="opencode/kimi-k2.5"  # override with --opencode-model
+OPENCODE_CODER_MODEL="opencode/big-pickle"    # override with --opencode-coder-model
+OPENCODE_REVIEWER_MODEL="opencode/kimi-k2.5"  # override with --opencode-reviewer-model
 
 while [[ $# -gt 0 ]]; do
   case "$1" in
@@ -48,7 +51,9 @@ while [[ $# -gt 0 ]]; do
     --claude-only)    MODEL_MODE="claude"; shift ;;
     --gemini-only)    MODEL_MODE="gemini"; shift ;;
     --opencode-only)  MODEL_MODE="opencode"; shift ;;
-    --opencode-model) OPENCODE_MODEL="$2"; shift 2 ;;
+    --opencode-model)          OPENCODE_CODER_MODEL="$2"; OPENCODE_REVIEWER_MODEL="$2"; shift 2 ;;
+    --opencode-coder-model)    OPENCODE_CODER_MODEL="$2"; shift 2 ;;
+    --opencode-reviewer-model) OPENCODE_REVIEWER_MODEL="$2"; shift 2 ;;
     --resume)         RESUME=true; shift ;;
     *) echo "Unknown flag: $1" >&2; exit 1 ;;
   esac
@@ -90,8 +95,8 @@ run_coder() {
       env -u CLAUDECODE claude --dangerously-skip-permissions --print "$prompt"
     fi
   else
-    # opencode — tools are auto-approved in run mode, no extra flags needed
-    if opencode run --model "$OPENCODE_MODEL" "$prompt"; then
+    # opencode — --dangerously-skip-permissions required for unattended file writes
+    if opencode run -m "$OPENCODE_CODER_MODEL" --dangerously-skip-permissions "$prompt"; then
       return 0
     else
       log "  opencode coder failed — falling back to Claude"
@@ -119,8 +124,8 @@ run_reviewer() {
       env -u CLAUDECODE claude --print "$prompt"
     fi
   else
-    # opencode — auto-approved tools; model only needs to analyse the diff text
-    if opencode run --model "$OPENCODE_MODEL" "$prompt"; then
+    # opencode reviewer — reads diff text only, no file writes needed
+    if opencode run -m "$OPENCODE_REVIEWER_MODEL" "$prompt"; then
       return 0
     else
       log "  opencode reviewer failed — falling back to Claude"
@@ -184,7 +189,7 @@ REVIEW_MODE_LABEL=$( [[ "$SKIP_REVIEW" == "true" ]] && echo "auto-merge (no revi
 MODEL_LABEL=$( case "$MODEL_MODE" in
   claude)   echo "Claude only" ;;
   gemini)   echo "Gemini only" ;;
-  opencode) echo "opencode ($OPENCODE_MODEL)" ;;
+  opencode) echo "opencode (coder=$OPENCODE_CODER_MODEL reviewer=$OPENCODE_REVIEWER_MODEL)" ;;
   *)        echo "Claude ↔ Gemini ↔ opencode (random)" ;;
 esac )
 RESUME_LABEL=$( [[ "$RESUME" == "true" ]] && echo "yes (resume stale branches)" || echo "no (fresh branches only)" )
