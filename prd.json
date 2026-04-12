@@ -490,7 +490,7 @@
       "owner": "ralph",
       "description": "Multiple views overflow the screen width: Library view is too wide even with no tracks; Preview panel is too wide; Playlists view overflows due to the number of controls in the action bar. Also, columns in the Library ColumnView are not resizable (Gtk.ColumnViewColumn.set_resizable is not set to True). Fix: (1) Set max-width / hexpand=False constraints on panels and action bars. (2) Set resizable=True on all ColumnViewColumn instances in LibraryView. (3) Make the app window double-click-maximisable (check Adw.ApplicationWindow title bar settings). (4) Ensure the Playlists action bar controls wrap or collapse on narrow windows.",
       "acceptance_criteria": "App fits within a 1920x1080 display without horizontal scrollbars. Library columns are draggable to resize. Double-clicking the title bar maximises the window. uv run pytest tests/ -v passes.",
-      "completed": false,
+      "completed": true,
       "priority": 1,
       "note": "",
       "files": [
