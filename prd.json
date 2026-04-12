@@ -540,7 +540,7 @@
       "owner": "ralph",
       "description": "Complete the Cluster\u2192Playlist rename in main_window.py (any user-visible strings only, not class names). Also fix playlist numbering from 0-based to 1-based everywhere in the GUI: wherever a playlist index is displayed to the user (e.g. 'Playlist 0', 'Cluster 0'), change to display 'Playlist 1', 'Playlist 2' etc. (index + 1). This applies to playlists_view.py sidebar list, cluster_stats.py headers, and any toast/log messages.",
       "acceptance_criteria": "No user-visible string in main_window.py contains 'Cluster'/'cluster'. Playlists displayed to the user are numbered starting from 1, not 0. uv run pytest tests/ -v passes.",
-      "completed": false,
+      "completed": true,
       "priority": 1,
       "files": [
         "playchitect/gui/windows/main_window.py",
