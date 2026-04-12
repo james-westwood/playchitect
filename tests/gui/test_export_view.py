@@ -22,9 +22,9 @@ def _make_view() -> ExportView:
     from playchitect.gui.views.export_view import ExportView
 
     view = ExportView.__new__(ExportView)
-    view._clusters = []
+    view._playlists = []
     view._metadata_map = {}
-    view._cluster_names = {}
+    view._playlist_names = {}
 
     # Mock all GTK widgets
     view._m3u_button = MagicMock()
@@ -42,9 +42,9 @@ def _make_view() -> ExportView:
     view._serato_button.get_active.return_value = False
     view._mixxx_button.get_active.return_value = False
 
-    view._all_clusters_button = MagicMock()
+    view._all_playlists_button = MagicMock()
     view._selected_only_button = MagicMock()
-    view._cluster_dropdown = MagicMock()
+    view._playlist_dropdown = MagicMock()
 
     view._destination_entry = MagicMock()
     view._browse_button = MagicMock()
@@ -212,14 +212,14 @@ class TestPlaylistsSection:
         view = _make_view()
 
         # Should have both buttons
-        assert view._all_clusters_button is not None
+        assert view._all_playlists_button is not None
         assert view._selected_only_button is not None
 
-    def test_cluster_dropdown_exists(self):
-        """Test that cluster dropdown exists."""
+    def test_playlist_dropdown_exists(self):
+        """Test that playlist dropdown exists."""
         view = _make_view()
 
-        assert view._cluster_dropdown is not None
+        assert view._playlist_dropdown is not None
 
 
 # ── TestDestinationSection ──────────────────────────────────────────────────
@@ -318,7 +318,7 @@ class TestPublicAPI:
 
         view.set_clusters(clusters, metadata)
 
-        assert view._clusters == clusters
+        assert view._playlists == clusters
         assert view._metadata_map == metadata
 
     def test_set_cluster_names(self):
@@ -328,7 +328,7 @@ class TestPublicAPI:
         names = {1: "Test Cluster", 2: "Another Cluster"}
         view.set_cluster_names(names)  # ty: ignore[invalid-argument-type]
 
-        assert view._cluster_names == names
+        assert view._playlist_names == names
 
     def test_get_selected_format_m3u(self):
         """Test get_selected_format returns M3U when selected."""
@@ -360,12 +360,12 @@ class TestPublicAPI:
     def test_clear_resets_state(self):
         """Test clear resets all state."""
         view = _make_view()
-        view._clusters = [MagicMock()]
+        view._playlists = [MagicMock()]
         view._metadata_map = {Path("/test.mp3"): MagicMock()}
-        view._cluster_names = {1: "Test"}
+        view._playlist_names = {1: "Test"}
 
         view.clear()
 
-        assert view._clusters == []
+        assert view._playlists == []
         assert view._metadata_map == {}
-        assert view._cluster_names == {}
+        assert view._playlist_names == {}

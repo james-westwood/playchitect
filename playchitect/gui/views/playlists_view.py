@@ -133,6 +133,7 @@ class PlaylistsView(Gtk.Box):
 
     __gsignals__ = {
         "cluster-selected": (GObject.SignalFlags.RUN_FIRST, None, (GObject.TYPE_PYOBJECT,)),
+        "clusters-generated": (GObject.SignalFlags.RUN_FIRST, None, (GObject.TYPE_PYOBJECT,)),
     }
 
     def __init__(self) -> None:
@@ -641,6 +642,9 @@ class PlaylistsView(Gtk.Box):
         count = len(self._cluster_stats)
         noun = "cluster" if count == 1 else "clusters"
         self._count_label.set_text(f"{count} {noun}")
+
+        # Emit signal with clusters for other views (Export, Set Builder)
+        self.emit("clusters-generated", self._clusters)
 
         logger.info("Generated %d playlists", count)
         return False

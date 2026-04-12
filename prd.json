@@ -475,9 +475,9 @@
       "owner": "ralph",
       "description": "After running clustering in the Playlists view, switching to Export view shows 'No clusters available to export' and the 'Selected only' dropdown shows '(None)'. The Export view is not reading the clustered playlists from app state. Fix the data-flow: after clustering completes, the ClusterResult list must be stored in a shared app-state object that ExportView reads. Also rename all 'cluster' references in ExportView to 'playlist' (see GUI-01).",
       "acceptance_criteria": "After running clustering, Export view shows all playlist names in the dropdown. Selecting a playlist and exporting produces a valid M3U file. 'Selected only' correctly filters to the chosen playlist. uv run pytest tests/ -v passes.",
-      "completed": false,
+      "completed": true,
       "priority": 1,
-      "note": "",
+      "note": "GitHub issue #195",
       "files": [
         "playchitect/gui/views/export_view.py",
         "playchitect/gui/windows/main_window.py"
