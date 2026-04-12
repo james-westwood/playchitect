@@ -10,7 +10,7 @@ are tried against next-closest clusters.
 import logging
 from collections import defaultdict
 from pathlib import Path
-from typing import TYPE_CHECKING, Union
+from typing import TYPE_CHECKING
 
 import numpy as np
 
@@ -30,8 +30,8 @@ def build_duration_constrained_playlists(
     clusters: list[ClusterResult],
     target_duration_mins: float,
     tolerance: float = 0.1,
-    metadata_dict: Union[dict[Path, TrackMetadata], None] = None,
-    features_dict: Union[dict[Path, IntensityFeatures], None] = None,
+    metadata_dict: dict[Path, TrackMetadata] | None = None,
+    features_dict: dict[Path, IntensityFeatures] | None = None,
 ) -> list[ClusterResult]:
     """Build playlists that respect target duration constraints.
 
@@ -64,8 +64,8 @@ def build_duration_constrained_playlists(
     target_duration_secs = target_duration_mins * 60
     max_duration_secs = target_duration_secs * (1 + tolerance)
 
-    cluster_centroids: dict[Union[int, str], np.ndarray] = {}
-    cluster_primary_tracks: dict[Union[int, str], list[Path]] = {}
+    cluster_centroids: dict[int | str, np.ndarray] = {}
+    cluster_primary_tracks: dict[int | str, list[Path]] = {}
 
     for cluster in clusters:
         if cluster.centroid is not None:
@@ -83,14 +83,14 @@ def build_duration_constrained_playlists(
 
     track_distances: dict[Path, list[Any]] = defaultdict(list)
     for track_path in all_tracks:
-        distances: list[tuple[Union[int, str], float]] = []
+        distances: list[tuple[int | str, float]] = []
         for cid, centroid in cluster_centroids.items():
             dist = _calculate_distance(track_path, centroid, track_features)
             distances.append((cid, dist))
         distances.sort(key=lambda x: x[1])
         track_distances[track_path] = distances
 
-    cluster_tracks: dict[Union[int, str], list[Path]] = {}
+    cluster_tracks: dict[int | str, list[Path]] = {}
     for cluster in clusters:
         cluster_tracks[cluster.cluster_id] = []
 
@@ -188,7 +188,7 @@ def _rank_tracks_by_distance(
     return distances
 
 
-def _features_to_vector(features: IntensityFeatures) -> Union[np.ndarray, None]:
+def _features_to_vector(features: IntensityFeatures) -> np.ndarray | None:
     """Convert IntensityFeatures to feature vector."""
     if features is None:
         return None
@@ -209,7 +209,7 @@ def _features_to_vector(features: IntensityFeatures) -> Union[np.ndarray, None]:
 
 def _get_track_duration(
     track_path: Path,
-    metadata_dict: Union[dict[Path, TrackMetadata], None],
+    metadata_dict: dict[Path, TrackMetadata] | None,
 ) -> float:
     """Get track duration in seconds."""
     if metadata_dict and track_path in metadata_dict:
@@ -221,7 +221,7 @@ def _get_track_duration(
 
 def _sum_track_durations(
     tracks: list[Path],
-    metadata_dict: Union[dict[Path, TrackMetadata], None],
+    metadata_dict: dict[Path, TrackMetadata] | None,
 ) -> float:
     """Sum durations of all tracks."""
     total = 0.0
@@ -233,7 +233,7 @@ def _sum_track_durations(
 def _create_trimmed_cluster(
     original: ClusterResult,
     selected_tracks: list[Path],
-    metadata_dict: Union[dict[Path, TrackMetadata], None],
+    metadata_dict: dict[Path, TrackMetadata] | None,
 ) -> ClusterResult:
     """Create a new ClusterResult with trimmed track list."""
     total_duration = _sum_track_durations(selected_tracks, metadata_dict)
