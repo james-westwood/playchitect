@@ -766,7 +766,9 @@ class PlaylistsView(Gtk.Box):
                 duration=meta.duration or 0.0,
                 audio_format=path.suffix,
                 mood=intensity.mood_label if intensity else "",
-                camelot_key=intensity.camelot_key if intensity else "",
+                camelot_key=intensity.camelot_key
+                if (intensity and intensity.camelot_key)
+                else None,
                 energy_gradient=intensity.energy_gradient if intensity else 0.0,  # TASK-12
                 drop_density=intensity.drop_density if intensity else 0.0,  # TASK-12
                 spectral_flatness=intensity.spectral_flatness if intensity else 0.0,  # TASK-14

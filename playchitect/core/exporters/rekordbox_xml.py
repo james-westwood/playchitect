@@ -100,10 +100,10 @@ class RekordboxXMLExporter:
             bpm = meta.bpm if meta and meta.bpm else cluster.bpm_mean
             track_elem.set("AverageBpm", f"{bpm:.2f}")
 
-            # Tonality (Camelot key or empty)
+            # Tonality (Camelot key or empty string)
             camelot_key = ""
             if features and hasattr(features, "camelot_key"):
-                camelot_key = features.camelot_key
+                camelot_key = features.camelot_key or ""
             track_elem.set("Tonality", camelot_key)
 
             # Location (file://localhost + absolute path)

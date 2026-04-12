@@ -115,6 +115,13 @@ _ENERGY_GATE_PERCENTILE: int = 25
 # Default sample rate for librosa audio loading (Hz)
 _DEFAULT_SAMPLE_RATE: int = 22050
 
+# Confidence threshold for key detection: minimum standard deviation of the chroma
+# vector below which the audio is considered to have no clear harmonic content.
+_KEY_CONFIDENCE_STD_THRESHOLD: float = 0.015
+
+# Minimum ratio of dominant-bin value to mean below which detection is unreliable.
+_KEY_CONFIDENCE_RATIO_THRESHOLD: float = 1.5
+
 # Camelot Wheel mapping for major keys (chromatic scale C=0)
 # Maps chroma index 0-11 to (camelot_notation, key_index)
 # Major keys only - minor detection out of scope
@@ -174,8 +181,8 @@ class IntensityFeatures:
     bass_harmonics: float = 0.0  # 120-250Hz (bass notes)
     percussiveness: float = 0.0  # HPSS ratio (0-1)
     onset_strength: float = 0.0  # Beat intensity (0-1)
-    camelot_key: str = "8B"  # Camelot Wheel notation (e.g., '8B')
-    key_index: float = 0.0  # Chroma bin index 0-11 as float
+    camelot_key: str | None = None  # Camelot Wheel notation (e.g., '8B'), None if undetectable
+    key_index: float | None = None  # Chroma bin index 0-11 as float, None if undetectable
 
     # File identification (handled via file_path parameter)
     filepath: Path = field(init=False)
@@ -279,9 +286,9 @@ class IntensityFeatures:
         data["file_path"] = Path(data.pop("filepath", "."))
         # Handle old cache files missing harmonic fields
         if "camelot_key" not in data:
-            data["camelot_key"] = "8B"  # Default to C major
+            data["camelot_key"] = None
         if "key_index" not in data:
-            data["key_index"] = 0.0
+            data["key_index"] = None
         # Handle old cache files missing energy flow fields
         if "dynamic_range" not in data:
             data["dynamic_range"] = 0.0
@@ -594,7 +601,7 @@ class IntensityAnalyzer:
         onset_mean = float(np.mean(onset_env))
         return float(np.clip(onset_mean / _ONSET_NORM_FACTOR, 0.0, 1.0))
 
-    def _calculate_key(self, y: np.ndarray, sr: int) -> tuple[str, float]:
+    def _calculate_key(self, y: np.ndarray, sr: int) -> tuple[str | None, float | None]:
         """
         Calculate musical key using chroma features.
 
@@ -602,12 +609,18 @@ class IntensityAnalyzer:
         the dominant pitch class, then maps to Camelot Wheel notation.
         Major keys only - minor detection is out of scope.
 
+        Low-confidence detection: if the chroma vector is flat (low std dev) or
+        the dominant bin is not sufficiently above the mean, returns None to
+        indicate the key could not be reliably determined. This prevents
+        synth/noise/poorly-encoded audio from always returning "8B".
+
         Args:
             y: Audio time series
             sr: Sample rate
 
         Returns:
-            Tuple of (camelot_key_str, key_index_float)
+            Tuple of (camelot_key_str, key_index_float), or (None, None) if
+            confidence is too low to make a reliable determination.
         """
         # Compute chroma features using CQT
         chroma = librosa.feature.chroma_cqt(y=y, sr=sr)
@@ -615,8 +628,28 @@ class IntensityAnalyzer:
         # Average across time frames to get 12-bin chroma vector
         chroma_mean = chroma.mean(axis=1)
 
-        # Find dominant chroma bin (0-11, where 0=C, 1=C#, ..., 11=B)
+        # Confidence check: reject flat chroma vectors (no clear harmonic content)
+        chroma_std = float(np.std(chroma_mean))
+        if chroma_std < _KEY_CONFIDENCE_STD_THRESHOLD:
+            logger.debug(
+                "Key detection confidence too low (std=%.4f < %.4f)",
+                chroma_std,
+                _KEY_CONFIDENCE_STD_THRESHOLD,
+            )
+            return None, None
+
+        # Also check that the dominant bin is significantly above the mean
         dominant_bin = int(np.argmax(chroma_mean))
+        dominant_val = float(chroma_mean[dominant_bin])
+        chroma_mean_val = float(np.mean(chroma_mean))
+        if dominant_val < chroma_mean_val * _KEY_CONFIDENCE_RATIO_THRESHOLD:
+            logger.debug(
+                "Key detection confidence too low (dominant=%.4f < %.4f * mean=%.4f)",
+                dominant_val,
+                _KEY_CONFIDENCE_RATIO_THRESHOLD,
+                chroma_mean_val,
+            )
+            return None, None
 
         # Map to Camelot notation
         camelot_key, key_index = _CHROMA_TO_CAMELOT[dominant_bin]

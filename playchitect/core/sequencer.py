@@ -496,7 +496,11 @@ def sequence_harmonic(
             candidate_key = features[candidate].camelot_key
             candidate_energy = features[candidate].rms_energy
 
-            score = _harmonic_score(current_key, candidate_key)
+            score = (
+                _harmonic_score(current_key, candidate_key)
+                if (current_key and candidate_key)
+                else 0
+            )
             energy_diff = abs(current_energy - candidate_energy)
 
             # Prefer higher score, then lower energy difference
