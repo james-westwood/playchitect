@@ -70,10 +70,10 @@ class ExportView(Gtk.Box):
         self.set_margin_end(12)
 
         # State
-        self._clusters: list[ClusterResult] = []
+        self._playlists: list[ClusterResult] = []
         self._metadata_map: dict[Path, TrackMetadata] = {}
         self._features_map: dict[Path, IntensityFeatures] = {}
-        self._cluster_names: dict[int | str, str] = {}
+        self._playlist_names: dict[int | str, str] = {}
 
         # Build UI sections
         self._build_format_section()
@@ -156,15 +156,15 @@ class ExportView(Gtk.Box):
         radio_box = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=4)
         radio_box.set_margin_start(8)
 
-        # All clusters (default)
-        self._all_clusters_button = Gtk.CheckButton(label="All clusters")
-        self._all_clusters_button.set_active(True)
-        self._all_clusters_button.connect("toggled", self._on_playlist_selection_changed)
-        radio_box.append(self._all_clusters_button)
+        # All playlists (default)
+        self._all_playlists_button = Gtk.CheckButton(label="All playlists")
+        self._all_playlists_button.set_active(True)
+        self._all_playlists_button.connect("toggled", self._on_playlist_selection_changed)
+        radio_box.append(self._all_playlists_button)
 
         # Selected only
         self._selected_only_button = Gtk.CheckButton(label="Selected only")
-        self._selected_only_button.set_group(self._all_clusters_button)
+        self._selected_only_button.set_group(self._all_playlists_button)
         self._selected_only_button.connect("toggled", self._on_playlist_selection_changed)
         radio_box.append(self._selected_only_button)
 
@@ -175,13 +175,13 @@ class ExportView(Gtk.Box):
         dropdown_box.set_margin_start(8)
         dropdown_box.set_margin_top(4)
 
-        dropdown_label = Gtk.Label(label="Cluster:")
+        dropdown_label = Gtk.Label(label="Playlist:")
         dropdown_box.append(dropdown_label)
 
-        self._cluster_dropdown = Gtk.DropDown()
-        self._cluster_dropdown.set_sensitive(False)
-        self._cluster_dropdown.set_hexpand(True)
-        dropdown_box.append(self._cluster_dropdown)
+        self._playlist_dropdown = Gtk.DropDown()
+        self._playlist_dropdown.set_sensitive(False)
+        self._playlist_dropdown.set_hexpand(True)
+        dropdown_box.append(self._playlist_dropdown)
 
         playlists_box.append(dropdown_box)
         self.append(playlists_box)
@@ -264,7 +264,7 @@ class ExportView(Gtk.Box):
         """Handle playlist selection radio button toggle."""
         # Enable dropdown only when "Selected only" is active
         selected_only_active = self._selected_only_button.get_active()
-        self._cluster_dropdown.set_sensitive(selected_only_active)
+        self._playlist_dropdown.set_sensitive(selected_only_active)
 
     def _on_browse_clicked(self, _button: Gtk.Button) -> None:
         """Handle browse button click - open folder dialog."""
@@ -313,23 +313,23 @@ class ExportView(Gtk.Box):
         # Determine format
         selected_format = self._get_selected_format()
 
-        # Determine clusters to export
+        # Determine playlists to export
         if self._selected_only_button.get_active():
-            # Export selected cluster only
-            selected_item = self._cluster_dropdown.get_selected_item()
+            # Export selected playlist only
+            selected_item = self._playlist_dropdown.get_selected_item()
             if selected_item is None:
-                self._show_status("No cluster selected", error=True)
+                self._show_status("No playlist selected", error=True)
                 return
-            cluster_id = self._get_cluster_id_from_dropdown_index(
-                self._cluster_dropdown.get_selected()
+            playlist_id = self._get_playlist_id_from_dropdown_index(
+                self._playlist_dropdown.get_selected()
             )
-            clusters_to_export = [c for c in self._clusters if c.cluster_id == cluster_id]
+            playlists_to_export = [c for c in self._playlists if c.cluster_id == playlist_id]
         else:
-            # Export all clusters
-            clusters_to_export = self._clusters
+            # Export all playlists
+            playlists_to_export = self._playlists
 
-        if not clusters_to_export:
-            self._show_status("No clusters available to export", error=True)
+        if not playlists_to_export:
+            self._show_status("No playlists available to export", error=True)
             return
 
         # Update UI state
@@ -339,7 +339,7 @@ class ExportView(Gtk.Box):
         # Run export in background thread
         thread = threading.Thread(
             target=self._export_worker,
-            args=(clusters_to_export, destination, selected_format),
+            args=(playlists_to_export, destination, selected_format),
             daemon=True,
         )
         thread.start()
@@ -356,7 +356,7 @@ class ExportView(Gtk.Box):
 
     def _export_worker(
         self,
-        clusters: list[ClusterResult],
+        playlists: list[ClusterResult],
         destination: Path,
         format_type: str,
     ) -> None:
@@ -364,16 +364,16 @@ class ExportView(Gtk.Box):
         try:
             if format_type == FORMAT_M3U:
                 exporter = M3UExporter(destination)
-                paths = exporter.export_clusters(clusters, self._metadata_map)
+                paths = exporter.export_clusters(playlists, self._metadata_map)
             elif format_type == FORMAT_CUE:
                 exporter = CUEExporter(destination)
-                paths = exporter.export_clusters(clusters, self._metadata_map)
+                paths = exporter.export_clusters(playlists, self._metadata_map)
             elif format_type == FORMAT_REKORDBOX:
                 exporter = RekordboxXMLExporter(destination)
-                paths = exporter.export_clusters(clusters, self._metadata_map, self._features_map)
+                paths = exporter.export_clusters(playlists, self._metadata_map, self._features_map)
             elif format_type == FORMAT_TRAKTOR:
                 exporter = TraktorNMLExporter(destination)
-                paths = exporter.export_clusters(clusters, self._metadata_map, self._features_map)
+                paths = exporter.export_clusters(playlists, self._metadata_map, self._features_map)
             else:
                 raise ValueError(f"Unsupported format: {format_type}")
 
@@ -454,7 +454,7 @@ class ExportView(Gtk.Box):
     def _sync_mixxx_worker(self, db_path: Path) -> None:
         """Background worker for Mixxx sync operation."""
         try:
-            results = sync_all_playlists(db_path, self._clusters)
+            results = sync_all_playlists(db_path, self._playlists)
             total_tracks = sum(results.values())
             total_crates = len(results)
             GLib.idle_add(
@@ -477,60 +477,62 @@ class ExportView(Gtk.Box):
         self._show_status(f"Sync failed: {error_message}", error=True)
         return False
 
-    def _get_cluster_id_from_dropdown_index(self, index: int) -> int | str:
-        """Get cluster ID from dropdown index."""
-        if 0 <= index < len(self._clusters):
-            return self._clusters[index].cluster_id
+    def _get_playlist_id_from_dropdown_index(self, index: int) -> int | str:
+        """Get playlist ID from dropdown index."""
+        if 0 <= index < len(self._playlists):
+            return self._playlists[index].cluster_id
         return -1
 
-    def _update_cluster_dropdown(self) -> None:
-        """Update the cluster dropdown with current cluster names."""
-        if not self._clusters:
-            self._cluster_dropdown.set_model(Gtk.StringList.new([]))
+    def _update_playlist_dropdown(self) -> None:
+        """Update the playlist dropdown with current playlist names."""
+        if not self._playlists:
+            self._playlist_dropdown.set_model(Gtk.StringList.new([]))
             return
 
-        # Build cluster name list
-        cluster_names: list[str] = []
-        for cluster in self._clusters:
-            cluster_id = cluster.cluster_id
+        # Build playlist name list
+        playlist_names: list[str] = []
+        for playlist in self._playlists:
+            playlist_id = playlist.cluster_id
             # Use custom name if available, otherwise generate default
-            if cluster_id in self._cluster_names:
-                name = self._cluster_names[cluster_id]
+            if playlist_id in self._playlist_names:
+                name = self._playlist_names[playlist_id]
             else:
-                bpm_label = f"{int(cluster.bpm_mean)}-{int(cluster.bpm_mean + cluster.bpm_std)}bpm"
-                name = f"Cluster {cluster_id} [{bpm_label}]"
-            cluster_names.append(name)
+                bpm_label = (
+                    f"{int(playlist.bpm_mean)}-{int(playlist.bpm_mean + playlist.bpm_std)}bpm"
+                )
+                name = f"Playlist {playlist_id} [{bpm_label}]"
+            playlist_names.append(name)
 
-        self._cluster_dropdown.set_model(Gtk.StringList.new(cluster_names))
+        self._playlist_dropdown.set_model(Gtk.StringList.new(playlist_names))
 
     # ── Public API ───────────────────────────────────────────────────────────
 
     def set_clusters(
         self,
-        clusters: list[ClusterResult],
+        playlists: list[ClusterResult],
         metadata_map: dict[Path, TrackMetadata],
         features_map: dict[Path, IntensityFeatures] | None = None,
     ) -> None:
-        """Set the clusters and metadata for export.
+        """Set the playlists and metadata for export.
 
         Args:
-            clusters: List of ClusterResult objects to export
+            playlists: List of ClusterResult objects to export
             metadata_map: Mapping of track paths to metadata
             features_map: Optional mapping of track paths to intensity features
         """
-        self._clusters = clusters
+        self._playlists = playlists
         self._metadata_map = metadata_map
         self._features_map = features_map or {}
-        self._update_cluster_dropdown()
+        self._update_playlist_dropdown()
 
     def set_cluster_names(self, names: dict[int | str, str]) -> None:
-        """Set custom names for clusters.
+        """Set custom names for playlists.
 
         Args:
-            names: Mapping of cluster_id to display name
+            names: Mapping of playlist cluster_id to display name
         """
-        self._cluster_names = names
-        self._update_cluster_dropdown()
+        self._playlist_names = names
+        self._update_playlist_dropdown()
 
     def get_selected_format(self) -> str:
         """Return the currently selected export format."""
@@ -542,9 +544,9 @@ class ExportView(Gtk.Box):
 
     def clear(self) -> None:
         """Clear all state and reset to defaults."""
-        self._clusters = []
+        self._playlists = []
         self._metadata_map = {}
         self._features_map = {}
-        self._cluster_names = {}
-        self._update_cluster_dropdown()
+        self._playlist_names = {}
+        self._update_playlist_dropdown()
         self._show_status("No export performed yet", error=False)

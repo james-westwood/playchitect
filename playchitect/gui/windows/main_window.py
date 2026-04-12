@@ -298,6 +298,7 @@ class PlaychitectWindow(Adw.ApplicationWindow):
         # Playlists view (using new PlaylistsView)
         self._playlists_view = PlaylistsView()
         self._playlists_view.connect("cluster-selected", self._on_playlists_cluster_selected)
+        self._playlists_view.connect("clusters-generated", self._on_playlists_clusters_generated)
         stack.add_titled(self._playlists_view, "playlists", "Playlists")
 
         # Set Builder view
@@ -317,6 +318,15 @@ class PlaychitectWindow(Adw.ApplicationWindow):
         # The playlists view already loads tracks internally
         # Just update the title
         self.set_title(f"Playchitect — Cluster {cluster_id}")
+
+    def _on_playlists_clusters_generated(
+        self, _view: PlaylistsView, clusters: list[ClusterResult]
+    ) -> None:
+        """Handle clusters-generated signal from playlists view - pass to export view."""
+        logger.debug("Clusters generated from PlaylistsView: %d clusters", len(clusters))
+        self._export_view.set_clusters(clusters, self._metadata_map)
+        if hasattr(self, "_cluster_names") and self._cluster_names:
+            self._export_view.set_cluster_names(self._cluster_names)
 
     def _on_nav_row_selected(self, _listbox: Gtk.ListBox, row: Gtk.ListBoxRow | None) -> None:
         """Handle navigation row selection to switch view stack pages."""
