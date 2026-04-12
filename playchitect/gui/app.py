@@ -10,10 +10,18 @@ from gi.repository import Adw, Gtk  # type: ignore[unresolved-import]
 from playchitect.gui.windows.main_window import PlaychitectWindow
 
 
+def _configure_titlebar_double_click() -> None:
+    """Configure titlebar double-click to maximize window (default is toggle-maximize)."""
+    settings = Gtk.Settings.get_default()
+    if settings is not None:
+        settings.set_property("gtk-titlebar-double-click", "toggle-maximize")
+
+
 class PlaychitectApplication(Adw.Application):
     def __init__(self, **kwargs):
         super().__init__(application_id="com.github.jameswestwood.Playchitect", **kwargs)
         Gtk.Window.set_default_icon_name("com.github.jameswestwood.Playchitect")
+        _configure_titlebar_double_click()
         self.connect("activate", self.on_activate)
 
     def on_activate(self, app):
