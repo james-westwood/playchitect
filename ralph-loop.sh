@@ -78,10 +78,40 @@ GEMINI_MODEL="gemini-2.5-pro"
 
 # Strip ANSI escape codes and opencode internal tool-call lines from reviewer output
 # so that GitHub PR comments contain only the review text, not raw terminal noise.
+# Uses Python for reliable Unicode and byte-level escape handling.
 clean_review_output() {
-  sed 's/\x1b\[[0-9;?]*[a-zA-Z]//g' \
-  | grep -v -E '^\s*(> build|[✱←→✗◇◈✓]|\$) ' \
-  | sed '/^[[:space:]]*$/N;/^\n[[:space:]]*$/d'
+  python3 - <<'PYEOF'
+import sys, re
+
+text = sys.stdin.read()
+
+# Strip all ANSI/VT escape sequences (CSI, OSC, etc.)
+text = re.sub(r'\x1b\[[0-9;?]*[a-zA-Z]', '', text)   # CSI sequences e.g. \x1b[0m
+text = re.sub(r'\x1b\][^\x07\x1b]*(?:\x07|\x1b\\)', '', text)  # OSC sequences
+text = re.sub(r'\x1b[@-Z\\-_]', '', text)              # Fe sequences
+
+# Remove opencode UI / tool-call lines
+ui_prefixes = ('> build', '> session', '> task')
+ui_chars    = set('\u2731\u2190\u2192\u2717\u25c7\u25c8\u2713\u25b6\u25c0\u21d2\u2714\u2718')
+filtered = []
+for line in text.splitlines():
+    s = line.strip()
+    # opencode "build" header lines
+    if any(s.startswith(p) for p in ui_prefixes):
+        continue
+    # lines starting with a UI symbol
+    if s and s[0] in ui_chars:
+        continue
+    # shell command echo lines  ($ cmd)
+    if re.match(r'^\$\s+\S', s):
+        continue
+    filtered.append(line)
+
+result = '\n'.join(filtered)
+# Collapse 3+ consecutive blank lines to 2
+result = re.sub(r'\n{3,}', '\n\n', result)
+print(result.strip())
+PYEOF
 }
 
 # Coding agent — needs full file-system tool access
