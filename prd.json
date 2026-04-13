@@ -679,7 +679,7 @@
       "owner": "ralph",
       "description": "Build the interaction model for Set Builder chapters: (1) Clicking a chapter row expands it to show its tracks as a sub-list. Within the expanded chapter, tracks can be previewed (spacebar), reordered by drag-and-drop, and individually removed. (2) Clicking outside the expanded chapter collapses it back to summary view. (3) Chapters themselves can be reordered by drag-and-drop in the outer list (the order determines the DJ set narrative arc). (4) An 'Add track' button within each chapter opens a search/filter dialog to pull in a track from the scanned library. (5) Chapter summary row shows: chapter name, track count, total duration, energy range.",
       "acceptance_criteria": "Chapters expand/collapse on click. Tracks within a chapter can be reordered by drag-and-drop. Chapters themselves can be reordered. Chapter summary correctly reflects track count and total duration after any modifications. uv run pytest tests/ -v passes.",
-      "completed": false,
+      "completed": true,
       "priority": 2,
       "note": "",
       "files": [
