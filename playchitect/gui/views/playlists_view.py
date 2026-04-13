@@ -30,6 +30,7 @@ gi.require_version("Gtk", "4.0")
 gi.require_version("Adw", "1")
 
 from gi.repository import (  # type: ignore[unresolved-import]  # noqa: E402
+    Adw,
     GLib,
     GObject,
     Gtk,
@@ -104,12 +105,17 @@ class ClusterRowWidget(Gtk.ListBoxRow):
         box.append(spacer)
 
         # Energy indicator bar
-        energy_bar = Gtk.Label()
-        energy_bar.set_markup(f"<tt>{self._stats.intensity_bars}</tt>")
-        energy_bar.set_tooltip_text(
+        self._energy_bar = Gtk.LevelBar()
+        self._energy_bar.add_css_class("energy-bar")
+        self._energy_bar.set_valign(Gtk.Align.CENTER)
+        self._energy_bar.set_size_request(60, 4)
+        self._energy_bar.set_min_value(0.0)
+        self._energy_bar.set_max_value(1.0)
+        self._energy_bar.set_value(self._stats.intensity_mean)
+        self._energy_bar.set_tooltip_text(
             f"Intensity: {self._stats.intensity_mean:.2f} ({self._stats.intensity_label})"
         )
-        box.append(energy_bar)
+        box.append(self._energy_bar)
 
         self.set_child(box)
 
@@ -370,6 +376,12 @@ class PlaylistsView(Gtk.Box):
         self._count_label.add_css_class("dim-label")
         self._action_bar.pack_end(self._count_label)
 
+        # GUI-11: READY TO SYNC label (hidden until playlists generated)
+        self._ready_to_sync_label = Gtk.Label(label="READY TO SYNC")
+        self._ready_to_sync_label.add_css_class("caption")
+        self._ready_to_sync_label.set_visible(False)
+        self._action_bar.pack_end(self._ready_to_sync_label)
+
         # Arc selector DropDown (moved from header bar)
         arc_box = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL, spacing=6)
         arc_box.set_margin_start(12)
@@ -425,6 +437,14 @@ class PlaylistsView(Gtk.Box):
         sidebar_box = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=0)
         sidebar_box.set_size_request(_SIDEBAR_WIDTH, -1)
 
+        # GUI-11: Section header label "CURATION QUEUES"
+        self._section_label = Gtk.Label(label="CURATION QUEUES")
+        self._section_label.add_css_class("section-header-label")
+        self._section_label.set_margin_start(12)
+        self._section_label.set_margin_top(8)
+        self._section_label.set_margin_bottom(4)
+        sidebar_box.append(self._section_label)
+
         # Energy arc sparkline above cluster list
         self._energy_arc = EnergyArcWidget()
         sidebar_box.append(self._energy_arc)
@@ -452,6 +472,17 @@ class PlaylistsView(Gtk.Box):
 
         scroll.set_child(self._cluster_list)
         sidebar_box.append(scroll)
+
+        # GUI-11: New Curation button at bottom
+        self._new_curation_btn = Gtk.Button(label="[+ New Curation]")
+        self._new_curation_btn.add_css_class("flat")
+        self._new_curation_btn.set_margin_start(12)
+        self._new_curation_btn.set_margin_end(12)
+        self._new_curation_btn.set_margin_top(8)
+        self._new_curation_btn.set_margin_bottom(8)
+        self._new_curation_btn.connect("clicked", self._on_new_curation_clicked)
+        sidebar_box.append(self._new_curation_btn)
+
         self._paned.set_start_child(sidebar_box)
 
     def _build_right_content(self) -> None:
@@ -497,6 +528,11 @@ class PlaylistsView(Gtk.Box):
         self._stats_duration_label.add_css_class("caption")
         stats_box.append(self._stats_duration_label)
 
+        # GUI-11: Energy badge in right-panel header
+        self._energy_badge_label = Gtk.Label(label="⚡ — Energy")
+        self._energy_badge_label.add_css_class("caption")
+        stats_box.append(self._energy_badge_label)
+
         # Spacer
         spacer = Gtk.Box()
         spacer.set_hexpand(True)
@@ -511,6 +547,7 @@ class PlaylistsView(Gtk.Box):
             self._stats_intensity_label.set_text("Intensity: —")
             self._stats_tracks_label.set_text("Tracks: —")
             self._stats_duration_label.set_text("Duration: —")
+            self._energy_badge_label.set_text("⚡ — Energy")
             return
 
         self._stats_bpm_label.set_text(f"BPM: {stats.bpm_range_str}")
@@ -519,6 +556,7 @@ class PlaylistsView(Gtk.Box):
         )
         self._stats_tracks_label.set_text(stats.track_count_str)
         self._stats_duration_label.set_text(f"Duration: {stats.duration_str}")
+        self._energy_badge_label.set_text(f"⚡ {stats.intensity_mean:.0%} Energy")
 
     # ── Signal Handlers ──────────────────────────────────────────────────────
 
@@ -547,6 +585,20 @@ class PlaylistsView(Gtk.Box):
         # Run analysis and clustering in background thread
         thread = threading.Thread(target=self._generate_worker, daemon=True)
         thread.start()
+
+    def _on_new_curation_clicked(self, _btn: Gtk.Button) -> None:
+        """Handle [+ New Curation] button click - show Coming Soon dialog."""
+        dialog = Adw.MessageDialog.new()
+        dialog.set_heading("Coming soon")
+        dialog.set_body("Manual curation is planned for a future release.")
+
+        # Make it transient for the main window if available
+        if hasattr(self, "get_root") and self.get_root() is not None:
+            parent = self.get_root()
+        else:
+            parent = None
+
+        dialog.present(parent)
 
     def _on_unit_changed(self, dropdown: Gtk.DropDown, _param: object) -> None:
         """Handle unit dropdown change (tracks/minutes)."""
@@ -771,6 +823,10 @@ class PlaylistsView(Gtk.Box):
         count = len(self._cluster_stats)
         noun = "playlist" if count == 1 else "playlists"
         self._count_label.set_text(f"{count} {noun}")
+
+        # GUI-11: Show READY TO SYNC label
+        if hasattr(self, "_ready_to_sync_label"):
+            self._ready_to_sync_label.set_visible(count > 0)
 
         # Emit signal with clusters for other views (Export, Set Builder)
         self.emit("clusters-generated", self._clusters)
