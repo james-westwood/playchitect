@@ -34,10 +34,16 @@ run_coder() {
 
 run_reviewer() {
   local agent="$1" prompt="$2"
-  if opencode run -m "$REVIEWER_MODEL" "$prompt"; then
+  # timeout 5m: kimi-k2.5 hangs silently; kill it and fall back to coder model
+  if timeout 5m opencode run -m "$REVIEWER_MODEL" "$prompt"; then
     return 0
   else
-    echo "  $REVIEWER_MODEL reviewer failed — falling back to $CODER_MODEL" >&2
+    local exit_code=$?
+    if [[ $exit_code -eq 124 ]]; then
+      echo "  $REVIEWER_MODEL reviewer timed out after 5m — falling back to $CODER_MODEL" >&2
+    else
+      echo "  $REVIEWER_MODEL reviewer failed (exit $exit_code) — falling back to $CODER_MODEL" >&2
+    fi
     opencode run -m "$CODER_MODEL" "$prompt"
   fi
 }
