@@ -15,6 +15,27 @@ from playchitect.gui.windows.main_window import PlaychitectWindow
 logger = logging.getLogger(__name__)
 
 
+def _load_brand_css() -> None:
+    """Load the Playchitect brand CSS for dark theme."""
+    provider = Gtk.CssProvider()
+    css_path = Path(__file__).parent / "style.css"
+    provider.load_from_path(str(css_path))
+    display = Gtk.Display.get_default()
+    if display is not None:
+        Gtk.StyleContext.add_provider_for_display(
+            display,
+            provider,
+            Gtk.STYLE_PROVIDER_PRIORITY_APPLICATION,
+        )
+
+
+def _ensure_dark_mode() -> None:
+    """Ensure dark colour scheme is enforced."""
+    style_manager = Adw.StyleManager.get_default()
+    if not style_manager.get_dark():
+        style_manager.set_color_scheme(Adw.ColorScheme.FORCE_DARK)
+
+
 def _configure_titlebar_double_click() -> None:
     """Configure titlebar double-click to maximize window (default is toggle-maximize)."""
     settings = Gtk.Settings.get_default()
@@ -101,6 +122,8 @@ class PlaychitectApplication(Adw.Application):
 
 
 def main():
+    _ensure_dark_mode()
+    _load_brand_css()
     app = PlaychitectApplication()
     return app.run([])
 
