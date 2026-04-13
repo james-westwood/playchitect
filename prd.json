@@ -617,7 +617,7 @@
       "owner": "ralph",
       "description": "The Playlists view action bar has two separate dropdowns that are confusingly similar: 'Sort by:' (sequencing algorithm: Energy ramp, BPM ascending, Spectral centroid, Timbre similarity, Intro length) and 'Energy flow:' (arc shape: ramp, build, descent, constant). These are genuinely different axes but are poorly labelled and redundant in effect for most users. Merge them into a single 'Sequence:' control with clear combined options such as: 'Energy ramp', 'Energy build', 'Energy descent', 'BPM ascending', 'BPM descending', 'Timbre similarity' (advanced). Move timbre similarity and intro-length options into a collapsible 'Advanced' expander so the default list is short. Remove the separate Energy flow dropdown.",
       "acceptance_criteria": "Single 'Sequence:' dropdown replaces both Sort by and Energy flow controls. Advanced options are hidden behind an expander. Selecting any option correctly applies the corresponding sequencing. uv run pytest tests/ -v passes.",
-      "completed": false,
+      "completed": true,
       "priority": 2,
       "note": "",
       "files": [
