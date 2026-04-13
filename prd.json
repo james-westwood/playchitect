@@ -782,7 +782,7 @@
       "owner": "ralph",
       "description": "Two visual improvements to `playchitect/gui/views/set_builder_view.py` per the Stitch design: (1) ENERGY BLOCK CARD COLORS \u2014 each `EnergyBlockCard` (or equivalent widget in set_builder_view.py) represents a block type (Intro, Build, Peak, Outro). Apply a distinct accent colour to each by adding a CSS class based on block name: `intro-block` \u2192 `#1E6FD9` (blue), `build-block` \u2192 `#7B5CF0` (purple), `peak-block` \u2192 `#E8641A` (orange), `outro-block` \u2192 `#1DAF79` (green). Add these rules to `style.css`. The card border or top-accent strip (3px top border) should use the block colour. The active/selected block card should have a brighter version of its colour as background. (2) TRACK CARD STYLING \u2014 each track card widget in the Set Builder timeline (showing sequence number, title, BPM, energy mini-bar, transition dot) should be styled as a card: `border-radius: 8px; background-color: #161B22; border: 1px solid #1E2A3A; padding: 6px 10px;` with CSS class `track-card`. The energy mini-bar inside each card should use the parent block's accent colour. If the track cards are currently rendered as `Gtk.ListBox` rows, apply the `card` CSS class from libadwaita instead.",
       "acceptance_criteria": "Intro block card has a blue accent, Build purple, Peak orange, Outro green. Track cards in the timeline have a dark card background with rounded corners. The visual distinction between block types is clear at a glance. `uv run pytest tests/ -v` passes.",
-      "completed": false,
+      "completed": true,
       "priority": 2,
       "note": "Stitch design reference: docs/planning/stitch-screens/set-builder-view.png",
       "files": [
