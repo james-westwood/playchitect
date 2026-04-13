@@ -1,0 +1,48 @@
+/* Playchitect Brand Colour Scheme - Dark Theme */
+
+/* Deep navy window and view backgrounds */
+window,
+.background {
+    background-color: #0D1117;
+}
+
+/* Slightly lighter sidebar */
+.navigation-sidebar,
+.sidebar-pane {
+    background-color: #111720;
+}
+
+/* Headerbar styling */
+headerbar {
+    background-color: #0D1117;
+    border-bottom: 1px solid #1E2A3A;
+}
+
+/* Purple primary action buttons */
+button.suggested-action,
+button.suggested-action:hover {
+    background-color: #7B5CF0;
+    color: #ffffff;
+    border-radius: 6px;
+}
+
+/* Purple-tinted selection */
+.nav-row:selected,
+row:selected {
+    background-color: rgba(123, 92, 240, 0.25);
+}
+
+/* Hover effect */
+row:hover {
+    background-color: rgba(255, 255, 255, 0.05);
+}
+
+/* Readable text on dark backgrounds */
+label.title-1,
+label.title-2 {
+    color: #E6EDF3;
+}
+
+label {
+    color: #C9D1D9;
+}
