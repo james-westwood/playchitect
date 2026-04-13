@@ -135,6 +135,10 @@ def panel() -> TrackPreviewPanel:
     p._tag_entry = MagicMock()
     p._completion_model = MagicMock()
 
+    # Mock genre chips
+    p._genre_flowbox = MagicMock()
+    p._genre_flowbox.get_first_child = MagicMock(return_value=None)
+
     # Mock tag store
     p._tag_store = MagicMock()
     p._tag_store.get_tags = MagicMock(return_value=[])
@@ -584,3 +588,110 @@ class TestTagSection:
         panel_with_tags._tag_store.get_tags.assert_called_once()
         call_args = panel_with_tags._tag_store.get_tags.call_args
         assert str(call_args[0][0]) == "/music/test.mp3"
+
+
+class TestGenreChips:
+    """Test genre chips display from metadata."""
+
+    @pytest.fixture()
+    def panel_with_genre(self) -> TrackPreviewPanel:
+        """Return a TrackPreviewPanel with mocked dependencies."""
+        with patch.object(TrackPreviewPanel, "__init__", lambda self: None):
+            panel = TrackPreviewPanel()
+            panel._current_track = None
+            panel._genre_flowbox = MagicMock()
+            panel._genre_flowbox.get_first_child.return_value = None
+            panel._genre_flowbox.remove = MagicMock()
+            panel._genre_flowbox.append = MagicMock()
+            return panel
+
+    def test_refresh_genre_chips_empty_when_no_track(
+        self, panel_with_genre: TrackPreviewPanel
+    ) -> None:
+        """_refresh_genre_chips does nothing when no track is loaded."""
+        panel_with_genre._current_track = None
+        panel_with_genre._refresh_genre_chips()
+        panel_with_genre._genre_flowbox.remove.assert_not_called()
+
+    def test_refresh_genre_chips_clears_existing(self, panel_with_genre: TrackPreviewPanel) -> None:
+        """_refresh_genre_chips clears existing chips before adding new ones."""
+        panel_with_genre._current_track = MagicMock()
+        panel_with_genre._current_track.filepath = "/music/track.flac"
+
+        panel_with_genre._genre_flowbox.get_first_child.side_effect = [
+            MagicMock(),
+            None,
+        ]
+
+        with patch(
+            "playchitect.gui.widgets.track_preview_panel.MetadataExtractor"
+        ) as mock_extractor:
+            mock_meta = MagicMock()
+            mock_meta.genre = "Techno"
+            mock_extractor.return_value.extract.return_value = mock_meta
+
+            panel_with_genre._refresh_genre_chips()
+
+        assert panel_with_genre._genre_flowbox.remove.called
+
+    def test_refresh_genre_chips_adds_genre_label(
+        self, panel_with_genre: TrackPreviewPanel
+    ) -> None:
+        """_refresh_genre_chips adds genre chip when metadata has genre."""
+        panel_with_genre._current_track = MagicMock()
+        panel_with_genre._current_track.filepath = "/music/track.flac"
+        panel_with_genre._genre_flowbox.get_first_child.return_value = None
+
+        with patch(
+            "playchitect.gui.widgets.track_preview_panel.MetadataExtractor"
+        ) as mock_extractor:
+            mock_meta = MagicMock()
+            mock_meta.genre = "Techno"
+            mock_extractor.return_value.extract.return_value = mock_meta
+
+            panel_with_genre._refresh_genre_chips()
+
+        panel_with_genre._genre_flowbox.append.assert_called_once()
+
+    def test_refresh_genre_chips_no_genre_in_metadata(
+        self, panel_with_genre: TrackPreviewPanel
+    ) -> None:
+        """_refresh_genre_chips does nothing when metadata has no genre."""
+        panel_with_genre._current_track = MagicMock()
+        panel_with_genre._current_track.filepath = "/music/track.flac"
+        panel_with_genre._genre_flowbox.get_first_child.return_value = None
+
+        with patch(
+            "playchitect.gui.widgets.track_preview_panel.MetadataExtractor"
+        ) as mock_extractor:
+            mock_meta = MagicMock()
+            mock_meta.genre = None
+            mock_extractor.return_value.extract.return_value = mock_meta
+
+            panel_with_genre._refresh_genre_chips()
+
+        panel_with_genre._genre_flowbox.append.assert_not_called()
+
+    def test_refresh_genre_chips_none_metadata(self, panel_with_genre: TrackPreviewPanel) -> None:
+        """_refresh_genre_chips does nothing when extract returns None."""
+        panel_with_genre._current_track = MagicMock()
+        panel_with_genre._current_track.filepath = "/music/track.flac"
+        panel_with_genre._genre_flowbox.get_first_child.return_value = None
+
+        with patch(
+            "playchitect.gui.widgets.track_preview_panel.MetadataExtractor"
+        ) as mock_extractor:
+            mock_extractor.return_value.extract.return_value = None
+
+            panel_with_genre._refresh_genre_chips()
+
+        panel_with_genre._genre_flowbox.append.assert_not_called()
+
+    def test_create_genre_chip(self, panel_with_genre: TrackPreviewPanel) -> None:
+        """_create_genre_chip creates a label with tag-chip CSS class."""
+        from gi.repository import Gtk
+
+        chip = panel_with_genre._create_genre_chip("Techno")
+
+        assert chip is not None
+        assert isinstance(chip, Gtk.Label)

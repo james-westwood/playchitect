@@ -41,6 +41,7 @@ try:
 except ImportError:
     GdkPixbuf = None  # type: ignore[misc]
 
+from playchitect.core.metadata_extractor import MetadataExtractor  # noqa: E402
 from playchitect.core.mixxx_sync import MixxxSync  # noqa: E402
 from playchitect.core.structural_analyzer import (  # noqa: E402
     StructuralAnalyzer,
@@ -155,6 +156,7 @@ class TrackPreviewPanel(Gtk.Box):
         self._build_cover_art_section()
         self._build_metadata_section()
         self._build_info_pills_section()
+        self._build_genre_chips_section()
         self._build_tags_section()
         self._build_controls_section()
 
@@ -240,6 +242,54 @@ class TrackPreviewPanel(Gtk.Box):
         pills_box.append(self._format_pill)
 
         self.append(pills_box)
+
+    def _build_genre_chips_section(self) -> None:
+        """Build the genre chips section for metadata genre tags."""
+        genre_box = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=6)
+        genre_box.set_margin_top(12)
+
+        label = Gtk.Label()
+        label.set_xalign(0.0)
+        label.add_css_class("caption")
+        label.add_css_class("dim-label")
+        label.set_text("Genre")
+        genre_box.append(label)
+
+        self._genre_flowbox = Gtk.FlowBox()
+        self._genre_flowbox.set_selection_mode(Gtk.SelectionMode.NONE)
+        self._genre_flowbox.set_column_spacing(6)
+        self._genre_flowbox.set_row_spacing(6)
+        self._genre_flowbox.set_homogeneous(False)
+        self._genre_flowbox.set_max_children_per_line(10)
+        genre_box.append(self._genre_flowbox)
+
+        self.append(genre_box)
+
+    def _refresh_genre_chips(self) -> None:
+        """Refresh the genre FlowBox display for current track."""
+        while True:
+            child = self._genre_flowbox.get_first_child()
+            if child is None:
+                break
+            self._genre_flowbox.remove(child)
+
+        if self._current_track is None:
+            return
+
+        extractor = MetadataExtractor()
+        metadata = extractor.extract(Path(self._current_track.filepath))
+
+        if metadata is None or not metadata.genre:
+            return
+
+        chip = self._create_genre_chip(metadata.genre)
+        self._genre_flowbox.append(chip)
+
+    def _create_genre_chip(self, genre: str) -> Gtk.Label:
+        """Create a genre chip label with the tag-chip CSS class."""
+        label = Gtk.Label(label=genre)
+        label.add_css_class("tag-chip")
+        return label
 
     def _build_tags_section(self) -> None:
         """Build the vibe tags section with FlowBox chips and entry."""
@@ -724,6 +774,9 @@ class TrackPreviewPanel(Gtk.Box):
 
         # Refresh tags display
         self._refresh_tags_display()
+
+        # Refresh genre chips from metadata
+        self._refresh_genre_chips()
 
         # Set up GStreamer source
         if self._playbin is not None and Gst is not None:
