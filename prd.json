@@ -693,7 +693,7 @@
       "owner": "ralph",
       "description": "Add export capability to the Set Builder view with two modes: (1) 'Export as playlist' \u2014 exports all chapters as a single flat M3U file in chapter order, retaining chapter-boundary comments (e.g. #EXTINF chapter markers). (2) 'Export as chapters' \u2014 exports each chapter as a separate M3U file named after the chapter (e.g. '01_Intro.m3u', '02_Build.m3u'). Both export modes prompt the user for an output directory via Gtk.FileDialog. Wire the export button in SetBuilderView to call the existing export infrastructure in playchitect/core/export.py, extending it to support chapter-aware M3U output.",
       "acceptance_criteria": "'Export as playlist' produces a single M3U with all tracks in chapter order. 'Export as chapters' produces one M3U per chapter with sequential numbering. File names use the chapter names the user has set. uv run pytest tests/ -v passes.",
-      "completed": false,
+      "completed": true,
       "priority": 2,
       "note": "",
       "files": [
