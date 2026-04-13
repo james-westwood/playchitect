@@ -78,6 +78,15 @@ def _format_duration(seconds: float) -> str:
     return f"{minutes}:{secs:02d}"
 
 
+_BLOCK_CSS_CLASS_MAP: dict[str, str] = {
+    "Warm-up": "intro-block",
+    "Build": "build-block",
+    "Peak": "peak-block",
+    "Sustain": "outro-block",
+    "Wind Down": "outro-block",
+}
+
+
 class EnergyBlockCard(Gtk.Frame):
     """Card widget representing an energy block.
 
@@ -96,6 +105,10 @@ class EnergyBlockCard(Gtk.Frame):
         self.set_margin_end(4)
         self.set_margin_top(4)
         self.set_margin_bottom(4)
+
+        # Add block-type CSS class for accent coloring
+        block_css_class = _BLOCK_CSS_CLASS_MAP.get(energy_block.name, "custom-block")
+        self.add_css_class(block_css_class)
 
         # Main container
         box = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=8)
@@ -258,7 +271,7 @@ class TrackCard(Gtk.Frame):
         box.append(transition_box)
 
         self.set_child(box)
-        self.add_css_class("card")
+        self.add_css_class("track-card")
 
     def _draw_transition_dot(
         self,
