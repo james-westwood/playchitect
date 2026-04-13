@@ -31,6 +31,8 @@ class SequencingStrategy(StrEnum):
     BUILD = "build"  # Build to peak: sort by energy_gradient descending
     DESCENT = "descent"  # Gradual descent: sort by RMS energy descending
     ALTERNATING = "alternating"  # Alternating: interleave high/low energy
+    BPM_ASC = "bpm_asc"  # BPM ascending: sort by BPM low to high
+    BPM_DESC = "bpm_desc"  # BPM descending: sort by BPM high to low
 
 
 class FiveRhythmsPhase(StrEnum):
@@ -322,6 +324,7 @@ def sequence_by_strategy(
     tracks: list[Path],
     features: dict[Path, IntensityFeatures],
     strategy: str,
+    metadata: dict[Path, TrackMetadata] | None = None,
 ) -> list[Path]:
     """Sequence tracks according to the specified energy flow strategy.
 
@@ -330,12 +333,16 @@ def sequence_by_strategy(
         - 'build': Build to peak - sort by energy_gradient descending (rising tracks first)
         - 'descent': Gradual descent - sort by RMS energy descending
         - 'alternating': Alternating - interleave high/low energy tracks
+        - 'bpm_asc': BPM ascending - sort by BPM low to high
+        - 'bpm_desc': BPM descending - sort by BPM high to low
 
     Args:
         tracks: List of track paths to sequence.
         features: Mapping of path to IntensityFeatures (contains RMS energy,
             energy_gradient, etc.).
-        strategy: One of 'ramp', 'build', 'descent', 'alternating'.
+        strategy: One of 'ramp', 'build', 'descent', 'alternating', 'bpm_asc', 'bpm_desc'.
+        metadata: Optional mapping of path to TrackMetadata (contains BPM).
+            Required for BPM-based strategies.
 
     Returns:
         List of track paths in the sequenced order.
@@ -404,6 +411,18 @@ def sequence_by_strategy(
                 break
 
         logger.info("Sequenced %d tracks using 'alternating' strategy", len(result))
+
+    elif strategy == SequencingStrategy.BPM_ASC:
+        if metadata is None:
+            raise ValueError("metadata is required for BPM-based strategies")
+        result = sorted(tracks, key=lambda t: metadata[t].bpm or 0.0)
+        logger.info("Sequenced %d tracks using 'bpm_asc' strategy (BPM ascending)", len(result))
+
+    elif strategy == SequencingStrategy.BPM_DESC:
+        if metadata is None:
+            raise ValueError("metadata is required for BPM-based strategies")
+        result = sorted(tracks, key=lambda t: metadata[t].bpm or 0.0, reverse=True)
+        logger.info("Sequenced %d tracks using 'bpm_desc' strategy (BPM descending)", len(result))
 
     return result
 
