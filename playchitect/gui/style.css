@@ -46,3 +46,12 @@ label.title-2 {
 label {
     color: #C9D1D9;
 }
+
+.tag-chip {
+    background-color: rgba(123, 92, 240, 0.2);
+    border: 1px solid #7B5CF0;
+    border-radius: 12px;
+    padding: 2px 10px;
+    font-size: 0.8em;
+    color: #C9D1D9;
+}

@@ -6,6 +6,7 @@ Provides a searchable, filterable track list with format chips and folder scanni
 from __future__ import annotations
 
 import logging
+import os
 import threading
 from pathlib import Path
 from typing import Any
@@ -383,9 +384,23 @@ class LibraryView(Gtk.Box):
         self._update_footer()
 
     def _update_footer(self) -> None:
-        """Update footer label with track count."""
+        """Update footer label with track count and total size."""
         count = self._filter_model.get_n_items()
-        self._footer_label.set_text(f"{count} tracks")
+        total_size = self._calculate_total_size()
+        size_gb = total_size / 1e9
+        self._footer_label.set_text(f"{count} tracks · {size_gb:.1f} GB Total")
+
+    def _calculate_total_size(self) -> float:
+        """Calculate total size of all tracks in the model."""
+        total = 0.0
+        for i in range(self._filter_model.get_n_items()):
+            item = self._filter_model.get_item(i)
+            if item is not None:
+                try:
+                    total += os.path.getsize(item.filepath)
+                except OSError:
+                    pass
+        return total
 
     def _update_preview_chip(self) -> None:
         """Set the preview chip text and style to reflect preview availability."""
