@@ -737,7 +737,7 @@
       "owner": "ralph",
       "description": "Add the Playchitect logo to the top of the navigation sidebar in `playchitect/gui/windows/main_window.py`. The sidebar is currently an `Adw.OverlaySplitView` with a `Gtk.ListBox` of nav rows. Prepend a non-interactive header widget above the nav rows containing: (1) The app icon loaded from the installed icon theme (`Gtk.Image.new_from_icon_name('com.github.jameswestwood.Playchitect')`, size 48px) or falling back to a `Gtk.Image.new_from_file` pointing at `data/icons/hicolor/48x48/apps/playchitect.png`. (2) A `Gtk.Label` with text 'Playchitect' styled with `label.title-4` CSS class. Wrap both in a `Gtk.Box` (vertical, 8px spacing, 16px top/bottom padding) with CSS class `sidebar-logo-header`. The header must not be selectable as a nav item. No user interaction is required on this widget.",
       "acceptance_criteria": "The sidebar shows the Playchitect icon and 'Playchitect' wordmark above the Library/Playlists/Set Builder/Export nav rows. Clicking the logo header does not navigate or emit a selection. App still launches and navigates correctly. `uv run pytest tests/ -v` passes.",
-      "completed": false,
+      "completed": true,
       "priority": 2,
       "note": "Stitch design reference: docs/planning/stitch-screens/library-view.png",
       "files": [
