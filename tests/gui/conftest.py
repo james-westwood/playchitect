@@ -323,6 +323,9 @@ class _FakeGtkBase:
     def set_actions(self, *_args: object) -> None:
         pass
 
+    def add_action(self, *_args: object) -> None:
+        pass
+
     def get_value(self) -> _FakeValue:
         return _FakeValue()
 

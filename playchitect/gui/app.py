@@ -37,7 +37,7 @@ class PlaychitectApplication(Adw.Application):
         """Register a simple action on the app."""
         action = Gio.SimpleAction.new(name, None)
         action.connect("activate", callback)
-        self.set_actions([action])
+        self.add_action(action)
 
     def _on_open_folder(self, _action: Gio.SimpleAction, _param: object) -> None:
         """Handle Open Folder menu action - show folder picker and rescan."""
