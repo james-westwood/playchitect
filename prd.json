@@ -663,7 +663,7 @@
       "owner": "ralph",
       "description": "Redesign the Set Builder view to be chapter-based. A 'chapter' is a named segment of a DJ set with a defined energy role and target duration. When the user clicks 'Generate Set' in the Set Builder view, the app: (1) Runs clustering on the scanned library using energy arc as the primary axis (reusing energy_blocks.py suggest_blocks() which already defines Warm Up / Build / Peak / Sustain / Wind Down blocks). (2) Creates one chapter per block with an auto-generated name (e.g. 'Intro', 'Build', 'Peak', 'Sustain', 'Outro') and a target duration proportional to the user's total set length. (3) Fills each chapter with tracks selected from the corresponding energy block, ranked by centroid proximity, up to the chapter's target duration. (4) Displays the chapters in the Set Builder view as an ordered list of expandable rows. The user can rename any chapter by clicking its name. This uses a separate clustering pass from the Playlists view \u2014 Set Builder and Playlists are independent workflows.",
       "acceptance_criteria": "Clicking 'Generate Set' with a 90-min target produces 4-6 named chapters whose total duration sums to 80-100 minutes. Each chapter has an auto-generated name. Chapters are displayed as an ordered list in SetBuilderView. Chapter names are editable in-place. tests/unit/test_set_builder.py: add tests for chapter generation. uv run pytest tests/ -v passes.",
-      "completed": false,
+      "completed": true,
       "priority": 2,
       "note": "",
       "files": [
