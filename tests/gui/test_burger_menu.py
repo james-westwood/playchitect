@@ -60,10 +60,10 @@ class TestMainWindowMenuActions:
         monkeypatch.setattr("playchitect.gui.windows.main_window.Gtk.MenuButton", MagicMock())
         monkeypatch.setattr("playchitect.gui.windows.main_window.Gio.Menu", MagicMock())
 
-        from playchitect.gui.windows.main_window import PlaychitectWindow
-
         # Check that the menu building code references "Open Folder"
         import inspect
+
+        from playchitect.gui.windows.main_window import PlaychitectWindow
 
         source = inspect.getsource(PlaychitectWindow._build_menu)
         assert "Open Folder" in source
@@ -74,9 +74,9 @@ class TestMainWindowMenuActions:
         monkeypatch.setattr("playchitect.gui.windows.main_window.Gtk.MenuButton", MagicMock())
         monkeypatch.setattr("playchitect.gui.windows.main_window.Gio.Menu", MagicMock())
 
-        from playchitect.gui.windows.main_window import PlaychitectWindow
-
         import inspect
+
+        from playchitect.gui.windows.main_window import PlaychitectWindow
 
         source = inspect.getsource(PlaychitectWindow._build_menu)
         assert "Preferences" in source
@@ -87,9 +87,9 @@ class TestMainWindowMenuActions:
         monkeypatch.setattr("playchitect.gui.windows.main_window.Gtk.MenuButton", MagicMock())
         monkeypatch.setattr("playchitect.gui.windows.main_window.Gio.Menu", MagicMock())
 
-        from playchitect.gui.windows.main_window import PlaychitectWindow
-
         import inspect
+
+        from playchitect.gui.windows.main_window import PlaychitectWindow
 
         source = inspect.getsource(PlaychitectWindow._build_menu)
         # These items should be removed (they were greyed out)
@@ -111,18 +111,18 @@ class TestMainWindowRescanMethod:
     def test_rescan_library_calls_start_scan(self, monkeypatch: pytest.MonkeyPatch) -> None:
         """Test that rescan_library calls _start_scan with the path."""
         from pathlib import Path
-        from unittest.mock import MagicMock, patch
+        from unittest.mock import MagicMock
 
         # We need to test that rescan_library properly forwards to _start_scan
         # This is a unit test on the method implementation
         with (
-            patch("playchitect.gui.windows.main_window.Adw") as mock_adw,
-            patch("playchitect.gui.windows.main_window.Gtk") as mock_gtk,
-            patch("playchitect.gui.windows.main_window.Gio") as mock_gio,
-            patch("playchitect.gui.windows.main_window.GLib") as mock_glib,
-            patch("playchitect.gui.windows.main_window.AudioScanner") as mock_scanner,
-            patch("playchitect.gui.windows.main_window.MetadataExtractor") as mock_extractor,
-            patch("playchitect.gui.windows.main_window.get_config") as mock_config,
+            patch("playchitect.gui.windows.main_window.Adw"),
+            patch("playchitect.gui.windows.main_window.Gtk"),
+            patch("playchitect.gui.windows.main_window.Gio"),
+            patch("playchitect.gui.windows.main_window.GLib"),
+            patch("playchitect.gui.windows.main_window.AudioScanner"),
+            patch("playchitect.gui.windows.main_window.MetadataExtractor"),
+            patch("playchitect.gui.windows.main_window.get_config"),
             patch(
                 "playchitect.gui.windows.main_window.PlaychitectWindow.__init__",
                 lambda self, **kw: None,
