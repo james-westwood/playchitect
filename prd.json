@@ -702,6 +702,95 @@
       ]
     },
     {
+      "id": "GUI-07",
+      "epic": "GUI",
+      "title": "maximize_window_on_startup",
+      "owner": "ralph",
+      "description": "Call self.maximize() immediately after self.set_default_size(1000, 700) in PlaychitectWindow.__init__ (playchitect/gui/windows/main_window.py). This makes the app open maximized by default, matching the behaviour of GNOME Music, Nautilus, and other data-heavy GNOME apps. The window must remain user-resizable and must restore correctly if the user un-maximizes it.",
+      "acceptance_criteria": "App opens maximized on first launch. Un-maximizing leaves a 1000x700 fallback size. uv run pytest tests/ -v passes.",
+      "completed": true,
+      "priority": 2,
+      "note": "GitHub issue — merged PR #212",
+      "files": [
+        "playchitect/gui/windows/main_window.py"
+      ]
+    },
+    {
+      "id": "GUI-08",
+      "epic": "GUI",
+      "title": "brand_css_dark_theme",
+      "owner": "ralph",
+      "description": "Create `playchitect/gui/style.css` with the Playchitect brand colour scheme and load it globally in `playchitect/gui/app.py` via `Gtk.CssProvider.load_from_resource` or `load_from_path`. The CSS must target GTK4/libadwaita widget selectors. Required rules: (1) `window, .background { background-color: #0D1117; }` — deep navy window and view backgrounds. (2) `.navigation-sidebar, .sidebar-pane { background-color: #111720; }` — slightly lighter sidebar. (3) `headerbar { background-color: #0D1117; border-bottom: 1px solid #1E2A3A; }`. (4) `button.suggested-action, button.suggested-action:hover { background-color: #7B5CF0; color: #ffffff; border-radius: 6px; }` — purple primary action buttons (Cluster, Generate Playlists). (5) `.nav-row:selected, row:selected { background-color: rgba(123, 92, 240, 0.25); }` — purple-tinted selection. (6) `row:hover { background-color: rgba(255,255,255,0.05); }`. (7) `label.title-1, label.title-2 { color: #E6EDF3; }` and `label { color: #C9D1D9; }` for readable text on dark backgrounds. Register the CSS file as a GResource in the build if one exists, otherwise load from the installed path. If libadwaita's `Adw.StyleManager` is already forcing the dark colour-scheme, keep that call and add the custom CSS on top.",
+      "acceptance_criteria": "App window has a deep navy (#0D1117) background rather than the default Adwaita grey. Primary action buttons (Cluster, Generate Playlists) render with a purple (#7B5CF0) fill. Selected nav sidebar row shows a purple-tinted highlight. No white-flash or unstyled flash on startup. `uv run pytest tests/ -v` passes. `uv run pre-commit run --all-files` passes.",
+      "completed": false,
+      "priority": 2,
+      "note": "Stitch design reference: docs/planning/stitch-screens/library-view.png",
+      "files": [
+        "playchitect/gui/app.py",
+        "playchitect/gui/style.css"
+      ]
+    },
+    {
+      "id": "GUI-09",
+      "epic": "GUI",
+      "title": "sidebar_logo_header",
+      "owner": "ralph",
+      "description": "Add the Playchitect logo to the top of the navigation sidebar in `playchitect/gui/windows/main_window.py`. The sidebar is currently an `Adw.OverlaySplitView` with a `Gtk.ListBox` of nav rows. Prepend a non-interactive header widget above the nav rows containing: (1) The app icon loaded from the installed icon theme (`Gtk.Image.new_from_icon_name('com.github.jameswestwood.Playchitect')`, size 48px) or falling back to a `Gtk.Image.new_from_file` pointing at `data/icons/hicolor/48x48/apps/playchitect.png`. (2) A `Gtk.Label` with text 'Playchitect' styled with `label.title-4` CSS class. Wrap both in a `Gtk.Box` (vertical, 8px spacing, 16px top/bottom padding) with CSS class `sidebar-logo-header`. The header must not be selectable as a nav item. No user interaction is required on this widget.",
+      "acceptance_criteria": "The sidebar shows the Playchitect icon and 'Playchitect' wordmark above the Library/Playlists/Set Builder/Export nav rows. Clicking the logo header does not navigate or emit a selection. App still launches and navigates correctly. `uv run pytest tests/ -v` passes.",
+      "completed": false,
+      "priority": 2,
+      "note": "Stitch design reference: docs/planning/stitch-screens/library-view.png",
+      "files": [
+        "playchitect/gui/windows/main_window.py"
+      ]
+    },
+    {
+      "id": "GUI-10",
+      "epic": "GUI",
+      "title": "library_view_tag_chips_and_storage_stats",
+      "owner": "ralph",
+      "description": "Two additions to `playchitect/gui/views/library_view.py` and `playchitect/gui/widgets/track_preview_panel.py`: (1) TAG CHIPS — when a track is selected and the preview panel is open, display the track's vibe/genre tags as pill-shaped chip labels below the audio player controls. Read tag values from the `TrackMetadata` object (the `tags` or `genre` fields already extracted by `metadata_extractor.py`). Render each non-empty tag as a `Gtk.Label` inside a `Gtk.FlowBox` with CSS class `tag-chip`. Add to `style.css`: `.tag-chip { background-color: rgba(123,92,240,0.2); border: 1px solid #7B5CF0; border-radius: 12px; padding: 2px 10px; font-size: 0.8em; color: #C9D1D9; }`. If the track has no tags, show nothing (do not show an empty FlowBox). (2) STORAGE STATS — in the library status bar (bottom of the track list pane, where '2,147 tracks in library' is shown), append the total size of all scanned files formatted as 'X.X GB Total'. Compute this by summing `os.path.getsize(track.filepath)` for all tracks in the model, formatted with `/ 1e9` rounded to 1 decimal place. Update the label whenever the track list model changes.",
+      "acceptance_criteria": "Selecting a tagged track (e.g. one with genre='Techno') shows the tag as a purple pill chip below the player. Tracks with no tags show no chip section. The status bar shows e.g. '2,147 tracks · 48.2 GB Total'. `uv run pytest tests/ -v` passes.",
+      "completed": false,
+      "priority": 2,
+      "note": "Stitch design reference: docs/planning/stitch-screens/library-view.png",
+      "files": [
+        "playchitect/gui/views/library_view.py",
+        "playchitect/gui/widgets/track_preview_panel.py",
+        "playchitect/gui/style.css"
+      ]
+    },
+    {
+      "id": "GUI-11",
+      "epic": "GUI",
+      "title": "playlists_view_stitch_polish",
+      "owner": "ralph",
+      "description": "Four visual improvements to `playchitect/gui/views/playlists_view.py` per the Stitch design: (1) SECTION LABEL — add a `Gtk.Label` with text 'CURATION QUEUES' (all-caps, small font, muted colour `#8B949E`) above the playlist sidebar list. CSS class `section-header-label`. (2) ENERGY BAR — each playlist sidebar row already shows track count and duration; add a thin (4px) coloured horizontal `Gtk.LevelBar` or `Gtk.ProgressBar` below the stats showing the average intensity of the playlist (a float 0.0–1.0 stored on the playlist object). Style the fill colour purple: `.energy-bar > trough > progress { background-color: #7B5CF0; }`. (3) ENERGY BADGE — in the right-panel header (next to track count and duration), add a `Gtk.Label` showing '⚡ {avg_intensity:.0%} Energy' using the same average intensity value. (4) NEW CURATION BUTTON — add a `[+ New Curation]` `Gtk.Button` at the bottom of the playlist sidebar list. For now the button opens an `Adw.MessageDialog` with title 'Coming soon' and body 'Manual curation is planned for a future release.' (5) READY TO SYNC LABEL — in the bottom `Gtk.ActionBar`, after the playlist count label, add a label 'READY TO SYNC' that is only visible once playlists have been generated (i.e. when playlist count > 0).",
+      "acceptance_criteria": "'CURATION QUEUES' label appears above the playlist list. Each playlist row shows an energy intensity bar. The right-panel header shows the energy badge. '+ New Curation' button is present and opens the Coming Soon dialog. 'READY TO SYNC' appears after generating playlists. `uv run pytest tests/ -v` passes.",
+      "completed": false,
+      "priority": 2,
+      "note": "Stitch design reference: docs/planning/stitch-screens/playlists-view.png",
+      "files": [
+        "playchitect/gui/views/playlists_view.py",
+        "playchitect/gui/style.css"
+      ]
+    },
+    {
+      "id": "GUI-12",
+      "epic": "GUI",
+      "title": "set_builder_block_and_card_colors",
+      "owner": "ralph",
+      "description": "Two visual improvements to `playchitect/gui/views/set_builder_view.py` per the Stitch design: (1) ENERGY BLOCK CARD COLORS — each `EnergyBlockCard` (or equivalent widget in set_builder_view.py) represents a block type (Intro, Build, Peak, Outro). Apply a distinct accent colour to each by adding a CSS class based on block name: `intro-block` → `#1E6FD9` (blue), `build-block` → `#7B5CF0` (purple), `peak-block` → `#E8641A` (orange), `outro-block` → `#1DAF79` (green). Add these rules to `style.css`. The card border or top-accent strip (3px top border) should use the block colour. The active/selected block card should have a brighter version of its colour as background. (2) TRACK CARD STYLING — each track card widget in the Set Builder timeline (showing sequence number, title, BPM, energy mini-bar, transition dot) should be styled as a card: `border-radius: 8px; background-color: #161B22; border: 1px solid #1E2A3A; padding: 6px 10px;` with CSS class `track-card`. The energy mini-bar inside each card should use the parent block's accent colour. If the track cards are currently rendered as `Gtk.ListBox` rows, apply the `card` CSS class from libadwaita instead.",
+      "acceptance_criteria": "Intro block card has a blue accent, Build purple, Peak orange, Outro green. Track cards in the timeline have a dark card background with rounded corners. The visual distinction between block types is clear at a glance. `uv run pytest tests/ -v` passes.",
+      "completed": false,
+      "priority": 2,
+      "note": "Stitch design reference: docs/planning/stitch-screens/set-builder-view.png",
+      "files": [
+        "playchitect/gui/views/set_builder_view.py",
+        "playchitect/gui/style.css"
+      ]
+    },
+    {
       "id": "FEAT-H1",
       "epic": "Branding",
       "title": "app_branding_icons_splash_theming",
