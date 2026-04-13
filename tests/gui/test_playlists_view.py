@@ -518,6 +518,143 @@ class TestVocalFilterControls:
             # Verify set_active(True) was called
             any_btn.set_active.assert_any_call(True)
 
+    def test_vocal_filter_button_labels_updated(self):
+        """Verify vocal filter buttons have updated labels for clarity."""
+        from unittest.mock import MagicMock, patch
+
+        from playchitect.gui.views.playlists_view import PlaylistsView
+
+        with (
+            patch("playchitect.gui.views.playlists_view.Gtk.Box") as mock_box,
+            patch("playchitect.gui.views.playlists_view.Gtk.ActionBar") as mock_action,
+            patch("playchitect.gui.views.playlists_view.Gtk.Button") as mock_button,
+            patch("playchitect.gui.views.playlists_view.Gtk.ToggleButton") as mock_toggle,
+            patch("playchitect.gui.views.playlists_view.Gtk.SpinButton") as mock_spin,
+            patch("playchitect.gui.views.playlists_view.Gtk.DropDown") as mock_dropdown,
+            patch("playchitect.gui.views.playlists_view.Gtk.StringList") as mock_stringlist,
+            patch("playchitect.gui.views.playlists_view.Gtk.Switch") as mock_switch,
+            patch("playchitect.gui.views.playlists_view.Gtk.Scale") as mock_scale,
+            patch("playchitect.gui.views.playlists_view.TrackListWidget") as mock_tracklist,
+            patch("playchitect.gui.views.playlists_view.Gtk.Spinner") as mock_spinner,
+            patch("playchitect.gui.views.playlists_view.Gtk.Label") as mock_label,
+            patch("playchitect.gui.views.playlists_view.Gtk.Paned") as mock_paned,
+            patch("playchitect.gui.views.playlists_view.Gtk.ListBox") as mock_listbox,
+            patch("playchitect.gui.views.playlists_view.Gtk.ScrolledWindow") as mock_scroll,
+            patch("playchitect.gui.views.playlists_view.Gtk.Separator") as mock_sep,
+            patch("playchitect.gui.views.playlists_view.Gtk.Expander") as mock_expander,
+            patch("playchitect.gui.views.playlists_view.EnergyArcWidget") as mock_energy_arc,
+        ):
+            mock_action.return_value = MagicMock()
+            mock_button.return_value = MagicMock()
+            mock_spinner.return_value = MagicMock()
+            mock_label.return_value = MagicMock()
+            mock_paned.return_value = MagicMock()
+            mock_listbox.return_value = MagicMock()
+            mock_scroll.return_value = MagicMock()
+            mock_sep.return_value = MagicMock()
+            mock_tracklist.return_value = MagicMock()
+            mock_box.return_value = MagicMock()
+            mock_spin.return_value = MagicMock()
+            mock_dropdown.return_value = MagicMock()
+            mock_stringlist.new.return_value = MagicMock()
+            mock_switch.return_value = MagicMock()
+            mock_scale.return_value = MagicMock()
+            mock_energy_arc.return_value = MagicMock()
+            mock_expander.return_value = MagicMock()
+
+            toggle_mocks = []
+
+            def capture_toggle(*args, **kwargs):
+                mock = MagicMock()
+                toggle_mocks.append((args, kwargs, mock))
+                return mock
+
+            mock_toggle.side_effect = capture_toggle
+
+            _ = PlaylistsView()
+
+            labels_found = {kwargs.get("label") for args, kwargs, mock in toggle_mocks}
+            assert "Any" in labels_found, "ToggleButton with label='Any' not found"
+            assert "No vocals" in labels_found, "ToggleButton with label='No vocals' not found"
+            assert "Vocals" in labels_found, "ToggleButton with label='Vocals' not found"
+
+    def test_vocal_filter_buttons_have_tooltips(self):
+        """Verify vocal filter buttons have explanatory tooltips."""
+        from unittest.mock import MagicMock, patch
+
+        from playchitect.gui.views.playlists_view import PlaylistsView
+
+        with (
+            patch("playchitect.gui.views.playlists_view.Gtk.Box") as mock_box,
+            patch("playchitect.gui.views.playlists_view.Gtk.ActionBar") as mock_action,
+            patch("playchitect.gui.views.playlists_view.Gtk.Button") as mock_button,
+            patch("playchitect.gui.views.playlists_view.Gtk.ToggleButton") as mock_toggle,
+            patch("playchitect.gui.views.playlists_view.Gtk.SpinButton") as mock_spin,
+            patch("playchitect.gui.views.playlists_view.Gtk.DropDown") as mock_dropdown,
+            patch("playchitect.gui.views.playlists_view.Gtk.StringList") as mock_stringlist,
+            patch("playchitect.gui.views.playlists_view.Gtk.Switch") as mock_switch,
+            patch("playchitect.gui.views.playlists_view.Gtk.Scale") as mock_scale,
+            patch("playchitect.gui.views.playlists_view.TrackListWidget") as mock_tracklist,
+            patch("playchitect.gui.views.playlists_view.Gtk.Spinner") as mock_spinner,
+            patch("playchitect.gui.views.playlists_view.Gtk.Label") as mock_label,
+            patch("playchitect.gui.views.playlists_view.Gtk.Paned") as mock_paned,
+            patch("playchitect.gui.views.playlists_view.Gtk.ListBox") as mock_listbox,
+            patch("playchitect.gui.views.playlists_view.Gtk.ScrolledWindow") as mock_scroll,
+            patch("playchitect.gui.views.playlists_view.Gtk.Separator") as mock_sep,
+            patch("playchitect.gui.views.playlists_view.Gtk.Expander") as mock_expander,
+            patch("playchitect.gui.views.playlists_view.EnergyArcWidget") as mock_energy_arc,
+        ):
+            mock_action.return_value = MagicMock()
+            mock_button.return_value = MagicMock()
+            mock_spinner.return_value = MagicMock()
+            mock_label.return_value = MagicMock()
+            mock_paned.return_value = MagicMock()
+            mock_listbox.return_value = MagicMock()
+            mock_scroll.return_value = MagicMock()
+            mock_sep.return_value = MagicMock()
+            mock_tracklist.return_value = MagicMock()
+            mock_box.return_value = MagicMock()
+            mock_spin.return_value = MagicMock()
+            mock_dropdown.return_value = MagicMock()
+            mock_stringlist.new.return_value = MagicMock()
+            mock_switch.return_value = MagicMock()
+            mock_scale.return_value = MagicMock()
+            mock_energy_arc.return_value = MagicMock()
+            mock_expander.return_value = MagicMock()
+
+            toggle_mocks = []
+
+            def capture_toggle(*args, **kwargs):
+                mock = MagicMock()
+                toggle_mocks.append((args, kwargs, mock))
+                return mock
+
+            mock_toggle.side_effect = capture_toggle
+
+            _ = PlaylistsView()
+
+            any_tooltip = None
+            no_vocals_tooltip = None
+            vocals_tooltip = None
+
+            for args, kwargs, mock in toggle_mocks:
+                if kwargs.get("label") == "Any":
+                    any_tooltip = mock.set_tooltip_text.call_args
+                elif kwargs.get("label") == "No vocals":
+                    no_vocals_tooltip = mock.set_tooltip_text.call_args
+                elif kwargs.get("label") == "Vocals":
+                    vocals_tooltip = mock.set_tooltip_text.call_args
+
+            assert any_tooltip is not None, "Tooltip not set for 'Any' button"
+            assert no_vocals_tooltip is not None, "Tooltip not set for 'No vocals' button"
+            assert vocals_tooltip is not None, "Tooltip not set for 'Vocals' button"
+
+            any_text = any_tooltip[0][0] if any_tooltip else ""
+            assert "limited accuracy" in any_text, (
+                "Tooltip should mention limited accuracy for electronic music"
+            )
+            assert "electronic" in any_text.lower(), "Tooltip should mention electronic music"
+
 
 class TestIntroColumn:
     """Tests for the Intro column in TrackListWidget (TASK-16)."""
