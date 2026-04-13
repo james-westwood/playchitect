@@ -602,7 +602,7 @@
       "owner": "ralph",
       "description": "The hamburger menu contains 'Open Folder' and 'Preferences' items that are permanently greyed out and non-functional. Fix: (1) 'Open Folder' should open a Gtk.FileDialog folder picker and trigger a library rescan of the selected folder (wire to the existing scan functionality). (2) 'Preferences' should open the existing PreferencesWindow (playchitect/gui/preferences_window.py). Remove any other greyed-out items that have no planned implementation.",
       "acceptance_criteria": "Clicking 'Open Folder' opens a folder picker; selecting a folder rescans the library. Clicking 'Preferences' opens the PreferencesWindow. No greyed-out menu items remain unless they have a visible disabled reason (e.g. 'Export \u2014 scan a library first'). uv run pytest tests/ -v passes.",
-      "completed": false,
+      "completed": true,
       "priority": 2,
       "note": "",
       "files": [
