@@ -586,7 +586,7 @@
       "owner": "ralph",
       "description": "The global header bar contains three elements that should be moved or removed: (1) 'Sushi \u2713' chip: move this to a small status badge near the Preview panel in LibraryView only; it is irrelevant in other views. (2) 'Arc:' dropdown: this controls energy arc sequencing and belongs in the Playlists view action bar, not the global header. Move it there and enable/disable it based on whether playlists have been generated. (3) 'Fresh:' toggle: this controls track freshness preference and belongs in the Playlists view action bar alongside other sequencing controls. After moving all three, the header bar should contain only the app title/menu and view switcher tabs.",
       "acceptance_criteria": "Header bar contains no Sushi chip, no Arc dropdown, no Fresh toggle. Arc dropdown appears in Playlists view and is disabled until playlists are generated. Fresh toggle appears in Playlists view. Sushi status appears near the preview panel in Library view. uv run pytest tests/ -v passes.",
-      "completed": false,
+      "completed": true,
       "priority": 1,
       "note": "",
       "files": [
