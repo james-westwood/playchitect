@@ -631,7 +631,7 @@
       "owner": "ralph",
       "description": "Most controls in the app have no tooltip. Add Gtk.Widget.set_tooltip_text() to: all dropdown controls (Sequence, Vocal, Key, Playlists count, Duration target), all buttons (Generate, Autofill, Export, Preview), the cluster/playlist graph widget, the energy arc widget, and the Fresh toggle. Tooltips should explain what the control does in plain language appropriate for a DJ user, not an ML engineer.",
       "acceptance_criteria": "Hovering over each named control for 1 second shows a non-empty tooltip in plain English. uv run pytest tests/ -v passes.",
-      "completed": false,
+      "completed": true,
       "priority": 3,
       "note": "",
       "files": [
