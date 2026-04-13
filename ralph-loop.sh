@@ -441,8 +441,25 @@ PYEOF
     git checkout "$MAIN_BRANCH"
     git fetch origin "$MAIN_BRANCH"
     git reset --hard "origin/$MAIN_BRANCH"
-    git checkout -b "$BRANCH"
+    # Use checkout without -b if the local branch already exists (e.g. from a
+    # previous crashed run), otherwise create it fresh.
+    if git show-ref --verify --quiet "refs/heads/$BRANCH"; then
+      git checkout "$BRANCH"
+      git reset --hard "origin/$MAIN_BRANCH"   # re-base on latest main
+    else
+      git checkout -b "$BRANCH"
+    fi
   fi
+
+  # ── Branch safety guard ─────────────────────────────────────────────────────
+  # Hard-abort if we are not on the expected feature branch. This catches the
+  # case where opencode or a manual DM action left HEAD on main.
+  CURRENT_BRANCH=$(git branch --show-current)
+  if [[ "$CURRENT_BRANCH" != "$BRANCH" ]]; then
+    log "  ABORT: expected branch '$BRANCH' but HEAD is on '$CURRENT_BRANCH'. Refusing to code on wrong branch."
+    exit 1
+  fi
+  log "  Branch confirmed: $CURRENT_BRANCH"
 
   # ── Coding step ────────────────────────────────────────────────────────────
 
