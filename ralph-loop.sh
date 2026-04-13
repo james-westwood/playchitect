@@ -163,10 +163,16 @@ run_reviewer() {
     fi
   else
     # opencode reviewer — reads diff text only, no file writes needed
-    if opencode run -m "$OPENCODE_REVIEWER_MODEL" "$prompt"; then
+    # timeout 5m: kimi-k2.5 hangs silently; kill it and fall back to Claude
+    if timeout 5m opencode run -m "$OPENCODE_REVIEWER_MODEL" "$prompt"; then
       return 0
     else
-      log "  opencode reviewer failed — falling back to Claude"
+      local exit_code=$?
+      if [[ $exit_code -eq 124 ]]; then
+        log "  opencode reviewer timed out after 5m — falling back to Claude"
+      else
+        log "  opencode reviewer failed (exit $exit_code) — falling back to Claude"
+      fi
       env -u CLAUDECODE claude --print "$prompt"
     fi
   fi
