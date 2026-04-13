@@ -55,3 +55,27 @@ label {
     font-size: 0.8em;
     color: #C9D1D9;
 }
+
+/* GUI-11: Section header label */
+.section-header-label {
+    font-size: 0.7em;
+    color: #8B949E;
+    font-weight: 500;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+}
+
+/* GUI-11: Energy bar styling */
+energy-bar {
+    min-height: 4px;
+}
+
+energy-bar > trough {
+    min-height: 4px;
+    background-color: #21262D;
+    border-radius: 2px;
+}
+
+energy-bar > trough > fill {
+    background-color: #7B5CF0;
+}
