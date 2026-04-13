@@ -182,12 +182,8 @@ class PlaychitectWindow(Adw.ApplicationWindow):
 
         menu.append_section(None, Gio.Menu())  # Separator
 
-        # Preferences section
-        pref_section = Gio.Menu()
-        pref_section.append("Preferences", "app.preferences")
-        pref_section.append("Keyboard Shortcuts", "app.keyboard-shortcuts")
-        pref_section.append("About Playchitect", "app.about")
-        menu.append_section(None, pref_section)
+        # Preferences
+        menu.append("Preferences", "app.preferences")
 
         self._menu_button.set_menu_model(menu)
 
@@ -328,6 +324,10 @@ class PlaychitectWindow(Adw.ApplicationWindow):
         prefs = PreferencesWindow()
         prefs.set_transient_for(self)
         prefs.present()
+
+    def rescan_library(self, music_path: Path) -> None:
+        """Trigger a library rescan from the selected folder."""
+        self._start_scan(music_path)
 
     # ── Preview chip ──────────────────────────────────────────────────────────
 
