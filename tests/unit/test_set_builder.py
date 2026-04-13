@@ -10,11 +10,10 @@ from playchitect.core.intensity_analyzer import IntensityFeatures
 from playchitect.core.metadata_extractor import TrackMetadata
 from playchitect.core.set_builder_chapter_generator import (
     Chapter,
-    ChapterTrack,
     ChapterGenerator,
+    ChapterTrack,
     generate_chapters,
 )
-
 
 # ── Helpers ────────────────────────────────────────────────────────────────────
 
