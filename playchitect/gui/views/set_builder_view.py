@@ -349,6 +349,7 @@ class SetBuilderView(Gtk.Box):
         # Timeline state
         self._timeline_tracks: list[tuple[Path, TrackMetadata, IntensityFeatures]] = []
         self._track_cards: list[TrackCard] = []
+        self._chapter_boundaries: list[tuple[int, str]] = []  # (track_index, chapter_name)
 
         # Energy block strip (top)
         self._block_strip = self._build_block_strip()
@@ -883,37 +884,105 @@ class SetBuilderView(Gtk.Box):
         self._update_footer()
 
     def _on_export_clicked(self, _button: Gtk.Button) -> None:
-        """Handle Export Set button click - export to M3U."""
+        """Handle Export Set button click - show export options dialog."""
         if not self._timeline_tracks:
             return
 
-        # Create export directory if needed
-        export_dir = Path.home() / ".local" / "share" / "playchitect" / "exports"
+        self._show_export_dialog()
+
+    def _show_export_dialog(self) -> None:
+        """Show export mode selection dialog with FileDialog."""
+        dialog = Gtk.MessageDialog(
+            transient_for=None,
+            flags=0,
+            message_type=Gtk.MessageType.QUESTION,
+            buttons=Gtk.ButtonsType.NONE,
+            text="Export Set",
+        )
+        dialog.set_markup("Choose export mode:")
+
+        # Create a box with export options
+        content = dialog.get_content_area()
+        options_box = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=8)
+        content.append(options_box)
+
+        # Export as playlist radio button
+        self._export_playlist_radio = Gtk.RadioButton(label="Export as playlist")
+        self._export_playlist_radio.set_active(True)
+        options_box.append(self._export_playlist_radio)
+
+        # Export as chapters radio button
+        self._export_chapters_radio = Gtk.RadioButton(
+            group=self._export_playlist_radio, label="Export as chapters"
+        )
+        options_box.append(self._export_chapters_radio)
+
+        # Chapter info
+        info_label = Gtk.Label()
+        if self._chapter_boundaries:
+            chapter_names = [name for _, name in self._chapter_boundaries]
+            info_label.set_text(f"Chapters: {', '.join(chapter_names)}")
+        else:
+            info_label.set_text("No chapters defined - all tracks will be in one chapter")
+        info_label.set_margin_top(8)
+        options_box.append(info_label)
+
+        # Add Export and Cancel buttons to dialog
+        dialog.add_button("Cancel", Gtk.ResponseType.CANCEL)
+        dialog.add_button("Choose Folder", Gtk.ResponseType.ACCEPT)
+
+        dialog.set_default_response(Gtk.ResponseType.ACCEPT)
+
+        response = dialog.run()
+        dialog.destroy()
+
+        if response != Gtk.ResponseType.ACCEPT:
+            return
+
+        # Show folder selection dialog
+        self._show_folder_selection_dialog()
+
+    def _show_folder_selection_dialog(self) -> None:
+        """Show FileDialog to select output directory."""
+        file_dialog = Gtk.FileDialog()
+        file_dialog.set_title("Select Export Folder")
+        file_dialog.set_initial_folder(
+            Gio.File.new_for_path(str(Path.home() / ".local" / "share" / "playchitect" / "exports"))
+        )
+
+        # Use async callback pattern for GTK4
+        def on_response(
+            source: Gtk.FileDialog, result: Gio.AsyncResult[list[Gio.File] | None]
+        ) -> None:
+            try:
+                files = file_dialog.select_folders_finish(result)
+                if files:
+                    export_dir = Path(files[0].get_path())
+                    self._do_export(export_dir)
+            except Exception:
+                pass
+
+        file_dialog.select_folder(None, callback=on_response)
+
+    def _do_export(self, export_dir: Path) -> None:
+        """Perform the actual export operation."""
         export_dir.mkdir(parents=True, exist_ok=True)
 
-        # Use M3UExporter
         exporter = M3UExporter(export_dir, playlist_prefix="Set")
-
-        # Create a cluster-like object for export
-        from playchitect.core.clustering import ClusterResult
-
         tracks = [path for path, _, _ in self._timeline_tracks]
-        # Calculate mean BPM
-        bpms = [meta.bpm for _, meta, _ in self._timeline_tracks if meta.bpm]
-        mean_bpm = sum(bpms) / len(bpms) if bpms else 0.0
 
-        cluster = ClusterResult(
-            cluster_id=0,
-            tracks=tracks,
-            bpm_mean=mean_bpm,
-            bpm_std=0.0,
-            track_count=len(tracks),
-            total_duration=sum(meta.duration or 0 for _, meta, _ in self._timeline_tracks),
-        )
+        # Determine chapter boundaries
+        boundaries = self._chapter_boundaries if self._chapter_boundaries else None
 
-        export_path = exporter.export_cluster(
-            cluster, cluster_index=0, metadata_dict=self._metadata_map
-        )
+        if self._export_chapters_radio.get_active() and boundaries:
+            export_paths = exporter.export_as_chapters(
+                tracks, metadata_dict=self._metadata_map, chapter_boundaries=boundaries
+            )
+            export_path = export_paths[0].parent
+        else:
+            export_path = exporter.export_as_playlist(
+                tracks, metadata_dict=self._metadata_map, chapter_boundaries=boundaries
+            )
 
         self.emit("set-exported", str(export_path))
 
@@ -1204,3 +1273,19 @@ class SetBuilderView(Gtk.Box):
         self._timeline_tracks = tracks.copy()
         self._refresh_timeline()
         self._update_footer()
+
+    def set_chapter_boundaries(self, boundaries: list[tuple[int, str]]) -> None:
+        """Set chapter boundaries for export.
+
+        Args:
+            boundaries: List of (track_index, chapter_name) tuples defining chapter starts.
+        """
+        self._chapter_boundaries = boundaries
+
+    def get_chapter_boundaries(self) -> list[tuple[int, str]]:
+        """Get current chapter boundaries.
+
+        Returns:
+            List of (track_index, chapter_name) tuples
+        """
+        return self._chapter_boundaries.copy()
