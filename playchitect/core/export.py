@@ -114,6 +114,126 @@ class M3UExporter:
 
         return playlist_paths
 
+    def export_as_playlist(
+        self,
+        tracks: list[Path],
+        metadata_dict: "dict[Path, TrackMetadata] | None" = None,
+        chapter_boundaries: "list[tuple[int, str]] | None" = None,
+        filename: str = "set.m3u",
+    ) -> Path:
+        """
+        Export all tracks as a single flat M3U file with optional chapter markers.
+
+        Args:
+            tracks: List of track paths in order
+            metadata_dict: Optional path -> TrackMetadata for #EXTINF lines
+            chapter_boundaries: Optional list of (track_index, chapter_name) tuples
+                for chapter boundary comments
+            filename: Output filename
+
+        Returns:
+            Path to created playlist file
+        """
+        playlist_path = self.output_dir / filename
+
+        logger.info(f"Exporting playlist with {len(tracks)} tracks to {filename}")
+
+        with open(playlist_path, "w", encoding="utf-8") as f:
+            f.write("#EXTM3U\n")
+
+            chapter_idx = 0
+            for i, track in enumerate(tracks):
+                # Check if this is a chapter boundary
+                if chapter_boundaries and chapter_idx < len(chapter_boundaries):
+                    if i == chapter_boundaries[chapter_idx][0]:
+                        chapter_name = chapter_boundaries[chapter_idx][1]
+                        f.write(f"# --- {chapter_name} ---\n")
+                        chapter_idx += 1
+
+                # Make path relative or absolute
+                try:
+                    rel_path = track.relative_to(self.output_dir)
+                except ValueError:
+                    rel_path = track
+
+                # Write #EXTINF with metadata
+                if metadata_dict and track in metadata_dict:
+                    meta = metadata_dict[track]
+                    duration = int(meta.duration or 0)
+                    artist = meta.artist or "Unknown"
+                    title = meta.title or track.stem
+                    f.write(f"#EXTINF:{duration},{artist} - {title}\n")
+                f.write(f"{rel_path}\n")
+
+        logger.debug(f"Wrote {len(tracks)} tracks to {playlist_path}")
+
+        return playlist_path
+
+    def export_as_chapters(
+        self,
+        tracks: list[Path],
+        metadata_dict: "dict[Path, TrackMetadata] | None" = None,
+        chapter_boundaries: "list[tuple[int, str]] | None" = None,
+    ) -> list[Path]:
+        """
+        Export each chapter as a separate M3U file.
+
+        Args:
+            tracks: List of track paths in order
+            metadata_dict: Optional path -> TrackMetadata for #EXTINF lines
+            chapter_boundaries: List of (track_index, chapter_name) tuples defining chapters.
+                Each tuple marks the start of a chapter.
+
+        Returns:
+            List of paths to created playlist files
+        """
+        if not chapter_boundaries:
+            logger.warning("No chapter boundaries provided, exporting as single file")
+            return [self.export_as_playlist(tracks, metadata_dict, filename="set.m3u")]
+
+        logger.info(f"Exporting {len(chapter_boundaries)} chapters to {self.output_dir}")
+
+        playlist_paths = []
+
+        for chapter_num, (start_idx, chapter_name) in enumerate(chapter_boundaries, 1):
+            # Determine end index for this chapter
+            if chapter_num < len(chapter_boundaries):
+                end_idx = chapter_boundaries[chapter_num][0]
+            else:
+                end_idx = len(tracks)
+
+            chapter_tracks = tracks[start_idx:end_idx]
+
+            # Sanitize chapter name for filename
+            safe_name = "".join(c if c.isalnum() or c in "-_" else "_" for c in chapter_name)
+            filename = f"{chapter_num:02d}_{safe_name}.m3u"
+            chapter_path = self.output_dir / filename
+
+            with open(chapter_path, "w", encoding="utf-8") as f:
+                f.write("#EXTM3U\n")
+                f.write(f"# {chapter_name}\n")
+
+                for track in chapter_tracks:
+                    try:
+                        rel_path = track.relative_to(self.output_dir)
+                    except ValueError:
+                        rel_path = track
+
+                    if metadata_dict and track in metadata_dict:
+                        meta = metadata_dict[track]
+                        duration = int(meta.duration or 0)
+                        artist = meta.artist or "Unknown"
+                        title = meta.title or track.stem
+                        f.write(f"#EXTINF:{duration},{artist} - {title}\n")
+                    f.write(f"{rel_path}\n")
+
+            logger.debug(f"Wrote {len(chapter_tracks)} tracks to {filename}")
+            playlist_paths.append(chapter_path)
+
+        logger.info(f"Successfully exported {len(playlist_paths)} chapter playlists")
+
+        return playlist_paths
+
 
 class CUEExporter:
     """Exports playlists to CUE sheet format."""
