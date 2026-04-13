@@ -335,6 +335,9 @@ class TestPlaylistsViewInstantiation:
             patch("playchitect.gui.views.playlists_view.Gtk.Scale") as mock_scale,
             # TASK-19: Energy arc widget
             patch("playchitect.gui.views.playlists_view.EnergyArcWidget") as mock_energy_arc,
+            # GUI-04: Expander for advanced options
+            patch("playchitect.gui.views.playlists_view.Gtk.Expander") as mock_expander,
+            patch("playchitect.gui.views.playlists_view.Gtk.ToggleButton") as mock_toggle,
         ):
             # Setup mock returns
             mock_action.return_value = MagicMock()
@@ -353,6 +356,8 @@ class TestPlaylistsViewInstantiation:
             mock_switch.return_value = MagicMock()
             mock_scale.return_value = MagicMock()
             mock_energy_arc.return_value = MagicMock()
+            mock_expander.return_value = MagicMock()
+            mock_toggle.return_value = MagicMock()
 
             view = PlaylistsView()
             assert view is not None
@@ -468,6 +473,7 @@ class TestVocalFilterControls:
             patch("playchitect.gui.views.playlists_view.Gtk.ListBox") as mock_listbox,
             patch("playchitect.gui.views.playlists_view.Gtk.ScrolledWindow") as mock_scroll,
             patch("playchitect.gui.views.playlists_view.Gtk.Separator") as mock_sep,
+            patch("playchitect.gui.views.playlists_view.Gtk.Expander") as mock_expander,
             patch("playchitect.gui.views.playlists_view.EnergyArcWidget") as mock_energy_arc,
         ):
             # Setup mock returns
@@ -487,6 +493,7 @@ class TestVocalFilterControls:
             mock_switch.return_value = MagicMock()
             mock_scale.return_value = MagicMock()
             mock_energy_arc.return_value = MagicMock()
+            mock_expander.return_value = MagicMock()
 
             # Create toggle button mocks to capture their creation
             toggle_mocks = []

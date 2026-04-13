@@ -141,6 +141,9 @@ class PlaylistsView(Gtk.Box):
     _harmonic_switch: Any = None
     _energy_flow_dropdown: Any = None
     _energy_heatmap: Any = None
+    _sequence_dropdown: Any = None
+    _advanced_expander: Any = None
+    _intro_dropdown: Any = None
 
     __gsignals__ = {
         "cluster-selected": (GObject.SignalFlags.RUN_FIRST, None, (GObject.TYPE_PYOBJECT,)),
@@ -245,35 +248,42 @@ class PlaylistsView(Gtk.Box):
 
         self._action_bar.pack_start(harmonic_box)
 
-        # Center: Sort by control (TASK-12)
-        sort_box = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL, spacing=6)
-        sort_box.set_margin_start(12)
-        sort_box.set_hexpand(False)
-        sort_label = Gtk.Label(label="Sort by:")
-        sort_box.append(sort_label)
+        # GUI-04: Sequence control (merged Sort by + Energy flow)
+        sequence_box = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL, spacing=6)
+        sequence_box.set_margin_start(12)
+        sequence_box.set_hexpand(False)
+        sequence_label = Gtk.Label(label="Sequence:")
+        sequence_box.append(sequence_label)
 
-        sort_model = Gtk.StringList.new(
+        sequence_model = Gtk.StringList.new(
             [
                 "Energy ramp (default)",
-                "Build to peak",
-                "Gradual descent",
-                "Alternating",
-                "Short intro first",  # TASK-16
-                "Long intro first",  # TASK-16
+                "Energy build",
+                "Energy descent",
+                "BPM ascending",
+                "BPM descending",
             ]
         )
-        self._sort_dropdown = Gtk.DropDown(model=sort_model)
-        self._sort_dropdown.set_selected(0)  # Default to "Energy ramp (default)"
-        self._sort_dropdown.set_tooltip_text("Select energy flow sequencing strategy")
-        sort_box.append(self._sort_dropdown)
+        self._sequence_dropdown = Gtk.DropDown(model=sequence_model)
+        self._sequence_dropdown.set_selected(0)
+        self._sequence_dropdown.set_tooltip_text("Select playlist sequencing strategy")
+        sequence_box.append(self._sequence_dropdown)
 
-        self._action_bar.pack_start(sort_box)
+        self._action_bar.pack_start(sequence_box)
 
-        # TASK-14: Timbre similarity scale
+        # GUI-04: Advanced expander for advanced options
+        self._advanced_expander = Gtk.Expander()
+        self._advanced_expander.set_label("Advanced")
+        self._advanced_expander.set_hexpand(False)
+        self._advanced_expander.set_margin_start(12)
+
+        advanced_box = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL, spacing=12)
+        advanced_box.set_margin_top(8)
+        advanced_box.set_margin_bottom(8)
+
+        # Advanced: Timbre similarity scale
         timbre_box = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL, spacing=6)
-        timbre_box.set_margin_start(12)
-        timbre_box.set_hexpand(False)
-        timbre_label = Gtk.Label(label="Timbre similarity:")
+        timbre_label = Gtk.Label(label="Timbre:")
         timbre_box.append(timbre_label)
 
         self._timbre_scale = Gtk.Scale(orientation=Gtk.Orientation.HORIZONTAL)
@@ -285,10 +295,24 @@ class PlaylistsView(Gtk.Box):
         self._timbre_scale.set_tooltip_text(
             "Increase to prioritize timbral similarity in clustering"
         )
-        self._timbre_scale.set_size_request(120, -1)
+        self._timbre_scale.set_size_request(100, -1)
         timbre_box.append(self._timbre_scale)
+        advanced_box.append(timbre_box)
 
-        self._action_bar.pack_start(timbre_box)
+        # Advanced: Intro length dropdown
+        intro_box = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL, spacing=6)
+        intro_label = Gtk.Label(label="Intro:")
+        intro_box.append(intro_label)
+
+        intro_model = Gtk.StringList.new(["Off", "Short first", "Long first"])
+        self._intro_dropdown = Gtk.DropDown(model=intro_model)
+        self._intro_dropdown.set_selected(0)  # Default to "Off"
+        self._intro_dropdown.set_tooltip_text("Sort by intro length")
+        intro_box.append(self._intro_dropdown)
+        advanced_box.append(intro_box)
+
+        self._advanced_expander.set_child(advanced_box)
+        self._action_bar.pack_start(self._advanced_expander)
 
         # TASK-16: Vocal filter chips
         vocal_box = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL, spacing=6)
@@ -316,25 +340,6 @@ class PlaylistsView(Gtk.Box):
         vocal_box.append(self._vocal_btn_vocal)
 
         self._action_bar.pack_start(vocal_box)
-
-        # Issue #39: Energy flow dropdown
-        energy_flow_box = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL, spacing=6)
-        energy_flow_box.set_margin_start(12)
-        energy_flow_box.set_hexpand(False)
-        energy_flow_label = Gtk.Label(label="Energy flow:")
-        energy_flow_box.append(energy_flow_label)
-
-        energy_flow_model = Gtk.StringList.new(["ramp", "build", "descent", "constant"])
-        self._energy_flow_dropdown = Gtk.DropDown(model=energy_flow_model)
-        self._energy_flow_dropdown.set_selected(0)  # Default to "ramp"
-        self._energy_flow_dropdown.set_tooltip_text("Select energy flow sequencing strategy")
-        energy_flow_box.append(self._energy_flow_dropdown)
-
-        self._action_bar.pack_start(energy_flow_box)
-
-        # Issue #39: Energy heatmap widget
-        self._energy_heatmap = Gtk.Box()  # Placeholder for energy heatmap
-        self._energy_heatmap.set_visible(False)  # Hidden by default
 
         # Right: Spinner (hidden while idle)
         self._spinner = Gtk.Spinner()
@@ -816,20 +821,27 @@ class PlaylistsView(Gtk.Box):
 
         track_order = list(cluster.tracks)
 
-        # Apply sequencing strategy from sort dropdown (TASK-12, TASK-16)
-        selected_sort = self._sort_dropdown.get_selected()
-        strategy_map = {0: "ramp", 1: "build", 2: "descent", 3: "alternating"}
+        # GUI-04: Apply sequencing strategy from Sequence dropdown
+        selected_sequence = self._sequence_dropdown.get_selected()
+        strategy_map = {
+            0: "ramp",
+            1: "build",
+            2: "descent",
+            3: "bpm_asc",
+            4: "bpm_desc",
+        }
 
-        # TASK-16: Handle intro sorting (indices 4 and 5)
-        if selected_sort == 4:
+        # Handle intro sorting from Advanced expander
+        selected_intro = self._intro_dropdown.get_selected()
+        if selected_intro == 1:
             # Short intro first (ascending)
             track_order = self._sort_by_intro(track_order, ascending=True)
-        elif selected_sort == 5:
+        elif selected_intro == 2:
             # Long intro first (descending)
             track_order = self._sort_by_intro(track_order, ascending=False)
-        else:
-            # Standard energy strategies
-            selected_strategy = strategy_map.get(selected_sort, "ramp")
+        elif selected_sequence in strategy_map:
+            # Standard sequencing strategies
+            selected_strategy = strategy_map[selected_sequence]
 
             from playchitect.core.sequencer import sequence_by_strategy
 
@@ -838,6 +850,7 @@ class PlaylistsView(Gtk.Box):
                     track_order,
                     self._intensity_map,
                     selected_strategy,
+                    metadata=self._metadata_map,
                 )
             except (ValueError, KeyError) as e:
                 logger.warning("Strategy sequencing failed: %s", e)
@@ -961,6 +974,89 @@ class PlaylistsView(Gtk.Box):
         """Update harmonic color coding in the track list."""
         # Trigger a refresh of the track list to apply color coding
         self._track_list.refresh()
+
+    # ── GUI-04: Sequence Control ────────────────────────────────────────────────
+
+    def get_sequence_mode(self) -> str:
+        """Return the current sequence mode from the Sequence dropdown."""
+        dropdown = getattr(self, "_sequence_dropdown", None)
+        if dropdown is not None:
+            selected_item = dropdown.get_selected_item()
+            if selected_item is not None:
+                result = selected_item.get_string()
+                if isinstance(result, str):
+                    return result
+            selected = dropdown.get_selected()
+            try:
+                selected_idx = int(selected)
+                modes = ["ramp", "build", "descent", "bpm_asc", "bpm_desc"]
+                if 0 <= selected_idx < len(modes):
+                    return modes[selected_idx]
+            except (TypeError, ValueError):
+                pass
+        return "ramp"
+
+    def set_sequence_mode(self, mode: str) -> None:
+        """Set the sequence mode."""
+        dropdown = getattr(self, "_sequence_dropdown", None)
+        if dropdown is not None:
+            modes = ["ramp", "build", "descent", "bpm_asc", "bpm_desc"]
+            if mode in modes:
+                dropdown.set_selected(modes.index(mode))
+
+    def get_sequence_options(self) -> list[str]:
+        """Return the available sequence options."""
+        dropdown = getattr(self, "_sequence_dropdown", None)
+        if dropdown is not None:
+            model = dropdown.get_model()
+            options = []
+            for i in range(model.get_n_items()):
+                item = model.get_item(i)
+                if item is not None:
+                    options.append(item.get_string())
+            return options
+        return [
+            "Energy ramp (default)",
+            "Energy build",
+            "Energy descent",
+            "BPM ascending",
+            "BPM descending",
+        ]
+
+    def get_advanced_expander_visible(self) -> bool:
+        """Return whether the advanced expander is expanded."""
+        expander = getattr(self, "_advanced_expander", None)
+        if expander is not None:
+            return expander.get_expanded()
+        return False
+
+    def set_advanced_expander_visible(self, expanded: bool) -> None:
+        """Set the advanced expander expanded state."""
+        expander = getattr(self, "_advanced_expander", None)
+        if expander is not None:
+            expander.set_expanded(expanded)
+
+    def get_intro_mode(self) -> str:
+        """Return the current intro sorting mode."""
+        dropdown = getattr(self, "_intro_dropdown", None)
+        if dropdown is not None:
+            selected = dropdown.get_selected()
+            modes = ["Off", "Short first", "Long first"]
+            try:
+                idx = int(selected)
+                if 0 <= idx < len(modes):
+                    return modes[idx]
+            except (TypeError, ValueError):
+                pass
+        return "Off"
+
+    def set_intro_mode(self, mode: str) -> None:
+        """Set the intro sorting mode."""
+        dropdown = getattr(self, "_intro_dropdown", None)
+        if dropdown is not None:
+            modes = ["Off", "Short first", "Long first"]
+            if mode in modes:
+                dropdown.set_selected(modes.index(mode))
 
     # ── Issue #39: Energy Flow Controls ─────────────────────────────────────────
 
