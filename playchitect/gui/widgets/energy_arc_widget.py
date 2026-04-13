@@ -55,6 +55,7 @@ class EnergyArcWidget(Gtk.DrawingArea):
         self._clusters: list[tuple[str, float]] = []
         self.set_size_request(-1, _MIN_HEIGHT)
         self.set_draw_func(self._on_draw)
+        self.set_tooltip_text("Energy arc showing intensity flow across playlists")
 
     def update_clusters(self, clusters: list[ClusterResult]) -> None:
         """Update the widget with new cluster data.

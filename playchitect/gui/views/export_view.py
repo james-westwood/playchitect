@@ -213,6 +213,7 @@ class ExportView(Gtk.Box):
         entry_box.append(self._destination_entry)
 
         self._browse_button = Gtk.Button(label="Browse…")
+        self._browse_button.set_tooltip_text("Choose where to save exported playlists")
         self._browse_button.connect("clicked", self._on_browse_clicked)
         entry_box.append(self._browse_button)
 
@@ -229,6 +230,9 @@ class ExportView(Gtk.Box):
         # Export button (suggested-action style)
         self._export_button = Gtk.Button(label="Export")
         self._export_button.add_css_class("suggested-action")
+        self._export_button.set_tooltip_text(
+            "Export playlists to the selected formats and destination"
+        )
         self._export_button.connect("clicked", self._on_export_clicked)
         action_box.append(self._export_button)
 

@@ -204,6 +204,7 @@ class ClusterCard(Gtk.Frame):
         view_btn.add_css_class("pill")
         view_btn.set_halign(Gtk.Align.END)
         view_btn.set_hexpand(True)
+        view_btn.set_tooltip_text("View and edit tracks in this playlist")
         view_btn.connect("clicked", self._on_view_tracks_clicked)
         btn_row.append(view_btn)
         outer.append(btn_row)

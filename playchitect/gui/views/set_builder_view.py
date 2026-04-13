@@ -534,14 +534,14 @@ class SetBuilderView(Gtk.Box):
         # Auto-fill button
         self._auto_fill_button = Gtk.Button(label="Auto-fill")
         self._auto_fill_button.set_tooltip_text(
-            "Automatically add compatible tracks from the last track"
+            "Automatically add compatible tracks from the last track in your set"
         )
         self._auto_fill_button.connect("clicked", self._on_auto_fill_clicked)
         box.append(self._auto_fill_button)
 
         # Export Set button
         self._export_button = Gtk.Button(label="Export Set")
-        self._export_button.set_tooltip_text("Export the current set as an M3U playlist")
+        self._export_button.set_tooltip_text("Save your current set as an M3U playlist file")
         self._export_button.connect("clicked", self._on_export_clicked)
         box.append(self._export_button)
 
