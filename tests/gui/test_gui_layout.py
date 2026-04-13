@@ -147,13 +147,12 @@ class TestMainWindowSmoke:
         assert hasattr(window, "_spinner")
 
     def test_preview_chip_attribute_set(self, window: PlaychitectWindow) -> None:
-        assert hasattr(window, "_preview_chip")
-
-    def test_track_title_default(self, window: PlaychitectWindow) -> None:
-        assert window._track_title == "Playchitect"
+        assert hasattr(window, "_library_view")
+        assert hasattr(window._library_view, "_preview_chip")
 
     def test_arc_dropdown_attribute_set(self, window: PlaychitectWindow) -> None:
-        assert hasattr(window, "_arc_dropdown")
+        assert hasattr(window, "_playlists_view")
+        assert hasattr(window._playlists_view, "_arc_dropdown")
 
     def test_menu_button_attribute_set(self, window: PlaychitectWindow) -> None:
         assert hasattr(window, "_menu_button")

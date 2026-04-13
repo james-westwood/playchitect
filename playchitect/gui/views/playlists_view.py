@@ -35,6 +35,7 @@ from gi.repository import (  # type: ignore[unresolved-import]  # noqa: E402
     Gtk,
 )
 
+from playchitect.core.arc_sequencer import BUILTIN_PRESETS, apply_arc  # noqa: E402
 from playchitect.core.clustering import ClusterResult, PlaylistClusterer  # noqa: E402
 from playchitect.core.intensity_analyzer import IntensityAnalyzer  # noqa: E402
 from playchitect.core.metadata_extractor import TrackMetadata  # noqa: E402
@@ -134,6 +135,7 @@ class PlaylistsView(Gtk.Box):
     __gsignals__ = {
         "cluster-selected": (GObject.SignalFlags.RUN_FIRST, None, (GObject.TYPE_PYOBJECT,)),
         "clusters-generated": (GObject.SignalFlags.RUN_FIRST, None, (GObject.TYPE_PYOBJECT,)),
+        "arc-selected": (GObject.SignalFlags.RUN_FIRST, None, (int,)),
     }
 
     def __init__(self) -> None:
@@ -141,10 +143,12 @@ class PlaylistsView(Gtk.Box):
 
         # State
         self._clusters: list[ClusterResult] = []
+        self._original_clusters: list[ClusterResult] = []  # For arc reapplication
         self._cluster_stats: list[ClusterStats] = []
         self._metadata_map: dict[Path, TrackMetadata] = {}
         self._intensity_map: dict[Path, Any] = {}
         self._selected_cluster_id: int | str | None = None
+        self._prefer_fresh: bool = False
 
         # Build UI
         self._build_toolbar()
@@ -334,6 +338,36 @@ class PlaylistsView(Gtk.Box):
         self._count_label.add_css_class("dim-label")
         self._action_bar.pack_end(self._count_label)
 
+        # Arc selector DropDown (moved from header bar)
+        arc_box = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL, spacing=6)
+        arc_box.set_margin_start(12)
+        arc_label = Gtk.Label(label="Arc:")
+        arc_box.append(arc_label)
+
+        arc_names = ["None"] + [p.name for p in BUILTIN_PRESETS]
+        arc_model = Gtk.StringList.new(arc_names)
+        self._arc_dropdown = Gtk.DropDown(model=arc_model)
+        self._arc_dropdown.set_selected(0)  # Default to "None"
+        self._arc_dropdown.set_sensitive(False)  # Enabled after playlists generated
+        self._arc_dropdown.set_tooltip_text("Apply energy arc sequencing to playlists")
+        self._arc_dropdown.connect("notify::selected", self._on_arc_selected)
+        arc_box.append(self._arc_dropdown)
+
+        self._action_bar.pack_end(arc_box)
+
+        # Prefer fresh tracks switch (moved from header bar)
+        fresh_box = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL, spacing=6)
+        fresh_box.set_margin_start(12)
+        fresh_label = Gtk.Label(label="Fresh:")
+        fresh_box.append(fresh_label)
+
+        self._fresh_switch = Gtk.Switch()
+        self._fresh_switch.set_tooltip_text("Prioritize tracks not recently played")
+        self._fresh_switch.connect("notify::active", self._on_fresh_switch_toggled)
+        fresh_box.append(self._fresh_switch)
+
+        self._action_bar.pack_end(fresh_box)
+
         self.append(self._action_bar)
 
     def _build_content(self) -> None:
@@ -504,6 +538,32 @@ class PlaylistsView(Gtk.Box):
             self._load_tracks_for_cluster(self._selected_cluster_id)
             logger.info("Harmonic mixing %s", "enabled" if active else "disabled")
 
+    def _on_fresh_switch_toggled(self, switch: Gtk.Switch, _param: object) -> None:
+        """Handle toggling of the 'Prefer fresh tracks' switch."""
+        self._prefer_fresh = switch.get_active()
+        logger.debug("Prefer fresh tracks: %s", self._prefer_fresh)
+
+    def _on_arc_selected(self, dropdown: Gtk.DropDown, _param: object) -> None:
+        """Handle arc preset selection from dropdown - forward to main window."""
+        if not self._clusters or not self._original_clusters:
+            return
+
+        selected_index = dropdown.get_selected()
+        preset_name = "Original"
+        if selected_index == 0:
+            # "None" selected - restore original cluster order
+            self._clusters = list(self._original_clusters)
+            logger.debug("Arc preset: None (original order)")
+        else:
+            # Apply arc preset (index 0 is "None", so preset is at index-1)
+            preset = BUILTIN_PRESETS[selected_index - 1]
+            preset_name = preset.name
+            self._clusters = apply_arc(self._original_clusters, preset)
+            logger.debug("Arc preset selected: %s", preset_name)
+
+        # Emit signal that main_window can handle
+        self.emit("arc-selected", selected_index)
+
     def _on_vocal_filter_changed(self, _btn: Gtk.ToggleButton) -> None:
         """Handle vocal filter chip change - reload track list if cluster selected."""
         if self._selected_cluster_id is not None:
@@ -640,6 +700,14 @@ class PlaylistsView(Gtk.Box):
         """Handle completion of playlist generation."""
         self._set_loading_state(False)
         self._refresh_cluster_sidebar()
+
+        # Store original clusters for arc reapplication
+        self._original_clusters = list(self._clusters)
+
+        # Enable arc dropdown now that playlists exist
+        if hasattr(self, "_arc_dropdown"):
+            self._arc_dropdown.set_sensitive(True)
+            self._arc_dropdown.set_selected(0)
 
         # Update energy arc visualization
         if hasattr(self, "_energy_arc"):
@@ -823,12 +891,17 @@ class PlaylistsView(Gtk.Box):
     def clear(self) -> None:
         """Clear all clusters and tracks."""
         self._clusters = []
+        self._original_clusters = []
         self._cluster_stats = []
         self._selected_cluster_id = None
         self._refresh_cluster_sidebar()
         self._track_list.clear()
         self._count_label.set_text("0 playlists")
         self._update_stats_display(None)
+
+    def get_clusters(self) -> list[ClusterResult]:
+        """Return the current list of clusters."""
+        return self._clusters
 
     # ── Issue #37: Harmonic Mixing Controls ────────────────────────────────────
 

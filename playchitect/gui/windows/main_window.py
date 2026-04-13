@@ -72,38 +72,7 @@ class PlaychitectWindow(Adw.ApplicationWindow):
         self._spinner = Gtk.Spinner()
         header.pack_end(self._spinner)
 
-        # Preview availability chip (right side of header)
-        self._preview_chip = Gtk.Label()
-        self._preview_chip.add_css_class("caption")
-        self._update_preview_chip()
-        header.pack_start(self._preview_chip)
-
-        # Arc selector DropDown
-        arc_label = Gtk.Label(label="Arc:")
-        arc_label.set_margin_start(8)
-        header.pack_start(arc_label)
-
-        # Create string list for dropdown: "None" + preset names
-        arc_names = ["None"] + [p.name for p in BUILTIN_PRESETS]
-        arc_model = Gtk.StringList.new(arc_names)
-        self._arc_dropdown = Gtk.DropDown(model=arc_model)
-        self._arc_dropdown.set_selected(0)  # Default to "None"
-        self._arc_dropdown.set_sensitive(False)  # Enabled after clustering
-        self._arc_dropdown.connect("notify::selected", self._on_arc_selected)
-        header.pack_start(self._arc_dropdown)
-
-        # Prefer fresh tracks switch
-        fresh_box = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL, spacing=6)
-        fresh_box.set_margin_start(12)
-        fresh_label = Gtk.Label(label="Fresh:")
-        fresh_box.append(fresh_label)
-
-        self._fresh_switch = Gtk.Switch()
-        self._fresh_switch.set_tooltip_text("Prioritize tracks not recently played")
-        self._fresh_switch.connect("notify::active", self._on_fresh_switch_toggled)
-        fresh_box.append(self._fresh_switch)
-
-        header.pack_start(fresh_box)
+        # Menu button (primary menu)
 
         # ── Clustering Options ────────────────────────────────────────────────
         options_btn = Gtk.MenuButton(icon_name="emblem-system-symbolic")
@@ -299,6 +268,7 @@ class PlaychitectWindow(Adw.ApplicationWindow):
         self._playlists_view = PlaylistsView()
         self._playlists_view.connect("cluster-selected", self._on_playlists_cluster_selected)
         self._playlists_view.connect("clusters-generated", self._on_playlists_clusters_generated)
+        self._playlists_view.connect("arc-selected", self._on_playlists_arc_selected)
         stack.add_titled(self._playlists_view, "playlists", "Playlists")
 
         # Set Builder view
@@ -327,6 +297,20 @@ class PlaychitectWindow(Adw.ApplicationWindow):
         self._export_view.set_clusters(clusters, self._metadata_map)
         if hasattr(self, "_cluster_names") and self._cluster_names:
             self._export_view.set_cluster_names(self._cluster_names)
+        # Store original clusters for arc reapplication
+        self._original_clusters = list(clusters)
+
+    def _on_playlists_arc_selected(self, _view: PlaylistsView, selected_index: int) -> None:
+        """Handle arc-selected signal from playlists view - update export view."""
+        if not self._original_clusters:
+            return
+
+        # Get the updated clusters from playlists view
+        clusters = self._playlists_view.get_clusters()
+        if clusters:
+            self._clusters = clusters
+            # Update export view with reordered clusters
+            self._export_view.set_clusters(self._clusters, self._metadata_map)
 
     def _on_nav_row_selected(self, _listbox: Gtk.ListBox, row: Gtk.ListBoxRow | None) -> None:
         """Handle navigation row selection to switch view stack pages."""
