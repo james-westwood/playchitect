@@ -324,19 +324,29 @@ class PlaylistsView(Gtk.Box):
         # ToggleButton group for vocal filter
         self._vocal_btn_any = Gtk.ToggleButton(label="Any")
         self._vocal_btn_any.set_active(True)
+        self._vocal_btn_any.set_tooltip_text(
+            "Show all tracks regardless of vocal content. "
+            "Note: Vocal detection has limited accuracy for electronic/techno music."
+        )
         self._vocal_btn_any.connect("toggled", self._on_vocal_filter_changed)
         vocal_box.append(self._vocal_btn_any)
 
-        self._vocal_btn_instrumental = Gtk.ToggleButton(label="Instrumental")
+        self._vocal_btn_instrumental = Gtk.ToggleButton(label="No vocals")
         self._vocal_btn_instrumental.set_group(self._vocal_btn_any)
+        self._vocal_btn_instrumental.set_tooltip_text(
+            "Show tracks with minimal vocal content (vocal_presence < 0.3). "
+            "Note: Vocal detection has limited accuracy for electronic/techno music."
+        )
         self._vocal_btn_instrumental.connect("toggled", self._on_vocal_filter_changed)
-        self._vocal_btn_instrumental.set_tooltip_text("vocal_presence < 0.3")
         vocal_box.append(self._vocal_btn_instrumental)
 
-        self._vocal_btn_vocal = Gtk.ToggleButton(label="Vocal")
+        self._vocal_btn_vocal = Gtk.ToggleButton(label="Vocals")
         self._vocal_btn_vocal.set_group(self._vocal_btn_any)
+        self._vocal_btn_vocal.set_tooltip_text(
+            "Show tracks with significant vocal content (vocal_presence > 0.6). "
+            "Note: Vocal detection has limited accuracy for electronic/techno music."
+        )
         self._vocal_btn_vocal.connect("toggled", self._on_vocal_filter_changed)
-        self._vocal_btn_vocal.set_tooltip_text("vocal_presence > 0.6")
         vocal_box.append(self._vocal_btn_vocal)
 
         self._action_bar.pack_start(vocal_box)
