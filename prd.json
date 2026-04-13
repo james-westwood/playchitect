@@ -571,7 +571,7 @@
       "owner": "ralph",
       "description": "Wire the duration-constrained playlist assembly (FEAT-01a) into the GUI pipeline. In playchitect/gui/windows/main_window.py, after clustering completes and before results are passed to the PlaylitsView, call `build_duration_constrained_playlists()` with the user's target duration (read from the existing duration control in playlists_view.py or preferences). Ensure the total set duration and number of playlists fields in the UI are clearly labelled and their values are passed through correctly. Add a visible indicator in the Playlists view showing the actual duration of each playlist after trimming.",
       "acceptance_criteria": "Setting target duration to 60 mins with 4 playlists and generating results in each playlist showing ~60 min of tracks (not the full library). Each playlist row in the sidebar shows its actual duration. uv run pytest tests/ -v passes.",
-      "completed": false,
+      "completed": true,
       "priority": 1,
       "files": [
         "playchitect/gui/windows/main_window.py",
