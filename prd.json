@@ -649,7 +649,7 @@
       "owner": "ralph",
       "description": "The Playlists view has a 'Vocal' filter with options 'Any', 'Instrumental', 'Vocal'. These options are confusing for users mixing electronic/techno: (1) Add a tooltip explaining each option and how it affects track selection. (2) Rename options to be clearer: 'Any vocals' \u2192 'Any', 'Instrumental only' \u2192 'No vocals', 'Has vocals' \u2192 'Vocals'. (3) If the vocal detection feature is not reliably implemented, add a note in the tooltip that this filter has limited accuracy for electronic music.",
       "acceptance_criteria": "Vocal filter has a tooltip explaining its function. Option labels are updated to clearer wording. uv run pytest tests/ -v passes.",
-      "completed": false,
+      "completed": true,
       "priority": 3,
       "note": "",
       "files": [
