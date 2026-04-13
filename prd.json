@@ -751,7 +751,7 @@
       "owner": "ralph",
       "description": "Two additions to `playchitect/gui/views/library_view.py` and `playchitect/gui/widgets/track_preview_panel.py`: (1) TAG CHIPS \u2014 when a track is selected and the preview panel is open, display the track's vibe/genre tags as pill-shaped chip labels below the audio player controls. Read tag values from the `TrackMetadata` object (the `tags` or `genre` fields already extracted by `metadata_extractor.py`). Render each non-empty tag as a `Gtk.Label` inside a `Gtk.FlowBox` with CSS class `tag-chip`. Add to `style.css`: `.tag-chip { background-color: rgba(123,92,240,0.2); border: 1px solid #7B5CF0; border-radius: 12px; padding: 2px 10px; font-size: 0.8em; color: #C9D1D9; }`. If the track has no tags, show nothing (do not show an empty FlowBox). (2) STORAGE STATS \u2014 in the library status bar (bottom of the track list pane, where '2,147 tracks in library' is shown), append the total size of all scanned files formatted as 'X.X GB Total'. Compute this by summing `os.path.getsize(track.filepath)` for all tracks in the model, formatted with `/ 1e9` rounded to 1 decimal place. Update the label whenever the track list model changes.",
       "acceptance_criteria": "Selecting a tagged track (e.g. one with genre='Techno') shows the tag as a purple pill chip below the player. Tracks with no tags show no chip section. The status bar shows e.g. '2,147 tracks \u00b7 48.2 GB Total'. `uv run pytest tests/ -v` passes.",
-      "completed": false,
+      "completed": true,
       "priority": 2,
       "note": "Stitch design reference: docs/planning/stitch-screens/library-view.png",
       "files": [
