@@ -188,6 +188,31 @@ class PlaychitectWindow(Adw.ApplicationWindow):
 
         self._menu_button.set_menu_model(menu)
 
+    def _build_logo_header(self) -> Gtk.Widget:
+        """Build the non-interactive logo header widget."""
+        header_box = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=8)
+        header_box.set_margin_top(16)
+        header_box.set_margin_bottom(16)
+        header_box.add_css_class("sidebar-logo-header")
+
+        # App icon (try theme first, then fallback to file)
+        icon_path = Path(
+            "/home/james/Programming/personal/playchitect/data/icons/hicolor/48x48/apps/playchitect.png"
+        )
+        if icon_path.exists():
+            icon = Gtk.Image.new_from_file(str(icon_path))
+        else:
+            icon = Gtk.Image.new_from_icon_name("com.github.jameswestwood.Playchitect")
+        icon.set_pixel_size(48)
+        header_box.append(icon)
+
+        # App name label
+        title_label = Gtk.Label(label="Playchitect")
+        title_label.add_css_class("title-4")
+        header_box.append(title_label)
+
+        return header_box
+
     def _build_sidebar(self) -> Gtk.Widget:
         """Build the navigation sidebar with four views."""
         sidebar_box = Gtk.Box(orientation=Gtk.Orientation.VERTICAL)
@@ -195,6 +220,10 @@ class PlaychitectWindow(Adw.ApplicationWindow):
         sidebar_box.set_margin_bottom(6)
         sidebar_box.set_margin_start(6)
         sidebar_box.set_margin_end(6)
+
+        # ── Logo header (non-interactive) ────────────────────────────────
+        logo_header = self._build_logo_header()
+        sidebar_box.append(logo_header)
 
         # ListBox for navigation
         self._nav_list = Gtk.ListBox()
