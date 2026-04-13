@@ -16,3 +16,4 @@
 [2026-04-13] [GUI-08] brand_css_dark_theme: implemented and merged (PR #213)
 [2026-04-13] [GUI-09] sidebar_logo_header: implemented and merged (PR #214)
 [2026-04-13] [GUI-10] library_view_tag_chips_and_storage_stats: implemented and merged (PR #215)
+[2026-04-13] [GUI-11] playlists_view_stitch_polish: implemented and merged (PR #216)
