@@ -2,8 +2,6 @@
 
 from pathlib import Path
 
-import pytest
-
 from playchitect.core.intensity_analyzer import IntensityFeatures
 from playchitect.core.metadata_extractor import TrackMetadata
 from playchitect.core.set_chapter import (
