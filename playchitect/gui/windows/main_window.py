@@ -50,6 +50,7 @@ class PlaychitectWindow(Adw.ApplicationWindow):
 
         self.set_title("Playchitect")
         self.set_default_size(1000, 700)
+        self.maximize()
 
         # ── Preview service ───────────────────────────────────────────────────
         self._previewer = TrackPreviewer()

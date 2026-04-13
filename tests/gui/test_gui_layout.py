@@ -187,10 +187,12 @@ class TestWindowInitCalls:
         """Window created with set_title and set_default_size replaced by spies."""
         spy_title = MagicMock()
         spy_size = MagicMock()
+        spy_maximize = MagicMock()
         spy_content = MagicMock()
 
         monkeypatch.setattr(PlaychitectWindow, "set_title", spy_title)
         monkeypatch.setattr(PlaychitectWindow, "set_default_size", spy_size)
+        monkeypatch.setattr(PlaychitectWindow, "maximize", spy_maximize)
         monkeypatch.setattr(PlaychitectWindow, "set_content", spy_content)
         _patch_deps(monkeypatch)
 
@@ -199,6 +201,7 @@ class TestWindowInitCalls:
             "window": w,
             "set_title": spy_title,
             "set_default_size": spy_size,
+            "maximize": spy_maximize,
             "set_content": spy_content,
         }
 
@@ -207,6 +210,9 @@ class TestWindowInitCalls:
 
     def test_set_default_size_called(self, spied_window: dict[str, Any]) -> None:
         spied_window["set_default_size"].assert_called_once()
+
+    def test_maximize_called(self, spied_window: dict[str, Any]) -> None:
+        spied_window["maximize"].assert_called_once()
 
     def test_set_default_size_matches_design_spec(self, spied_window: dict[str, Any]) -> None:
         args = spied_window["set_default_size"].call_args[0]

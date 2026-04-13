@@ -86,6 +86,9 @@ class _FakeGtkBase:
     def set_default_size(self, *_args: object) -> None:
         pass
 
+    def maximize(self) -> None:
+        pass
+
     def pack_start(self, *_args: object) -> None:
         pass
 
