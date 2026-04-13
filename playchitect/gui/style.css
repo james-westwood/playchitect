@@ -79,3 +79,57 @@ energy-bar > trough {
 energy-bar > trough > fill {
     background-color: #7B5CF0;
 }
+
+/* GUI-12: Energy block card accent colors */
+/* Intro/Warm-up block - blue */
+intro-block,
+.intro-block {
+    border-top: 3px solid #1E6FD9;
+}
+
+/* Build block - purple */
+build-block,
+.build-block {
+    border-top: 3px solid #7B5CF0;
+}
+
+/* Peak block - orange */
+peak-block,
+.peak-block {
+    border-top: 3px solid #E8641A;
+}
+
+/* Outro/Sustain/Wind Down block - green */
+outro-block,
+.outro-block {
+    border-top: 3px solid #1DAF79;
+}
+
+/* Custom block - use default purple */
+custom-block,
+.custom-block {
+    border-top: 3px solid #7B5CF0;
+}
+
+/* Selected state - brighter background */
+intro-block.card-selected,
+.intro-block.card-selected,
+build-block.card-selected,
+.build-block.card-selected,
+peak-block.card-selected,
+.peak-block.card-selected,
+outro-block.card-selected,
+.outro-block.card-selected,
+custom-block.card-selected,
+.custom-block.card-selected {
+    background-color: rgba(30, 111, 217, 0.15);
+}
+
+/* GUI-12: Track card styling */
+track-card,
+.track-card {
+    border-radius: 8px;
+    background-color: #161B22;
+    border: 1px solid #1E2A3A;
+    padding: 6px 10px;
+}

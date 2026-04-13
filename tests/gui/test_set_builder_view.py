@@ -59,6 +59,101 @@ class TestEnergyBlockCard:
         card.set_selected(False)
         assert "card-selected" in removed_classes
 
+    def test_card_has_block_css_class_warmup(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        """Test that Warm-up block gets intro-block CSS class."""
+        block = EnergyBlock(
+            id="warm-up",
+            name="Warm-up",
+            target_duration_min=60.0,
+            energy_min=0.2,
+            energy_max=0.4,
+            cluster_ids=[1],
+        )
+        added_classes: list[str] = []
+        monkeypatch.setattr(
+            EnergyBlockCard, "add_css_class", lambda self, cls: added_classes.append(cls)
+        )
+        EnergyBlockCard(block)
+        assert "intro-block" in added_classes
+
+    def test_card_has_block_css_class_build(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        """Test that Build block gets build-block CSS class."""
+        block = EnergyBlock(
+            id="build",
+            name="Build",
+            target_duration_min=60.0,
+            energy_min=0.4,
+            energy_max=0.6,
+            cluster_ids=[2],
+        )
+        added_classes: list[str] = []
+        monkeypatch.setattr(
+            EnergyBlockCard, "add_css_class", lambda self, cls: added_classes.append(cls)
+        )
+        EnergyBlockCard(block)
+        assert "build-block" in added_classes
+
+    def test_card_has_block_css_class_peak(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        """Test that Peak block gets peak-block CSS class."""
+        block = EnergyBlock(
+            id="peak",
+            name="Peak",
+            target_duration_min=60.0,
+            energy_min=0.6,
+            energy_max=0.8,
+            cluster_ids=[3],
+        )
+        added_classes: list[str] = []
+        monkeypatch.setattr(
+            EnergyBlockCard, "add_css_class", lambda self, cls: added_classes.append(cls)
+        )
+        EnergyBlockCard(block)
+        assert "peak-block" in added_classes
+
+    def test_card_has_block_css_class_outro(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        """Test that Sustain block gets outro-block CSS class."""
+        block = EnergyBlock(
+            id="sustain",
+            name="Sustain",
+            target_duration_min=60.0,
+            energy_min=0.8,
+            energy_max=0.95,
+            cluster_ids=[4],
+        )
+        added_classes: list[str] = []
+        monkeypatch.setattr(
+            EnergyBlockCard, "add_css_class", lambda self, cls: added_classes.append(cls)
+        )
+        EnergyBlockCard(block)
+        assert "outro-block" in added_classes
+
+    def test_card_has_block_css_class_wind_down(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        """Test that Wind Down block gets outro-block CSS class."""
+        block = EnergyBlock(
+            id="wind-down",
+            name="Wind Down",
+            target_duration_min=60.0,
+            energy_min=0.95,
+            energy_max=1.0,
+            cluster_ids=[5],
+        )
+        added_classes: list[str] = []
+        monkeypatch.setattr(
+            EnergyBlockCard, "add_css_class", lambda self, cls: added_classes.append(cls)
+        )
+        EnergyBlockCard(block)
+        assert "outro-block" in added_classes
+
+    def test_card_has_block_css_class_custom(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        """Test that Custom block gets custom-block CSS class."""
+        block = create_custom_block("custom-1")
+        added_classes: list[str] = []
+        monkeypatch.setattr(
+            EnergyBlockCard, "add_css_class", lambda self, cls: added_classes.append(cls)
+        )
+        EnergyBlockCard(block)
+        assert "custom-block" in added_classes
+
 
 class TestTrackCard:
     """Tests for TrackCard widget."""
@@ -171,6 +266,28 @@ class TestTrackCard:
 
         card.set_transition_color("red")
         assert card._transition_color == "red"
+
+    def test_track_card_has_track_card_css_class(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        """Test that TrackCard gets track-card CSS class for styling."""
+        path = Path("/music/track.mp3")
+        metadata = TrackMetadata(filepath=path, title="Track", bpm=130.0)
+        features = IntensityFeatures(
+            file_path=path,
+            file_hash="hash",
+            rms_energy=0.5,
+            brightness=0.5,
+            sub_bass_energy=0.3,
+            kick_energy=0.6,
+            bass_harmonics=0.4,
+            percussiveness=0.5,
+            onset_strength=0.5,
+            camelot_key="9B",
+            key_index=1.0,
+        )
+        added_classes: list[str] = []
+        monkeypatch.setattr(TrackCard, "add_css_class", lambda self, cls: added_classes.append(cls))
+        TrackCard(sequence=1, metadata=metadata, features=features)
+        assert "track-card" in added_classes
 
 
 class TestSetBuilderView:
