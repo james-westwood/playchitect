@@ -176,6 +176,7 @@ class PlaylistsView(Gtk.Box):
         # Left: Generate Playlists button (primary style)
         self._generate_btn = Gtk.Button(label="Generate Playlists")
         self._generate_btn.add_css_class("suggested-action")
+        self._generate_btn.set_tooltip_text("Analyze and cluster your tracks into playlists")
         self._generate_btn.connect("clicked", self._on_generate_clicked)
         self._action_bar.pack_start(self._generate_btn)
 
@@ -196,6 +197,7 @@ class PlaylistsView(Gtk.Box):
         self._size_spin.set_snap_to_ticks(True)
         self._size_spin.set_numeric(True)
         self._size_spin.set_width_chars(4)
+        self._size_spin.set_tooltip_text("Target size for each playlist")
         size_box.append(self._size_spin)
         controls_box.append(size_box)
 
@@ -203,6 +205,9 @@ class PlaylistsView(Gtk.Box):
         unit_model = Gtk.StringList.new(["tracks", "minutes"])
         self._unit_dropdown = Gtk.DropDown(model=unit_model)
         self._unit_dropdown.set_selected(0)  # Default to "tracks"
+        self._unit_dropdown.set_tooltip_text(
+            "Choose whether to target number of tracks or total duration"
+        )
         self._unit_dropdown.connect("notify::selected", self._on_unit_changed)
         controls_box.append(self._unit_dropdown)
 
@@ -218,7 +223,7 @@ class PlaylistsView(Gtk.Box):
         self._playlists_spin.set_snap_to_ticks(True)
         self._playlists_spin.set_numeric(True)
         self._playlists_spin.set_width_chars(3)
-        self._playlists_spin.set_tooltip_text("0 = auto (elbow/silhouette)")
+        self._playlists_spin.set_tooltip_text("Number of playlists to create (0 = auto-detect)")
         playlists_box.append(self._playlists_spin)
         controls_box.append(playlists_box)
 
@@ -242,7 +247,9 @@ class PlaylistsView(Gtk.Box):
             model=Gtk.StringList.new(["Strict", "Loose", "Random"])
         )
         self._harmonic_mode_dropdown.set_selected(0)  # Default to "Strict"
-        self._harmonic_mode_dropdown.set_tooltip_text("Harmonic matching mode")
+        self._harmonic_mode_dropdown.set_tooltip_text(
+            "How strictly to match harmonic keys between tracks"
+        )
         self._harmonic_mode_dropdown.set_sensitive(False)  # Disabled until switch is on
         harmonic_box.append(self._harmonic_mode_dropdown)
 
@@ -377,7 +384,9 @@ class PlaylistsView(Gtk.Box):
         fresh_box.append(fresh_label)
 
         self._fresh_switch = Gtk.Switch()
-        self._fresh_switch.set_tooltip_text("Prioritize tracks not recently played")
+        self._fresh_switch.set_tooltip_text(
+            "Prioritize tracks you haven't played recently when building playlists"
+        )
         self._fresh_switch.connect("notify::active", self._on_fresh_switch_toggled)
         fresh_box.append(self._fresh_switch)
 
