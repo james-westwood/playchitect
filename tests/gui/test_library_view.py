@@ -132,6 +132,9 @@ class _FakeFilterModel:
             if self._filter._func(self._model.get_item(i), None)
         )
 
+    def get_item(self, index: int) -> Any:
+        return self._model.get_item(index)
+
 
 class _FakeSortModel:
     """SortListModel stub."""
@@ -620,3 +623,100 @@ class TestSearchAPI:
             library_view.set_search_text("techno")
             assert library_view._search_text == "techno"
             mock_changed.assert_called_once()
+
+
+class TestStorageStats:
+    """Test storage stats calculation and display."""
+
+    @patch("os.path.getsize")
+    def test_calculate_total_size_empty_library(self, mock_getsize) -> None:
+        """_calculate_total_size returns 0 for empty library."""
+        from playchitect.gui.views.library_view import LibraryView
+
+        view = LibraryView.__new__(LibraryView)
+        view._filter_model = MagicMock()
+        view._filter_model.get_n_items.return_value = 0
+        result = view._calculate_total_size()
+        assert result == 0.0
+
+    @patch("os.path.getsize")
+    def test_calculate_total_size_single_track(self, mock_getsize) -> None:
+        """_calculate_total_size sums file sizes."""
+        from playchitect.gui.views.library_view import LibraryView
+
+        mock_getsize.return_value = 50_000_000  # 50 MB
+        view = LibraryView.__new__(LibraryView)
+        view._filter_model = MagicMock()
+        view._filter_model.get_n_items.return_value = 1
+
+        track = MagicMock()
+        track.filepath = "/music/track.flac"
+        view._filter_model.get_item.return_value = track
+
+        result = view._calculate_total_size()
+        assert result == 50_000_000
+
+    @patch("os.path.getsize")
+    def test_calculate_total_size_multiple_tracks(self, mock_getsize) -> None:
+        """_calculate_total_size sums multiple file sizes."""
+        from playchitect.gui.views.library_view import LibraryView
+
+        mock_getsize.side_effect = [30_000_000, 50_000_000, 20_000_000]
+        view = LibraryView.__new__(LibraryView)
+        view._filter_model = MagicMock()
+        view._filter_model.get_n_items.return_value = 3
+
+        tracks = [MagicMock() for _ in range(3)]
+        for i, track in enumerate(tracks):
+            track.filepath = f"/music/track{i}.flac"
+        view._filter_model.get_item.side_effect = tracks
+
+        result = view._calculate_total_size()
+        assert result == 100_000_000
+
+    @patch("os.path.getsize")
+    def test_calculate_total_size_handles_oserror(self, mock_getsize) -> None:
+        """_calculate_total_size ignores OSError from missing files."""
+        from playchitect.gui.views.library_view import LibraryView
+
+        mock_getsize.side_effect = OSError("File not found")
+        view = LibraryView.__new__(LibraryView)
+        view._filter_model = MagicMock()
+        view._filter_model.get_n_items.return_value = 1
+
+        track = MagicMock()
+        track.filepath = "/music/missing.flac"
+        view._filter_model.get_item.return_value = track
+
+        result = view._calculate_total_size()
+        assert result == 0.0
+
+    def test_update_footer_shows_gb_total(self) -> None:
+        """_update_footer shows track count and total size in GB."""
+        from playchitect.gui.views.library_view import LibraryView
+
+        view = LibraryView.__new__(LibraryView)
+        view._filter_model = MagicMock()
+        view._filter_model.get_n_items.return_value = 2147
+
+        view._footer_label = MagicMock()
+
+        with patch.object(view, "_calculate_total_size", return_value=48.2e9):
+            view._update_footer()
+
+        view._footer_label.set_text.assert_called_once_with("2147 tracks · 48.2 GB Total")
+
+    def test_update_footer_zero_tracks(self) -> None:
+        """_update_footer shows 0 tracks when empty."""
+        from playchitect.gui.views.library_view import LibraryView
+
+        view = LibraryView.__new__(LibraryView)
+        view._filter_model = MagicMock()
+        view._filter_model.get_n_items.return_value = 0
+
+        view._footer_label = MagicMock()
+
+        with patch.object(view, "_calculate_total_size", return_value=0.0):
+            view._update_footer()
+
+        view._footer_label.set_text.assert_called_once_with("0 tracks · 0.0 GB Total")
