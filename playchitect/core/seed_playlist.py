@@ -1,6 +1,7 @@
 "Seed-based playlist generation: build length-targeted playlists from a single seed track."
 
 import logging
+from statistics import fmean, pstdev
 from pathlib import Path
 
 import numpy as np
@@ -223,12 +224,12 @@ def generate_playlist_from_seed(
 
     # 7. Compute stats
     bpm_values = [
-        metadata_dict[p].bpm
+        float(track_meta.bpm)
         for p in sequenced_tracks
-        if metadata_dict.get(p) and metadata_dict[p].bpm
+        if (track_meta := metadata_dict.get(p)) is not None and track_meta.bpm is not None
     ]
-    bpm_mean = float(np.mean(bpm_values)) if bpm_values else 0.0
-    bpm_std = float(np.std(bpm_values)) if bpm_values else 0.0
+    bpm_mean = float(fmean(bpm_values)) if bpm_values else 0.0
+    bpm_std = float(pstdev(bpm_values)) if bpm_values else 0.0
     total_duration = sum(
         metadata_dict[p].duration or 0.0 for p in sequenced_tracks
     )
