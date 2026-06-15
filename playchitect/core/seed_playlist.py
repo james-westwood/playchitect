@@ -228,8 +228,8 @@ def generate_playlist_from_seed(
         for p in sequenced_tracks
         if (track_meta := metadata_dict.get(p)) is not None and track_meta.bpm is not None
     ]
-    bpm_mean = float(fmean(bpm_values)) if bpm_values else 0.0
-    bpm_std = float(pstdev(bpm_values)) if bpm_values else 0.0
+    bpm_mean = fmean(bpm_values) if bpm_values else 0.0
+    bpm_std = pstdev(bpm_values) if len(bpm_values) > 1 else 0.0
     total_duration = sum(
         metadata_dict[p].duration or 0.0 for p in sequenced_tracks
     )
