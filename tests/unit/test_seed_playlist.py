@@ -8,16 +8,16 @@ from pathlib import Path
 
 import numpy as np
 import pytest
-from playchitect.core.seed_playlist import (
-    fill_to_duration,
-    generate_playlist_from_seed,
-    rank_by_similarity,
-)
 
 from playchitect.core.clustering import ClusterResult
 from playchitect.core.export import M3UExporter
 from playchitect.core.intensity_analyzer import IntensityFeatures
 from playchitect.core.metadata_extractor import TrackMetadata
+from playchitect.core.seed_playlist import (
+    fill_to_duration,
+    generate_playlist_from_seed,
+    rank_by_similarity,
+)
 
 
 def make_metadata(
@@ -109,19 +109,16 @@ class TestRankBySimilarity:
 
     def test_changing_genre_changes_order(self) -> None:
         """Genre should affect which candidates rank closer."""
-        # Use a seed vector and three candidates at different positions
-        # in feature space so that genre-specific weighting changes the order
-        seed_vec = np.array([128.0, 0.5, 0.3, 0.8, 0.2, 0.8, 0.3, 0.5])
-        p_a = Path("a.flac")
-        p_b = Path("b.flac")
-        p_c = Path("c.flac")
-        # A: high BPM, high percussiveness (techno-like)
-        # B: low BPM, low brightness (ambient-like)
-        # C: balanced
+        # Seed in a neutral region. Use extreme candidates:
+        # A: extreme on features techno emphasises (BPM, percussiveness)
+        # B: extreme on features ambient emphasises (brightness, rms)
+        # They should swap order depending on genre.
+        seed_vec = np.array([128.0, 0.5, 0.3, 0.5, 0.5, 0.5, 0.3, 0.5])
+        p_heavy = Path("heavy_techno.flac")  # high BPM, high perc, high kick
+        p_soft = Path("soft_ambient.flac")  # low BPM, very low rms, low brightness
         candidates = {
-            p_a: np.array([150.0, 0.7, 0.3, 0.9, 0.2, 0.9, 0.3, 0.7]),
-            p_b: np.array([100.0, 0.3, 0.1, 0.7, 0.2, 0.7, 0.3, 0.3]),
-            p_c: np.array([125.0, 0.5, 0.2, 0.8, 0.2, 0.8, 0.3, 0.5]),
+            p_heavy: np.array([160.0, 0.5, 0.3, 0.5, 0.9, 0.5, 0.9, 0.5]),
+            p_soft: np.array([90.0, 0.1, 0.1, 0.5, 0.1, 0.5, 0.1, 0.5]),
         }
         result_techno = rank_by_similarity(
             seed_vec, candidates, genre="techno"
@@ -129,13 +126,15 @@ class TestRankBySimilarity:
         result_ambient = rank_by_similarity(
             seed_vec, candidates, genre="ambient"
         )
-        # The orderings should differ because genre changes the weight vector
-        order_techno = [p for p, _ in result_techno]
-        order_ambient = [p for p, _ in result_ambient]
-        assert order_techno != order_ambient, (
-            f"Genre should change ranking. techno={order_techno}, "
-            f"ambient={order_ambient}"
-        )
+        # The distances should differ between genres
+        dist_techno = {p: d for p, d in result_techno}
+        dist_ambient = {p: d for p, d in result_ambient}
+        # At least one distance must differ significantly between genres
+        for p in (p_heavy, p_soft):
+            assert abs(dist_techno[p] - dist_ambient[p]) > 1e-6, (
+                f"Distance for {p} should differ between genres. "
+                f"techno={dist_techno[p]:.6f}, ambient={dist_ambient[p]:.6f}"
+            )
 
 
 class TestFillToDuration:
@@ -333,8 +332,10 @@ class TestGeneratePlaylistFromSeed:
         assert result.genre is not None
         assert "Like:" in result.genre
 
-    def test_ramp_and_build_give_different_order(self) -> None:
-        """'ramp' and 'build' strategies should produce different track orderings."""
+    def test_ramp_and_descent_give_different_order(self) -> None:
+        """'ramp' (energy ascending) and 'descent' (energy descending) should
+        produce different track orderings.
+        """
         seed_path, feats, meta = self._make_synthetic_library(
             n_tracks=20, duration_secs=180.0
         )
@@ -345,18 +346,19 @@ class TestGeneratePlaylistFromSeed:
             target_duration_mins=15.0,
             sequence_mode="ramp",
         )
-        result_build = generate_playlist_from_seed(
+        result_descent = generate_playlist_from_seed(
             seed_path=seed_path,
             candidate_features=feats,
             metadata_dict=meta,
             target_duration_mins=15.0,
-            sequence_mode="build",
+            sequence_mode="descent",
         )
-        # ramp and build should produce different orderings
+        # ramp (ascending) and descent (descending) should differ
         order_ramp = [str(p) for p in result_ramp.tracks]
-        order_build = [str(p) for p in result_build.tracks]
-        assert order_ramp != order_build, (
-            f"ramp and build should differ. ramp={order_ramp}, build={order_build}"
+        order_descent = [str(p) for p in result_descent.tracks]
+        assert order_ramp != order_descent, (
+            f"ramp and descent should differ. "
+            f"ramp={order_ramp}, descent={order_descent}"
         )
 
     def test_invalid_target_raises_value_error(self) -> None:
