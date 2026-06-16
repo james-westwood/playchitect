@@ -15,6 +15,9 @@ from typing import TYPE_CHECKING
 import numpy as np
 
 from playchitect.core.clustering import ClusterResult
+from playchitect.core.features import (
+    build_feature_vector,  # noqa: F401  # used by TASK-06 seed_playlist
+)
 from playchitect.core.intensity_analyzer import IntensityFeatures
 from playchitect.core.metadata_extractor import TrackMetadata
 
