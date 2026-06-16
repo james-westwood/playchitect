@@ -627,7 +627,6 @@ class PlaychitectWindow(Adw.ApplicationWindow):
         # Kick off background work
         self._seed_generation_worker(seed_path, duration_mins, sequence_mode)
 
-
     def _seed_generation_worker(
         self, seed_path: Path, duration_mins: float, sequence_mode: str
     ) -> None:
@@ -638,9 +637,7 @@ class PlaychitectWindow(Adw.ApplicationWindow):
                 config = get_config()
                 cache_dir = config.get_cache_dir() / "intensity"
                 analyzer = IntensityAnalyzer(cache_dir=cache_dir)
-                self._intensity_map = analyzer.analyze_batch(
-                    list(self._metadata_map.keys())
-                )
+                self._intensity_map = analyzer.analyze_batch(list(self._metadata_map.keys()))
 
             # Generate the playlist
             result = generate_playlist_from_seed(

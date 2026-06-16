@@ -25,12 +25,12 @@ from unittest.mock import MagicMock, patch
 
 import pytest
 
-# Import after conftest has installed gi mocks.
-from playchitect.gui.windows.main_window import PlaychitectWindow  # noqa: E402
 from playchitect.core.clustering import ClusterResult  # noqa: E402
 from playchitect.core.intensity_analyzer import IntensityFeatures  # noqa: E402
 from playchitect.core.metadata_extractor import TrackMetadata  # noqa: E402
 
+# Import after conftest has installed gi mocks.
+from playchitect.gui.windows.main_window import PlaychitectWindow  # noqa: E402
 
 # ── Shared helpers ───────────────────────────────────────────────────────────
 
@@ -194,9 +194,7 @@ class TestSignalConnection:
         for call in connect_calls:
             if call and call[0] == "make-playlist-seed":
                 handler = call[1]
-                assert callable(handler), (
-                    "The handler for 'make-playlist-seed' must be callable"
-                )
+                assert callable(handler), "The handler for 'make-playlist-seed' must be callable"
 
 
 # ── Test: Handler triggers intensity analysis ──────────────────────────────
@@ -221,20 +219,14 @@ class TestHandlerIntensityAnalysis:
         mock_intensity_result = _make_sample_intensity(list(metadata.keys()))
 
         with (
-            patch(
-                "playchitect.gui.windows.main_window.IntensityAnalyzer"
-            ) as mock_analyzer_cls,
+            patch("playchitect.gui.windows.main_window.IntensityAnalyzer") as mock_analyzer_cls,
             patch(
                 "playchitect.gui.windows.main_window.generate_playlist_from_seed",
                 create=True,
                 return_value=_make_cluster_result(),
             ),
-            patch(
-                "playchitect.gui.windows.main_window.get_config"
-            ) as mock_config_fn,
-            patch(
-                "playchitect.gui.windows.main_window.GLib"
-            ) as mock_glib,
+            patch("playchitect.gui.windows.main_window.get_config") as mock_config_fn,
+            patch("playchitect.gui.windows.main_window.GLib"),
         ):
             mock_analyzer = MagicMock()
             mock_analyzer.analyze_batch.return_value = mock_intensity_result
@@ -272,20 +264,14 @@ class TestHandlerIntensityAnalysis:
         window._intensity_map = _make_sample_intensity(list(metadata.keys()))
 
         with (
-            patch(
-                "playchitect.gui.windows.main_window.IntensityAnalyzer"
-            ) as mock_analyzer_cls,
+            patch("playchitect.gui.windows.main_window.IntensityAnalyzer") as mock_analyzer_cls,
             patch(
                 "playchitect.gui.windows.main_window.generate_playlist_from_seed",
                 create=True,
                 return_value=_make_cluster_result(),
             ),
-            patch(
-                "playchitect.gui.windows.main_window.get_config"
-            ) as mock_config_fn,
-            patch(
-                "playchitect.gui.windows.main_window.GLib"
-            ) as mock_glib,
+            patch("playchitect.gui.windows.main_window.get_config") as mock_config_fn,
+            patch("playchitect.gui.windows.main_window.GLib"),
         ):
             mock_config = MagicMock()
             mock_config.get_cache_dir.return_value = Path("/fake/cache")
@@ -328,9 +314,7 @@ class TestHandlerCallsGenerate:
                 create=True,
                 return_value=_make_cluster_result(),
             ) as mock_generate,
-            patch(
-                "playchitect.gui.windows.main_window.GLib"
-            ) as mock_glib,
+            patch("playchitect.gui.windows.main_window.GLib"),
         ):
             window._on_make_playlist_seed(
                 window._library_view,
@@ -344,18 +328,10 @@ class TestHandlerCallsGenerate:
 
             # Positional args: seed_path, candidate_features, metadata_dict,
             #                  target_duration_mins
-            assert call_kwargs[0][0] == seed_path, (
-                "First arg must be the seed path"
-            )
-            assert call_kwargs[0][1] == intensity, (
-                "Second arg must be the intensity features dict"
-            )
-            assert call_kwargs[0][2] == metadata, (
-                "Third arg must be the metadata dict"
-            )
-            assert call_kwargs[0][3] == duration_mins, (
-                "Fourth arg must be target_duration_mins"
-            )
+            assert call_kwargs[0][0] == seed_path, "First arg must be the seed path"
+            assert call_kwargs[0][1] == intensity, "Second arg must be the intensity features dict"
+            assert call_kwargs[0][2] == metadata, "Third arg must be the metadata dict"
+            assert call_kwargs[0][3] == duration_mins, "Fourth arg must be target_duration_mins"
             # Keyword arg: sequence_mode
             assert call_kwargs[1].get("sequence_mode") == sequence_mode, (
                 "sequence_mode must be passed as keyword arg"
@@ -382,9 +358,7 @@ class TestHandlerCallsGenerate:
                 create=True,
                 return_value=_make_cluster_result(),
             ) as mock_generate,
-            patch(
-                "playchitect.gui.windows.main_window.GLib"
-            ) as mock_glib,
+            patch("playchitect.gui.windows.main_window.GLib"),
         ):
             window._on_make_playlist_seed(
                 window._library_view,
@@ -425,9 +399,7 @@ class TestResultLoadedIntoPlaylistsView:
                 create=True,
                 return_value=expected_result,
             ),
-            patch(
-                "playchitect.gui.windows.main_window.GLib"
-            ) as mock_glib,
+            patch("playchitect.gui.windows.main_window.GLib") as mock_glib,
         ):
             # Simulate calling the handler — it runs generate_playlist_from_seed
             # synchronously in the test context (no real threading).
@@ -484,9 +456,7 @@ class TestNavigationSwitchesToPlaylistsView:
                 create=True,
                 return_value=_make_cluster_result(),
             ),
-            patch(
-                "playchitect.gui.windows.main_window.GLib"
-            ) as mock_glib,
+            patch("playchitect.gui.windows.main_window.GLib") as mock_glib,
         ):
             # Mock GLib.idle_add to execute callbacks immediately.
             def fake_idle_add(callback: object, *args: object) -> int:
@@ -532,9 +502,7 @@ class TestErrorHandling:
                 create=True,
                 side_effect=ValueError("seed_path not found in candidate_features"),
             ),
-            patch(
-                "playchitect.gui.windows.main_window.GLib"
-            ) as mock_glib,
+            patch("playchitect.gui.windows.main_window.GLib") as mock_glib,
         ):
             # Mock GLib.idle_add to execute the error callback immediately.
             def fake_idle_add(callback: object, *args: object) -> int:
@@ -576,10 +544,9 @@ class TestErrorHandling:
                 create=True,
                 side_effect=ValueError("empty candidate_features"),
             ),
-            patch(
-                "playchitect.gui.windows.main_window.GLib"
-            ) as mock_glib,
+            patch("playchitect.gui.windows.main_window.GLib") as mock_glib,
         ):
+
             def fake_idle_add(callback: object, *args: object) -> int:
                 if callable(callback) and not args:
                     callback()
@@ -612,10 +579,9 @@ class TestErrorHandling:
                 create=True,
                 side_effect=ValueError("test error"),
             ),
-            patch(
-                "playchitect.gui.windows.main_window.GLib"
-            ) as mock_glib,
+            patch("playchitect.gui.windows.main_window.GLib") as mock_glib,
         ):
+
             def fake_idle_add(callback: object, *args: object) -> int:
                 if callable(callback) and not args:
                     callback()
@@ -647,9 +613,7 @@ class TestHandlerSignature:
         assert hasattr(window, "_on_make_playlist_seed"), (
             "PlaychitectWindow must define _on_make_playlist_seed handler"
         )
-        assert callable(window._on_make_playlist_seed), (
-            "_on_make_playlist_seed must be callable"
-        )
+        assert callable(window._on_make_playlist_seed), "_on_make_playlist_seed must be callable"
 
     def test_handler_accepts_four_parameters(self) -> None:
         """_on_make_playlist_seed must accept (self, view, filepath, duration_mins, sequence_mode).
@@ -695,10 +659,8 @@ class TestSpinnerState:
                 "playchitect.gui.windows.main_window.generate_playlist_from_seed",
                 create=True,
                 return_value=_make_cluster_result(),
-            ) as mock_generate,
-            patch(
-                "playchitect.gui.windows.main_window.GLib"
-            ) as mock_glib,
+            ),
+            patch("playchitect.gui.windows.main_window.GLib") as mock_glib,
         ):
             # Don't let idle_add run callbacks — we want to check the
             # state *before* the idle callbacks fire.
@@ -731,10 +693,9 @@ class TestSpinnerState:
                 create=True,
                 return_value=_make_cluster_result(),
             ),
-            patch(
-                "playchitect.gui.windows.main_window.GLib"
-            ) as mock_glib,
+            patch("playchitect.gui.windows.main_window.GLib") as mock_glib,
         ):
+
             def fake_idle_add(callback: object, *args: object) -> int:
                 if callable(callback) and not args:
                     callback()
@@ -767,10 +728,9 @@ class TestSpinnerState:
                 create=True,
                 return_value=_make_cluster_result(),
             ),
-            patch(
-                "playchitect.gui.windows.main_window.GLib"
-            ) as mock_glib,
+            patch("playchitect.gui.windows.main_window.GLib") as mock_glib,
         ):
+
             def fake_idle_add(callback: object, *args: object) -> int:
                 if callable(callback) and not args:
                     callback()
