@@ -32,10 +32,10 @@ _FakeGtkBase = _GTK_MOCK.Box  # All widget classes inherit from this class
 # Adding them here avoids unrelated AttributeError failures so that
 # the *real* test failure is the missing _make_playlist_btn attribute.
 for _meth_name in (
-    "set_search_mode",       # SearchBar (distinct from set_search_mode_enabled)
-    "set_max_content_width", # ScrolledWindow
-    "set_resizable",         # ColumnViewColumn
-    "set_sorter",            # SortListModel / ColumnViewColumn
+    "set_search_mode",  # SearchBar (distinct from set_search_mode_enabled)
+    "set_max_content_width",  # ScrolledWindow
+    "set_resizable",  # ColumnViewColumn
+    "set_sorter",  # SortListModel / ColumnViewColumn
 ):
     if not hasattr(_FakeGtkBase, _meth_name):
         setattr(_FakeGtkBase, _meth_name, lambda *_a, **_k: None)
@@ -118,9 +118,7 @@ class TestSeedPlaylistAction:
 
         view = LibraryView()
 
-        with patch(
-            "playchitect.gui.views.library_view.SeedPlaylistDialog"
-        ) as mock_dialog_cls:
+        with patch("playchitect.gui.views.library_view.SeedPlaylistDialog") as mock_dialog_cls:
             mock_dialog = mock_dialog_cls.return_value
             view._on_make_playlist_clicked(None)
             mock_dialog.present.assert_called_once()

@@ -533,7 +533,8 @@ class LibraryView(Gtk.Box):
             self.emit("track-selected", item)
         INVALID = getattr(Gtk, "INVALID_LIST_POSITION", -1)
         selected = getattr(
-            self._selection, "get_selected",
+            self._selection,
+            "get_selected",
             lambda: getattr(self._selection, "_selected_index", INVALID),
         )()
         has_selection = _n_items > 0 and selected != INVALID
