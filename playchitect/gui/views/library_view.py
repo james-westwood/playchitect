@@ -17,6 +17,7 @@ gi.require_version("Gtk", "4.0")
 gi.require_version("Adw", "1")
 
 from gi.repository import (  # type: ignore[unresolved-import]  # noqa: E402
+    Adw,
     Gio,
     GLib,
     GObject,
@@ -91,6 +92,63 @@ class LibraryTrackModel(GObject.Object):
         return "—"
 
 
+class SeedPlaylistDialog(Adw.MessageDialog):
+    """Dialog for configuring seed-based playlist generation."""
+
+    def __init__(self, parent: Gtk.Widget) -> None:
+        super().__init__()
+        self.set_transient_for(parent.get_root())
+        self.set_heading("Make Playlist Like This…")
+        self.set_body("Choose target length and sequencing strategy.")
+        # Duration spin button
+        content_box = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=12)
+        content_box.set_margin_top(12)
+        content_box.set_margin_bottom(12)
+        content_box.set_margin_start(24)
+        content_box.set_margin_end(24)
+        # Duration row
+        dur_box = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL, spacing=8)
+        dur_label = Gtk.Label(label="Target length (minutes):")
+        dur_label.set_hexpand(True)
+        dur_label.set_xalign(0.0)
+        self._duration_spin = Gtk.SpinButton()
+        self._duration_spin.set_range(10, 360)
+        self._duration_spin.set_increments(5, 30)
+        self._duration_spin.set_value(90)
+        self._duration_spin.set_snap_to_ticks(True)
+        self._duration_spin.set_numeric(True)
+        dur_box.append(dur_label)
+        dur_box.append(self._duration_spin)
+        content_box.append(dur_box)
+        # Sequence row
+        seq_box = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL, spacing=8)
+        seq_label = Gtk.Label(label="Sequence:")
+        seq_label.set_hexpand(True)
+        seq_label.set_xalign(0.0)
+        self._sequence_dropdown = Gtk.DropDown.new_from_strings(
+            ["ramp", "build", "descent", "alternating", "bpm_asc", "bpm_desc"]
+        )
+        self._sequence_dropdown.set_selected(0)
+        seq_box.append(seq_label)
+        seq_box.append(self._sequence_dropdown)
+        content_box.append(seq_box)
+        self.set_extra_child(content_box)
+        self.add_response("cancel", "Cancel")
+        self.add_response("generate", "Generate")
+        self.set_response_appearance("generate", Adw.ResponseAppearance.SUGGESTED)
+        self.set_default_response("generate")
+        self.set_close_response("cancel")
+
+    def get_duration_mins(self) -> float:
+        """Return the user-selected duration in minutes."""
+        return self._duration_spin.get_value()
+
+    def get_sequence_mode(self) -> str:
+        """Return the user-selected sequence mode."""
+        seq_options = ["ramp", "build", "descent", "alternating", "bpm_asc", "bpm_desc"]
+        return seq_options[self._sequence_dropdown.get_selected()]
+
+
 def _setup_label(_factory: Gtk.SignalListItemFactory, item: Gtk.ListItem) -> None:
     """Setup callback for label factory."""
     item.set_child(Gtk.Label(xalign=0.0))
@@ -130,6 +188,7 @@ class LibraryView(Gtk.Box):
         "scan-complete": (GObject.SignalFlags.RUN_FIRST, None, (Gio.ListStore,)),
         "track-selected": (GObject.SignalFlags.RUN_FIRST, None, (LibraryTrackModel,)),
         "preview-toggled": (GObject.SignalFlags.RUN_FIRST, None, (bool,)),
+        "make-playlist-seed": (GObject.SignalFlags.RUN_FIRST, None, (str, float, str)),
     }
 
     # Format chips configuration
@@ -196,6 +255,14 @@ class LibraryView(Gtk.Box):
         self._preview_toggle.set_tooltip_text("Toggle Preview Panel")
         self._preview_toggle.connect("toggled", self._on_preview_toggled)
         toolbar.append(self._preview_toggle)
+
+        # "Make playlist like this…" button
+        self._make_playlist_btn = Gtk.Button()
+        self._make_playlist_btn.set_icon_name("media-playlist-repeat-symbolic")
+        self._make_playlist_btn.set_tooltip_text("Make playlist like this track…")
+        self._make_playlist_btn.set_sensitive(False)
+        self._make_playlist_btn.connect("clicked", self._on_make_playlist_clicked)
+        toolbar.append(self._make_playlist_btn)
 
         # Tag filter toggle button
         self._tag_filter_toggle = Gtk.ToggleButton()
@@ -460,10 +527,19 @@ class LibraryView(Gtk.Box):
         ensures the preview panel and other listeners are notified whenever the
         user selects a different track.
         """
-        item = selection.get_selected_item()
+        item = getattr(self._selection, "get_selected_item", lambda: None)()
         if item is not None:
             self._selection_change_pending = True
             self.emit("track-selected", item)
+        INVALID = getattr(Gtk, "INVALID_LIST_POSITION", -1)
+        selected = getattr(
+            self._selection,
+            "get_selected",
+            lambda: getattr(self._selection, "_selected_index", INVALID),
+        )()
+        has_selection = _n_items > 0 and selected != INVALID
+        if hasattr(self, "_make_playlist_btn"):
+            self._make_playlist_btn.set_sensitive(has_selection)
 
     def _on_activate(self, _column_view: Gtk.ColumnView, _position: int) -> None:
         """Emit track-selected signal when a row is activated (clicked/entered).
@@ -483,6 +559,30 @@ class LibraryView(Gtk.Box):
         item = self._selection.get_selected_item()
         if item is not None:
             self.emit("track-selected", item)
+
+    def _on_make_playlist_clicked(self, _btn: Gtk.Button) -> None:
+        """Open the seed playlist dialog when the button is clicked."""
+        INVALID = getattr(Gtk, "INVALID_LIST_POSITION", -1)
+        selected = self._selection.get_selected()
+        if selected == INVALID:
+            return
+        item = self._selection.get_item(selected)
+        if item is not None and not isinstance(item, LibraryTrackModel):
+            return
+        dialog = SeedPlaylistDialog(self)
+
+        def _on_response(dlg: SeedPlaylistDialog, response: str) -> None:
+            if response == "generate":
+                self.emit(
+                    "make-playlist-seed",
+                    item.filepath,
+                    dlg.get_duration_mins(),
+                    dlg.get_sequence_mode(),
+                )
+            dlg.destroy()
+
+        dialog.connect("response", _on_response)
+        dialog.present()
 
     def _on_open_folder_clicked(self, _btn: Gtk.Button) -> None:
         """Open file dialog to select music folder."""
