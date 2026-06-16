@@ -636,6 +636,116 @@ def import_rekordbox(xml_path: Path) -> None:
     click.echo(f"  Total cue points: {total_cues}")
 
 
+@cli.command()
+@click.option(
+    "--seed",
+    required=True,
+    type=click.Path(exists=True, path_type=Path),
+    help="Path to the seed track.",
+)
+@click.option(
+    "--music-dir",
+    "music_dir",
+    required=True,
+    type=click.Path(exists=True, file_okay=False, path_type=Path),
+    help="Music library directory to search.",
+)
+@click.option(
+    "--duration",
+    "target_duration",
+    required=True,
+    type=float,
+    help="Target playlist length in minutes.",
+)
+@click.option(
+    "--output",
+    "-o",
+    type=click.Path(path_type=Path),
+    default=None,
+    help="Output directory for the playlist. Defaults to <music-dir>.",
+)
+@click.option(
+    "--sequence",
+    "sequence_mode",
+    type=click.Choice(["ramp", "build", "descent", "alternating", "bpm_asc", "bpm_desc"]),
+    default="ramp",
+    show_default=True,
+    help="Energy sequencing strategy.",
+)
+@click.option(
+    "--genre",
+    type=str,
+    default=None,
+    help="Genre hint for feature weighting (techno, house, ambient, dnb).",
+)
+def playlist(
+    seed: Path,
+    music_dir: Path,
+    target_duration: float,
+    output: Path | None,
+    sequence_mode: str,
+    genre: str | None,
+) -> None:
+    """Generate a playlist of similar tracks based on a seed track."""
+    if target_duration <= 0:
+        click.echo("Error: --duration must be greater than 0.", err=True)
+        raise SystemExit(1)
+
+    # Lazy imports so @patch mocks on source modules are picked up
+    from playchitect.core.intensity_analyzer import IntensityAnalyzer
+    from playchitect.core.metadata_extractor import MetadataExtractor
+    from playchitect.core.seed_playlist import generate_playlist_from_seed
+
+    # 1. SCAN
+    scanner = AudioScanner()
+    audio_files = scanner.scan(music_dir)
+    if not audio_files:
+        click.echo("No audio files found!", err=True)
+        sys.exit(1)
+
+    click.echo(f"Found {len(audio_files)} audio files")
+
+    # Ensure seed is included in the analysis pipeline
+    audio_files_with_seed = audio_files + [seed]
+
+    # 2. EXTRACT metadata
+    click.echo("\nExtracting metadata...")
+    extractor = MetadataExtractor()
+    metadata_dict = extractor.extract_batch(audio_files_with_seed)
+
+    # 3. ANALYZE intensity
+    click.echo("\nExtracting audio intensity features...")
+    int_analyzer = IntensityAnalyzer()
+    features_dict = int_analyzer.analyze_batch(audio_files_with_seed)
+
+    # 4. GENERATE playlist
+    click.echo("\nGenerating playlist...")
+    try:
+        cluster_result = generate_playlist_from_seed(
+            seed_path=seed,
+            candidate_features=features_dict,
+            metadata_dict=metadata_dict,
+            target_duration_mins=target_duration,
+            sequence_mode=sequence_mode,
+            genre=genre,
+        )
+    except ValueError as exc:
+        click.echo(f"Error: {exc}", err=True)
+        sys.exit(1)
+
+    # 5. OUTPUT
+    output_dir = output or music_dir
+    output_dir.mkdir(parents=True, exist_ok=True)
+
+    exporter = M3UExporter(output_dir, playlist_prefix=f"Like_{seed.stem}")
+    playlist_path = exporter.export_cluster(
+        cluster_result, cluster_index=0, metadata_dict=metadata_dict
+    )
+
+    click.echo(f"\nPlaylist saved to: {playlist_path}")
+    click.echo(f"{cluster_result.track_count} tracks, {cluster_result.total_duration / 60:.1f} min")
+
+
 def main() -> None:
     """Entry point for CLI."""
     cli()
