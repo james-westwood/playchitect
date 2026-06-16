@@ -303,3 +303,121 @@ class TestPlaylistFullFlow:
             f"Expected exit_code 0 with --sequence build, "
             f"got {result.exit_code}\nOutput:\n{result.output}"
         )
+
+    @patch("playchitect.cli.commands.AudioScanner")
+    def test_no_audio_files_shows_error(self, mock_scanner_cls: MagicMock, tmp_path: Path) -> None:
+        """Empty scan result should print an error and exit non-zero."""
+        seed = _create_seed_file(tmp_path)
+        music_dir = _create_music_dir(tmp_path, n_tracks=0)
+        # Remove the dir so it's truly empty when scanned
+        for f in music_dir.iterdir():
+            f.unlink()
+
+        mock_scanner = MagicMock()
+        mock_scanner.scan.return_value = []
+        mock_scanner_cls.return_value = mock_scanner
+
+        runner = CliRunner()
+        result = runner.invoke(
+            cli,
+            [
+                "playlist",
+                "--seed",
+                str(seed),
+                "--music-dir",
+                str(music_dir),
+                "--duration",
+                "60",
+            ],
+        )
+        assert result.exit_code != 0
+        assert "no audio files" in result.output.lower()
+
+    @patch("playchitect.core.seed_playlist.generate_playlist_from_seed")
+    @patch("playchitect.core.intensity_analyzer.IntensityAnalyzer")
+    @patch("playchitect.core.metadata_extractor.MetadataExtractor")
+    def test_value_error_from_generate_is_handled(
+        self,
+        mock_meta_cls: MagicMock,
+        mock_intensity_cls: MagicMock,
+        mock_generate: MagicMock,
+        tmp_path: Path,
+    ) -> None:
+        """ValueError from generate_playlist_from_seed should print error and exit non-zero."""
+        seed = _create_seed_file(tmp_path)
+        music_dir = _create_music_dir(tmp_path, n_tracks=5)
+
+        all_paths = sorted(music_dir.glob("*.flac")) + [seed]
+        mock_meta_instance = MagicMock()
+        mock_meta_instance.extract_batch.return_value = {
+            p: make_synth_metadata(p) for p in all_paths
+        }
+        mock_meta_cls.return_value = mock_meta_instance
+        mock_intensity_instance = MagicMock()
+        mock_intensity_instance.analyze_batch.return_value = {
+            p: make_synth_features(p) for p in all_paths
+        }
+        mock_intensity_cls.return_value = mock_intensity_instance
+        mock_generate.side_effect = ValueError("not enough tracks")
+
+        runner = CliRunner()
+        result = runner.invoke(
+            cli,
+            [
+                "playlist",
+                "--seed",
+                str(seed),
+                "--music-dir",
+                str(music_dir),
+                "--duration",
+                "60",
+            ],
+        )
+        assert result.exit_code != 0
+        assert "not enough tracks" in result.output
+
+    @patch("playchitect.core.intensity_analyzer.IntensityAnalyzer")
+    @patch("playchitect.core.metadata_extractor.MetadataExtractor")
+    def test_output_contains_summary(
+        self,
+        mock_meta_cls: MagicMock,
+        mock_intensity_cls: MagicMock,
+        tmp_path: Path,
+    ) -> None:
+        """Successful run should print 'Playlist saved to:', track count, and duration."""
+        seed = _create_seed_file(tmp_path)
+        music_dir = _create_music_dir(tmp_path, n_tracks=10)
+        output_dir = tmp_path / "output"
+        output_dir.mkdir()
+
+        all_paths = sorted(music_dir.glob("*.flac")) + [seed]
+        mock_meta_instance = MagicMock()
+        mock_meta_instance.extract_batch.return_value = {
+            p: make_synth_metadata(p) for p in all_paths
+        }
+        mock_meta_cls.return_value = mock_meta_instance
+        mock_intensity_instance = MagicMock()
+        mock_intensity_instance.analyze_batch.return_value = {
+            p: make_synth_features(p) for p in all_paths
+        }
+        mock_intensity_cls.return_value = mock_intensity_instance
+
+        runner = CliRunner()
+        result = runner.invoke(
+            cli,
+            [
+                "playlist",
+                "--seed",
+                str(seed),
+                "--music-dir",
+                str(music_dir),
+                "--duration",
+                "30",
+                "--output",
+                str(output_dir),
+            ],
+        )
+        assert result.exit_code == 0
+        assert "Playlist saved to:" in result.output
+        assert "tracks" in result.output
+        assert "min" in result.output
