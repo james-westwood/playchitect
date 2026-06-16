@@ -1,8 +1,8 @@
 "Seed-based playlist generation: build length-targeted playlists from a single seed track."
 
 import logging
-from statistics import fmean, pstdev
 from pathlib import Path
+from statistics import fmean, pstdev
 
 import numpy as np
 from sklearn.preprocessing import StandardScaler
@@ -98,9 +98,7 @@ def fill_to_duration(
     """
     selected: list[Path] = [seed_path]
     seed_meta_default = TrackMetadata(filepath=seed_path)
-    cumulative: float = (
-        metadata_dict.get(seed_path, seed_meta_default).duration or 0.0
-    )
+    cumulative: float = metadata_dict.get(seed_path, seed_meta_default).duration or 0.0
     max_allowed = target_secs * (1.0 + tolerance)
 
     for path, _dist in ranked:
@@ -182,8 +180,7 @@ def generate_playlist_from_seed(
     # 3. Get seed vector
     if seed_path not in candidates:
         raise ValueError(
-            f"Seed track {seed_path} has no valid feature vector "
-            "(missing BPM or features)"
+            f"Seed track {seed_path} has no valid feature vector (missing BPM or features)"
         )
 
     seed_vec = candidates[seed_path]
@@ -191,9 +188,7 @@ def generate_playlist_from_seed(
     # 4. Rank by similarity
     ranked = rank_by_similarity(
         seed_vec=seed_vec,
-        candidates={
-            p: v for p, v in candidates.items() if p != seed_path
-        },
+        candidates={p: v for p, v in candidates.items() if p != seed_path},
         genre=genre,
         weight_overrides=weight_overrides,
     )
@@ -210,9 +205,7 @@ def generate_playlist_from_seed(
 
     # 6. Sequence
     if sequence_mode not in _VALID_SEQUENCE_MODES:
-        logger.warning(
-            "Unknown sequence_mode '%s' — falling back to 'ramp'", sequence_mode
-        )
+        logger.warning("Unknown sequence_mode '%s' — falling back to 'ramp'", sequence_mode)
         sequence_mode = "ramp"
 
     sequenced_tracks = sequence_by_strategy(
@@ -230,15 +223,11 @@ def generate_playlist_from_seed(
     ]
     bpm_mean = fmean(bpm_values) if bpm_values else 0.0
     bpm_std = pstdev(bpm_values) if len(bpm_values) > 1 else 0.0
-    total_duration = sum(
-        metadata_dict[p].duration or 0.0 for p in sequenced_tracks
-    )
+    total_duration = sum(metadata_dict[p].duration or 0.0 for p in sequenced_tracks)
 
     # Seed title for auto-naming
     seed_meta = metadata_dict.get(seed_path)
-    seed_title = (
-        seed_meta.title if seed_meta and seed_meta.title else seed_path.stem
-    )
+    seed_title = seed_meta.title if seed_meta and seed_meta.title else seed_path.stem
 
     # Centroid: scaled + weighted seed vector
     # We need to recompute scaling over all candidates for the centroid

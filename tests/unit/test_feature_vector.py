@@ -9,13 +9,9 @@ from playchitect.core.intensity_analyzer import IntensityFeatures
 from playchitect.core.metadata_extractor import TrackMetadata
 
 
-def make_metadata(
-    name: str, bpm: float | None = 128.0, duration: float = 360.0
-) -> TrackMetadata:
+def make_metadata(name: str, bpm: float | None = 128.0, duration: float = 360.0) -> TrackMetadata:
     """Create TrackMetadata for testing."""
-    return TrackMetadata(
-        filepath=Path(name), bpm=bpm, duration=duration
-    )
+    return TrackMetadata(filepath=Path(name), bpm=bpm, duration=duration)
 
 
 def make_intensity(

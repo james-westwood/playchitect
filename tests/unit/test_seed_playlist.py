@@ -20,9 +20,7 @@ from playchitect.core.seed_playlist import (
 )
 
 
-def make_metadata(
-    name: str, bpm: float | None = 128.0, duration: float = 360.0
-) -> TrackMetadata:
+def make_metadata(name: str, bpm: float | None = 128.0, duration: float = 360.0) -> TrackMetadata:
     """Create TrackMetadata for testing."""
     return TrackMetadata(filepath=Path(name), bpm=bpm, duration=duration)
 
@@ -120,12 +118,8 @@ class TestRankBySimilarity:
             p_heavy: np.array([160.0, 0.5, 0.3, 0.5, 0.9, 0.5, 0.9, 0.5]),
             p_soft: np.array([90.0, 0.1, 0.1, 0.5, 0.1, 0.5, 0.1, 0.5]),
         }
-        result_techno = rank_by_similarity(
-            seed_vec, candidates, genre="techno"
-        )
-        result_ambient = rank_by_similarity(
-            seed_vec, candidates, genre="ambient"
-        )
+        result_techno = rank_by_similarity(seed_vec, candidates, genre="techno")
+        result_ambient = rank_by_similarity(seed_vec, candidates, genre="ambient")
         # The distances should differ between genres
         dist_techno = {p: d for p, d in result_techno}
         dist_ambient = {p: d for p, d in result_ambient}
@@ -166,9 +160,7 @@ class TestFillToDuration:
         total = sum(meta[p].duration or 0.0 for p in result)
         lower = 3600.0 * (1 - 0.1)
         upper = 3600.0 * (1 + 0.1)
-        assert lower <= total <= upper, (
-            f"Total {total}s outside [{lower}, {upper}]"
-        )
+        assert lower <= total <= upper, f"Total {total}s outside [{lower}, {upper}]"
 
     def test_short_library_returns_all(self) -> None:
         """When target exceeds all tracks combined, return everything."""
@@ -286,9 +278,7 @@ class TestGeneratePlaylistFromSeed:
 
     def test_duration_within_tolerance(self) -> None:
         """Total duration should be within tolerance band around target."""
-        seed_path, feats, meta = self._make_synthetic_library(
-            n_tracks=20, duration_secs=300.0
-        )
+        seed_path, feats, meta = self._make_synthetic_library(n_tracks=20, duration_secs=300.0)
         target_mins = 25.0
         result = generate_playlist_from_seed(
             seed_path=seed_path,
@@ -312,12 +302,8 @@ class TestGeneratePlaylistFromSeed:
             Path("other.flac"): make_intensity("other.flac", rms=0.8),
         }
         meta: dict[Path, TrackMetadata] = {
-            seed_path: make_metadata(
-                "my_seed_track.flac", bpm=128.0, duration=360.0
-            ),
-            Path("other.flac"): make_metadata(
-                "other.flac", bpm=130.0, duration=360.0
-            ),
+            seed_path: make_metadata("my_seed_track.flac", bpm=128.0, duration=360.0),
+            Path("other.flac"): make_metadata("other.flac", bpm=130.0, duration=360.0),
         }
         # Set title on the seed metadata
         meta[seed_path].title = "My Seed Track"
@@ -336,9 +322,7 @@ class TestGeneratePlaylistFromSeed:
         """'ramp' (energy ascending) and 'descent' (energy descending) should
         produce different track orderings.
         """
-        seed_path, feats, meta = self._make_synthetic_library(
-            n_tracks=20, duration_secs=180.0
-        )
+        seed_path, feats, meta = self._make_synthetic_library(n_tracks=20, duration_secs=180.0)
         result_ramp = generate_playlist_from_seed(
             seed_path=seed_path,
             candidate_features=feats,
@@ -357,8 +341,7 @@ class TestGeneratePlaylistFromSeed:
         order_ramp = [str(p) for p in result_ramp.tracks]
         order_descent = [str(p) for p in result_descent.tracks]
         assert order_ramp != order_descent, (
-            f"ramp and descent should differ. "
-            f"ramp={order_ramp}, descent={order_descent}"
+            f"ramp and descent should differ. ramp={order_ramp}, descent={order_descent}"
         )
 
     def test_invalid_target_raises_value_error(self) -> None:
@@ -402,9 +385,7 @@ class TestGeneratePlaylistFromSeed:
 
     def test_result_is_exportable(self, tmp_path: Path) -> None:
         """A ClusterResult from generate_playlist_from_seed should be exportable to M3U."""
-        seed_path, feats, meta = self._make_synthetic_library(
-            n_tracks=5, duration_secs=300.0
-        )
+        seed_path, feats, meta = self._make_synthetic_library(n_tracks=5, duration_secs=300.0)
         result = generate_playlist_from_seed(
             seed_path=seed_path,
             candidate_features=feats,
