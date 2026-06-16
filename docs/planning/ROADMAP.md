@@ -10,7 +10,7 @@
 | 4 | Export & Integration | ✅ Complete | 2026-02-20 |
 | 5 | Testing & Quality Assurance | ✅ Complete | 2026-02-21 |
 | 6 | Packaging & Distribution | 🚧 In progress | — |
-| 7 | Advanced Set Architecture | 📅 Planned | — |
+| 7 | Advanced Set Architecture | 🚧 In progress | — |
 | 8 | DJ Ecosystem Integration | 📅 Planned | — |
 | 9 | Library Management & Stability | 📅 Planned | — |
 
@@ -127,13 +127,14 @@ See [`milestones/milestone-2-complete.md`](milestones/milestone-2-complete.md) f
 
 ---
 
-## 📅 Milestone 7 — Advanced Set Architecture
+## 🚧 Milestone 7 — Advanced Set Architecture (In Progress)
 
 **Goal**: Deepen musical intelligence and provide advanced creative sequencing.
 
 **GUI redesign**: The window is being restructured into a 4-view navigation sidebar layout. See the [GUI Design document](gui-design.md) for wireframes and rationale.
 
 - **GUI Architecture**: #112 — Navigation sidebar; #113 — Library view; #114 — Preview panel (cover art + embedded player); #115 — Playlists view; #101 — Set Builder workspace
+- **Seed playlist**: generate_playlist_from_seed engine (#219) — 🚧
 - **Harmonic Mixing**: #36 (Core), #37 (GUI) — Camelot wheel and key compatibility
 - **Energy & Dynamics**: #38 (Core), #39 (GUI) — Dynamic range and onset density
 - **Timbre & Texture**: #40 (Core), #41 (GUI) — MFCCs and spectral analysis
