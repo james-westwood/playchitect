@@ -15,13 +15,11 @@ generate_playlist_from_seed().
 from pathlib import Path
 from unittest.mock import MagicMock, patch
 
-import pytest
 from click.testing import CliRunner
 
 from playchitect.cli.commands import cli
 from playchitect.core.intensity_analyzer import IntensityFeatures
 from playchitect.core.metadata_extractor import TrackMetadata
-
 
 # ---------------------------------------------------------------------------
 # Helpers
@@ -81,9 +79,7 @@ class TestPlaylistValidation:
         assert result.exit_code == 0, (
             f"Expected exit_code 0, got {result.exit_code}\nOutput:\n{result.output}"
         )
-        assert "--seed" in result.output, (
-            f"'--seed' not found in help output:\n{result.output}"
-        )
+        assert "--seed" in result.output, f"'--seed' not found in help output:\n{result.output}"
         assert "--duration" in result.output, (
             f"'--duration' not found in help output:\n{result.output}"
         )
@@ -102,9 +98,7 @@ class TestPlaylistValidation:
         )
         # Click usually says "Missing option: --seed" or similar
         output_lower = result.output.lower()
-        assert "seed" in output_lower, (
-            f"Expected error about missing --seed, got:\n{result.output}"
-        )
+        assert "seed" in output_lower, f"Expected error about missing --seed, got:\n{result.output}"
 
     def test_missing_music_dir_fails(self, tmp_path: Path) -> None:
         """Invoking playlist without --music-dir must fail with an error mentioning it."""

@@ -662,15 +662,12 @@ def import_rekordbox(xml_path: Path) -> None:
     "-o",
     type=click.Path(path_type=Path),
     default=None,
-    help="Output directory for the playlist. "
-         "Defaults to <music-dir>.",
+    help="Output directory for the playlist. Defaults to <music-dir>.",
 )
 @click.option(
     "--sequence",
     "sequence_mode",
-    type=click.Choice(
-        ["ramp", "build", "descent", "alternating", "bpm_asc", "bpm_desc"]
-    ),
+    type=click.Choice(["ramp", "build", "descent", "alternating", "bpm_asc", "bpm_desc"]),
     default="ramp",
     show_default=True,
     help="Energy sequencing strategy.",
@@ -746,10 +743,7 @@ def playlist(
     )
 
     click.echo(f"\nPlaylist saved to: {playlist_path}")
-    click.echo(
-        f"{cluster_result.track_count} tracks, "
-        f"{cluster_result.total_duration / 60:.1f} min"
-    )
+    click.echo(f"{cluster_result.track_count} tracks, {cluster_result.total_duration / 60:.1f} min")
 
 
 def main() -> None:
