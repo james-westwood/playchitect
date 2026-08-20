@@ -181,7 +181,7 @@
       "owner": "ralph",
       "description": "In playchitect/core/clustering.py, rewrite PlaylistClusterer.split_cluster (currently ~line 840). Current behaviour: rng.shuffle(cluster.tracks) then slices into target_size chunks and copies parent bpm_mean/bpm_std — producing indistinguishable random playlists with misleading stats (verified on the dark 4 library: 7 identical stat lines). New behaviour: (1) If feature data is available for the cluster's tracks (the intensity features used by cluster_by_features), re-run KMeans recursively inside the over-sized cluster with K = ceil(track_count / target_size) on the standardised feature matrix; each sub-cluster computes its OWN bpm_mean, bpm_std, total_duration, and feature_means from its member tracks. (2) If no feature data is available (BPM-only path), split deterministically by sorting tracks by rms_energy when available else BPM, then take contiguous slices — never random. (3) cluster_id naming stays f\"{parent_id}_{i}\". Keep random_state for KMeans init reproducibility. Do not change the signatures of cluster_by_bpm or cluster_by_features.",
       "acceptance_criteria": "tests/unit/test_clustering_split.py: over-sized cluster splits into ceil(n/target) sub-clusters; sub-clusters are disjoint and cover all tracks; each sub-cluster reports stats computed from its own members (not copied from parent); BPM-only path split is deterministic across two calls and produces energy/BPM-ordered contiguous slices; random.shuffle is not used anywhere in split_cluster",
-      "completed": false,
+      "completed": true,
       "priority": 1
     },
     {
