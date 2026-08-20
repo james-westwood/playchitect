@@ -848,7 +848,14 @@ class PlaylistClusterer:
         return deduped
 
     def _store_bpm_state(self, metadata_dict: dict[Path, TrackMetadata]) -> None:
-        """Stash BPM-only metadata for deterministic split_cluster slicing."""
+        """Stash BPM-only metadata for deterministic split_cluster slicing.
+
+        Args:
+            metadata_dict: Mapping of file paths to track metadata.
+
+        Returns:
+            None
+        """
         self._last_metadata_dict = dict(metadata_dict)
         self._last_intensity_dict = None
         self._last_features_paths = None
@@ -861,7 +868,18 @@ class PlaylistClusterer:
         valid_paths: list[Path],
         features_normalized: np.ndarray,
     ) -> None:
-        """Stash multi-dimensional state so split_cluster can recluster members."""
+        """Stash multi-dimensional state so split_cluster can recluster members.
+
+        Args:
+            metadata_dict: Mapping of file paths to track metadata.
+            intensity_dict: Mapping of file paths to intensity features.
+            valid_paths: Ordered list of valid track file paths corresponding
+                to rows in feature matrix.
+            features_normalized: Standardized 8D feature matrix as a numpy array.
+
+        Returns:
+            None
+        """
         self._last_metadata_dict = dict(metadata_dict)
         self._last_intensity_dict = dict(intensity_dict)
         self._last_features_paths = list(valid_paths)
@@ -873,7 +891,16 @@ class PlaylistClusterer:
         target_size: int,
         num_splits: int,
     ) -> list[ClusterResult]:
-        """Re-run KMeans on the stored 8D standardized feature matrix."""
+        """Re-run KMeans on the stored 8D standardized feature matrix.
+
+        Args:
+            cluster: Over-sized ClusterResult to split.
+            target_size: Target number of tracks per sub-cluster.
+            num_splits: Number of sub-clusters to create.
+
+        Returns:
+            List of new ClusterResult sub-clusters.
+        """
         assert self._last_features_paths is not None
         assert self._last_features_normalized_8d is not None
 
@@ -901,7 +928,16 @@ class PlaylistClusterer:
         target_size: int,
         num_splits: int,
     ) -> list[ClusterResult]:
-        """Sort tracks by BPM and take contiguous slices."""
+        """Sort tracks by BPM and take contiguous slices.
+
+        Args:
+            cluster: Over-sized ClusterResult to split.
+            target_size: Target number of tracks per sub-cluster.
+            num_splits: Number of sub-clusters to create.
+
+        Returns:
+            List of new ClusterResult sub-clusters.
+        """
         assert self._last_metadata_dict is not None
         metadata = self._last_metadata_dict
 
@@ -919,7 +955,16 @@ class PlaylistClusterer:
         target_size: int,
         num_splits: int,
     ) -> list[ClusterResult]:
-        """Fallback: order tracks by rms_energy ascending and slice contiguously."""
+        """Fallback: order tracks by rms_energy ascending and slice contiguously.
+
+        Args:
+            cluster: Over-sized ClusterResult to split.
+            target_size: Target number of tracks per sub-cluster.
+            num_splits: Number of sub-clusters to create.
+
+        Returns:
+            List of new ClusterResult sub-clusters.
+        """
         assert self._last_intensity_dict is not None
         intensity = self._last_intensity_dict
 
@@ -936,7 +981,16 @@ class PlaylistClusterer:
         target_size: int,
         num_splits: int,
     ) -> list[ClusterResult]:
-        """Last-resort deterministic split: preserve the supplied track order."""
+        """Last-resort deterministic split: preserve the supplied track order.
+
+        Args:
+            cluster: Over-sized ClusterResult to split.
+            target_size: Target number of tracks per sub-cluster.
+            num_splits: Number of sub-clusters to create.
+
+        Returns:
+            List of new ClusterResult sub-clusters.
+        """
         logger.warning("No stored clustering state; splitting by supplied track order")
         slices = self._make_contiguous_slices(cluster.tracks, target_size, num_splits)
         return self._build_subclusters_from_slices(
@@ -949,7 +1003,16 @@ class PlaylistClusterer:
         target_size: int,
         num_splits: int,
     ) -> list[list[Path]]:
-        """Partition ``tracks`` into ``num_splits`` contiguous slices of up to ``target_size``."""
+        """Partition ``tracks`` into ``num_splits`` contiguous slices of up to ``target_size``.
+
+        Args:
+            tracks: List of track file paths.
+            target_size: Maximum number of tracks per slice.
+            num_splits: Number of slices to generate.
+
+        Returns:
+            List of track path lists representing contiguous slices.
+        """
         slices: list[list[Path]] = []
         for i in range(num_splits):
             start = i * target_size
@@ -963,7 +1026,16 @@ class PlaylistClusterer:
         labels: np.ndarray,
         num_splits: int,
     ) -> list[ClusterResult]:
-        """Build ClusterResults from KMeans labels."""
+        """Build ClusterResults from KMeans labels.
+
+        Args:
+            parent: Parent ClusterResult being split.
+            labels: NumPy array of integer cluster assignments for each track in parent.
+            num_splits: Number of sub-clusters.
+
+        Returns:
+            List of new ClusterResult sub-clusters.
+        """
         assert self._last_metadata_dict is not None
         assert self._last_intensity_dict is not None
 
@@ -1000,7 +1072,17 @@ class PlaylistClusterer:
         use_features: bool,
         copy_parent_stats: bool = False,
     ) -> list[ClusterResult]:
-        """Build ClusterResults from pre-computed contiguous track slices."""
+        """Build ClusterResults from pre-computed contiguous track slices.
+
+        Args:
+            parent: Parent ClusterResult being split.
+            slices: List of track path lists for each sub-cluster.
+            use_features: Whether to compute feature means from stored state.
+            copy_parent_stats: Whether to copy parent stats directly instead of recomputing.
+
+        Returns:
+            List of new ClusterResult sub-clusters.
+        """
         results: list[ClusterResult] = []
         for i, tracks in enumerate(slices):
             if not tracks:
@@ -1030,7 +1112,16 @@ class PlaylistClusterer:
         fallback_parent: ClusterResult,
         copy_parent: bool = False,
     ) -> dict[str, float]:
-        """Compute member-based stats, copying parent values only when no data exists."""
+        """Compute member-based stats, copying parent values only when no data exists.
+
+        Args:
+            tracks: List of track file paths belonging to the sub-cluster.
+            fallback_parent: Parent ClusterResult to fall back on if metadata is missing.
+            copy_parent: Force copying parent statistics.
+
+        Returns:
+            Dictionary containing bpm_mean, bpm_std, and total_duration.
+        """
         metadata = self._last_metadata_dict
         if metadata is None or copy_parent:
             avg_duration = (
@@ -1060,7 +1151,14 @@ class PlaylistClusterer:
         }
 
     def _compute_feature_means(self, tracks: list[Path]) -> dict[str, float] | None:
-        """Compute per-feature means for the given tracks from stored state."""
+        """Compute per-feature means for the given tracks from stored state.
+
+        Args:
+            tracks: List of track file paths.
+
+        Returns:
+            Dictionary mapping feature names to mean values, or None if state is missing.
+        """
         if self._last_metadata_dict is None or self._last_intensity_dict is None:
             return None
 
