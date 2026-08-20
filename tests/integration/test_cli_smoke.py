@@ -187,16 +187,17 @@ class TestCliDryRun:
 
         runner = CliRunner()
         # 20 tracks, total 200s (3.33 min). Target 1 min should split each 10-track cluster into 2.
-        args = [str(flac_music_dir), "--dry-run", "--target-duration", "1"]
+        # Use --fast to keep the deterministic BPM-only clustering path.
+        args = [str(flac_music_dir), "--dry-run", "--target-duration", "1", "--fast"]
         result = runner.invoke(scan, args)
         assert result.exit_code == 0
         assert "to meet target size" in result.output
         assert "Created 4 playlists" in result.output
 
-    def test_bpm_only_clustering_no_intensity(
+    def test_fast_flag_skips_intensity(
         self, flac_music_dir: Path, monkeypatch: pytest.MonkeyPatch
     ) -> None:
-        """Verify clustering works when intensity analysis is skipped (default mode)."""
+        """Verify --fast skips intensity analysis and uses BPM-only clustering."""
         from playchitect.core.metadata_extractor import MetadataExtractor
 
         # Mock extract to avoid metadata extraction errors on tiny files
@@ -210,8 +211,8 @@ class TestCliDryRun:
         monkeypatch.setattr(MetadataExtractor, "extract", mock_extract)
 
         runner = CliRunner()
-        # Default sequence-mode is now 'fixed', which skips intensity analysis
-        args = [str(flac_music_dir), "--dry-run", "--target-tracks", "20"]
+        # --fast selects the lightweight BPM-only path
+        args = [str(flac_music_dir), "--dry-run", "--target-tracks", "20", "--fast"]
         result = runner.invoke(scan, args)
         assert result.exit_code == 0
         assert "Extracted BPM from 20/20 tracks" in result.output
@@ -225,7 +226,9 @@ class TestCliDryRun:
         """Verify CLI error message when clustering returns no results."""
         from playchitect.core.clustering import PlaylistClusterer
 
+        # Mock both clustering paths so the test survives the default-mode flip.
         monkeypatch.setattr(PlaylistClusterer, "cluster_by_bpm", lambda *args, **kwargs: [])
+        monkeypatch.setattr(PlaylistClusterer, "cluster_by_features", lambda *args, **kwargs: [])
 
         runner = CliRunner()
         args = [str(flac_music_dir), "--dry-run", "--target-tracks", "20"]
