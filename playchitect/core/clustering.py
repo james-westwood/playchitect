@@ -8,7 +8,6 @@ via PCA communality weights and optional EWKM per-cluster refinement.
 """
 
 import logging
-import random
 from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any
@@ -142,6 +141,13 @@ class PlaylistClusterer:
         self.scaler = StandardScaler()
         self.weight_overrides = weight_overrides
 
+        # State stashed by cluster_by_* so split_cluster can recompute per-member
+        # stats instead of copying parent statistics.
+        self._last_metadata_dict: dict[Path, TrackMetadata] | None = None
+        self._last_intensity_dict: dict[Path, IntensityFeatures] | None = None
+        self._last_features_paths: list[Path] | None = None
+        self._last_features_normalized_8d: np.ndarray | None = None
+
     # ── Public API ─────────────────────────────────────────────────────────────
 
     def cluster_by_bpm(self, metadata_dict: dict[Path, TrackMetadata]) -> list[ClusterResult]:
@@ -188,6 +194,7 @@ class PlaylistClusterer:
                 f"Duration: {r.total_duration / 60:.1f} min"
             )
 
+        self._store_bpm_state(valid_tracks)
         return results
 
     def cluster_by_features(
@@ -382,6 +389,9 @@ class PlaylistClusterer:
             weight_source = profile.source
 
         valid_meta = {p: metadata_dict[p] for p in valid_paths}
+
+        # Stash the 8D standardized feature matrix for split_cluster to reuse.
+        self._store_features_state(metadata_dict, intensity_dict, valid_paths, features_normalized)
 
         # Determine optimal K, respecting n_playlists override if provided
         if n_playlists is not None and n_playlists > 0:
@@ -837,41 +847,291 @@ class PlaylistClusterer:
 
         return deduped
 
+    def _store_bpm_state(self, metadata_dict: dict[Path, TrackMetadata]) -> None:
+        """Stash BPM-only metadata for deterministic split_cluster slicing."""
+        self._last_metadata_dict = dict(metadata_dict)
+        self._last_intensity_dict = None
+        self._last_features_paths = None
+        self._last_features_normalized_8d = None
+
+    def _store_features_state(
+        self,
+        metadata_dict: dict[Path, TrackMetadata],
+        intensity_dict: dict[Path, IntensityFeatures],
+        valid_paths: list[Path],
+        features_normalized: np.ndarray,
+    ) -> None:
+        """Stash multi-dimensional state so split_cluster can recluster members."""
+        self._last_metadata_dict = dict(metadata_dict)
+        self._last_intensity_dict = dict(intensity_dict)
+        self._last_features_paths = list(valid_paths)
+        self._last_features_normalized_8d = features_normalized.copy()
+
+    def _split_by_features(
+        self,
+        cluster: ClusterResult,
+        target_size: int,
+        num_splits: int,
+    ) -> list[ClusterResult]:
+        """Re-run KMeans on the stored 8D standardized feature matrix."""
+        assert self._last_features_paths is not None
+        assert self._last_features_normalized_8d is not None
+
+        path_to_idx = {p: i for i, p in enumerate(self._last_features_paths)}
+        indices = np.array([path_to_idx[t] for t in cluster.tracks])
+        X = self._last_features_normalized_8d[indices]
+
+        # Degenerate input: all points identical -> no separable signal.
+        if len(np.unique(X, axis=0)) <= 1:
+            logger.warning("Feature vectors are degenerate; falling back to energy order")
+            return self._split_by_energy(cluster, target_size, num_splits)
+
+        kmeans = KMeans(n_clusters=num_splits, random_state=self.random_state, n_init=10)
+        labels = kmeans.fit_predict(X)
+
+        if len(set(labels)) < num_splits:
+            logger.warning("KMeans produced empty sub-clusters; falling back to energy order")
+            return self._split_by_energy(cluster, target_size, num_splits)
+
+        return self._build_subclusters_from_labels(cluster, labels, num_splits)
+
+    def _split_by_bpm(
+        self,
+        cluster: ClusterResult,
+        target_size: int,
+        num_splits: int,
+    ) -> list[ClusterResult]:
+        """Sort tracks by BPM and take contiguous slices."""
+        assert self._last_metadata_dict is not None
+        metadata = self._last_metadata_dict
+
+        def _bpm_key(t: Path) -> float:
+            bpm = metadata[t].bpm
+            return float("inf") if bpm is None else bpm
+
+        sorted_tracks = sorted(cluster.tracks, key=_bpm_key)
+        slices = self._make_contiguous_slices(sorted_tracks, target_size, num_splits)
+        return self._build_subclusters_from_slices(cluster, slices, use_features=False)
+
+    def _split_by_energy(
+        self,
+        cluster: ClusterResult,
+        target_size: int,
+        num_splits: int,
+    ) -> list[ClusterResult]:
+        """Fallback: order tracks by rms_energy ascending and slice contiguously."""
+        assert self._last_intensity_dict is not None
+        intensity = self._last_intensity_dict
+
+        sorted_tracks = sorted(
+            cluster.tracks,
+            key=lambda t: intensity[t].rms_energy if t in intensity else 0.0,
+        )
+        slices = self._make_contiguous_slices(sorted_tracks, target_size, num_splits)
+        return self._build_subclusters_from_slices(cluster, slices, use_features=True)
+
+    def _split_fallback(
+        self,
+        cluster: ClusterResult,
+        target_size: int,
+        num_splits: int,
+    ) -> list[ClusterResult]:
+        """Last-resort deterministic split: preserve the supplied track order."""
+        logger.warning("No stored clustering state; splitting by supplied track order")
+        slices = self._make_contiguous_slices(cluster.tracks, target_size, num_splits)
+        return self._build_subclusters_from_slices(
+            cluster, slices, use_features=False, copy_parent_stats=True
+        )
+
+    @staticmethod
+    def _make_contiguous_slices(
+        tracks: list[Path],
+        target_size: int,
+        num_splits: int,
+    ) -> list[list[Path]]:
+        """Partition ``tracks`` into ``num_splits`` contiguous slices of up to ``target_size``."""
+        slices: list[list[Path]] = []
+        for i in range(num_splits):
+            start = i * target_size
+            end = min((i + 1) * target_size, len(tracks))
+            slices.append(tracks[start:end])
+        return slices
+
+    def _build_subclusters_from_labels(
+        self,
+        parent: ClusterResult,
+        labels: np.ndarray,
+        num_splits: int,
+    ) -> list[ClusterResult]:
+        """Build ClusterResults from KMeans labels."""
+        assert self._last_metadata_dict is not None
+        assert self._last_intensity_dict is not None
+
+        groups: dict[int, list[Path]] = {i: [] for i in range(num_splits)}
+        for track, label in zip(parent.tracks, labels):
+            groups[int(label)].append(track)
+
+        results: list[ClusterResult] = []
+        for i in range(num_splits):
+            tracks = groups[i]
+            if not tracks:
+                continue
+            stats = self._member_stats(tracks, fallback_parent=parent)
+            feature_means = self._compute_feature_means(tracks)
+            results.append(
+                ClusterResult(
+                    cluster_id=f"{parent.cluster_id}_{i}",
+                    tracks=tracks,
+                    bpm_mean=stats["bpm_mean"],
+                    bpm_std=stats["bpm_std"],
+                    track_count=len(tracks),
+                    total_duration=stats["total_duration"],
+                    feature_means=feature_means,
+                    feature_importance=parent.feature_importance,
+                    weight_source=parent.weight_source,
+                )
+            )
+        return results
+
+    def _build_subclusters_from_slices(
+        self,
+        parent: ClusterResult,
+        slices: list[list[Path]],
+        use_features: bool,
+        copy_parent_stats: bool = False,
+    ) -> list[ClusterResult]:
+        """Build ClusterResults from pre-computed contiguous track slices."""
+        results: list[ClusterResult] = []
+        for i, tracks in enumerate(slices):
+            if not tracks:
+                continue
+            stats = self._member_stats(
+                tracks, fallback_parent=parent, copy_parent=copy_parent_stats
+            )
+            feature_means = self._compute_feature_means(tracks) if use_features else None
+            results.append(
+                ClusterResult(
+                    cluster_id=f"{parent.cluster_id}_{i}",
+                    tracks=tracks,
+                    bpm_mean=stats["bpm_mean"],
+                    bpm_std=stats["bpm_std"],
+                    track_count=len(tracks),
+                    total_duration=stats["total_duration"],
+                    feature_means=feature_means,
+                    feature_importance=parent.feature_importance,
+                    weight_source=parent.weight_source,
+                )
+            )
+        return results
+
+    def _member_stats(
+        self,
+        tracks: list[Path],
+        fallback_parent: ClusterResult,
+        copy_parent: bool = False,
+    ) -> dict[str, float]:
+        """Compute member-based stats, copying parent values only when no data exists."""
+        metadata = self._last_metadata_dict
+        if metadata is None or copy_parent:
+            avg_duration = (
+                fallback_parent.total_duration / fallback_parent.track_count
+                if fallback_parent.track_count
+                else 0.0
+            )
+            return {
+                "bpm_mean": fallback_parent.bpm_mean,
+                "bpm_std": fallback_parent.bpm_std,
+                "total_duration": avg_duration * len(tracks),
+            }
+
+        cluster_bpms: list[float] = []
+        cluster_durations: list[float] = []
+        for t in tracks:
+            meta = metadata[t]
+            if meta.bpm is not None:
+                cluster_bpms.append(meta.bpm)
+            cluster_durations.append(meta.duration or 0.0)
+        bpm_mean = float(np.mean(cluster_bpms)) if cluster_bpms else fallback_parent.bpm_mean
+        bpm_std = float(np.std(cluster_bpms)) if cluster_bpms else fallback_parent.bpm_std
+        return {
+            "bpm_mean": bpm_mean,
+            "bpm_std": bpm_std,
+            "total_duration": float(sum(cluster_durations)),
+        }
+
+    def _compute_feature_means(self, tracks: list[Path]) -> dict[str, float] | None:
+        """Compute per-feature means for the given tracks from stored state."""
+        if self._last_metadata_dict is None or self._last_intensity_dict is None:
+            return None
+
+        metadata = self._last_metadata_dict
+        intensity = self._last_intensity_dict
+
+        vectors: list[np.ndarray] = []
+        for t in tracks:
+            if t not in intensity:
+                continue
+            meta = metadata[t]
+            bpm = 120.0 if meta.bpm is None else meta.bpm
+            feature_vec = intensity[t].to_feature_vector()
+            if isinstance(feature_vec, dict):
+                continue
+            vectors.append(np.concatenate(([float(bpm)], feature_vec)))
+
+        if not vectors:
+            return None
+
+        matrix = np.vstack(vectors)
+        f_means: dict[str, float] = {
+            name: float(matrix[:, i].mean()) for i, name in enumerate(FEATURE_NAMES)
+        }
+
+        hardness_values = [intensity[t].hardness for t in tracks if t in intensity]
+        if hardness_values:
+            f_means["hardness"] = float(np.mean(hardness_values))
+
+        return f_means
+
     def split_cluster(self, cluster: ClusterResult, target_size: int) -> list[ClusterResult]:
-        """
-        Split a cluster that exceeds target size.
+        """Split an over-sized cluster into smaller, coherent sub-clusters.
+
+        The method tries, in order:
+          1. Re-cluster on stored standardized feature vectors (features path).
+          2. Sort by BPM and slice contiguously (BPM-only path).
+          3. Preserve the supplied track order and slice (no-data fallback).
+
+        No random shuffling is used; ``random_state`` only seeds the inner KMeans.
 
         Args:
-            cluster: ClusterResult to split
-            target_size: Target number of tracks per sub-cluster
+            cluster: ClusterResult to split.
+            target_size: Target number of tracks per sub-cluster.
 
         Returns:
-            List of sub-clusters
+            List of sub-clusters partitioning the parent tracks.
         """
         if cluster.track_count <= target_size:
             return [cluster]
 
-        num_splits = (cluster.track_count + target_size - 1) // target_size
+        num_splits = int(np.ceil(cluster.track_count / target_size))
 
-        rng = random.Random(self.random_state)
-        shuffled = cluster.tracks.copy()
-        rng.shuffle(shuffled)
-
-        avg_duration = cluster.total_duration / cluster.track_count if cluster.track_count else 0.0
-        subclusters = []
-        for i in range(num_splits):
-            start = i * target_size
-            end = min((i + 1) * target_size, len(shuffled))
-            sub_count = end - start
-            subclusters.append(
-                ClusterResult(
-                    cluster_id=f"{cluster.cluster_id}_{i}",
-                    tracks=shuffled[start:end],
-                    bpm_mean=cluster.bpm_mean,
-                    bpm_std=cluster.bpm_std,
-                    track_count=sub_count,
-                    total_duration=avg_duration * sub_count,
-                )
+        # Features path: stored intensity + standardized feature matrix available.
+        if self._last_intensity_dict is not None:
+            missing = [t for t in cluster.tracks if t not in self._last_intensity_dict]
+            if not missing:
+                return self._split_by_features(cluster, target_size, num_splits)
+            logger.warning(
+                "%d tracks missing from stored intensity features; cannot use features path",
+                len(missing),
             )
 
-        return subclusters
+        # BPM-only path: stored metadata available (no intensity features).
+        if self._last_metadata_dict is not None:
+            missing = [t for t in cluster.tracks if t not in self._last_metadata_dict]
+            if not missing:
+                return self._split_by_bpm(cluster, target_size, num_splits)
+            logger.warning(
+                "%d tracks missing from stored metadata; cannot use BPM path", len(missing)
+            )
+
+        # No stored state: deterministic fallback using the supplied order.
+        return self._split_fallback(cluster, target_size, num_splits)
