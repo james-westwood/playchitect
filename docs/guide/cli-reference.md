@@ -4,7 +4,7 @@ Playchitect provides two primary commands: `scan` for analysis/playlist generati
 
 ## `playchitect scan`
 
-Scan a music directory and create intelligent playlists based on audio features.
+Scan a music directory and create intelligent playlists based on audio features. Multi-dimensional clustering (BPM + 7 intensity features) is used by default, with intensity results cached for fast re-scans. Use `--fast` to select the old BPM-only behaviour and skip intensity analysis. Note that `--fast` cannot be combined with `--use-embeddings` or `--cluster-mode per-genre|mixed-genre`.
 
 ```bash
 playchitect scan [OPTIONS] [MUSIC_PATH]
@@ -29,6 +29,7 @@ playchitect scan [OPTIONS] [MUSIC_PATH]
 | `--save-overrides` | `FLAG` | `False` | Persist `--first-override` / `--last-override` to config for future runs. |
 | `--use-embeddings` | `FLAG` | `False` | Use MusiCNN semantic embeddings for richer clustering (requires `essentia-tensorflow`). |
 | `--model-path` | `PATH` | `None` | Path to `msd-musicnn-1.pb` (auto-downloaded if absent). |
+| `--fast` | `FLAG` | `False` | BPM-only clustering; skips intensity analysis for speed. |
 | `--cue` | `FLAG` | `False` | Also write a CUE sheet alongside each M3U playlist. |
 | `--cluster-mode` | `ENUM` | `single-genre` | Clustering mode: `single-genre` (default), `per-genre`, or `mixed-genre`. |
 | `--genre-map` | `PATH` | `None` | YAML file with manual genre assignments (`manual_assignments: {path: genre}`). |

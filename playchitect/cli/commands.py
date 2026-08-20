@@ -140,6 +140,12 @@ def cli() -> None:
     default=True,
     help="Enable/disable EWKM per-cluster weight refinement (default: enabled).",
 )
+@click.option(
+    "--fast",
+    is_flag=True,
+    default=False,
+    help="BPM-only clustering: skip intensity analysis for speed.",
+)
 def scan(
     music_path: Path | None,
     output: Path | None,
@@ -161,6 +167,7 @@ def scan(
     tag_mood: bool,
     weight_file: Path | None,
     learn_weights: bool,
+    fast: bool,
 ) -> None:
     """
     Scan music directory and create intelligent playlists.
@@ -168,6 +175,9 @@ def scan(
     MUSIC_PATH: Directory containing audio files to analyze
 
     Specify either --target-tracks or --target-duration to control playlist size.
+
+    By default, multi-dimensional clustering (BPM + intensity features) is used.
+    Use --fast to select BPM-only clustering and skip intensity analysis.
 
     Use --dry-run to analyze without creating files (for testing).
     Use --use-test-path to use the test path from config.
@@ -195,6 +205,14 @@ def scan(
             "Error: Specify either --target-tracks or --target-duration, not both",
             err=True,
         )
+        sys.exit(1)
+
+    if fast and use_embeddings:
+        click.echo("Error: --fast cannot be used with --use-embeddings", err=True)
+        sys.exit(1)
+
+    if fast and cluster_mode in ("per-genre", "mixed-genre"):
+        click.echo(f"Error: --fast cannot be used with --cluster-mode {cluster_mode}", err=True)
         sys.exit(1)
 
     if dry_run:
@@ -240,19 +258,19 @@ def scan(
 
     emb_extractor = None  # Initialize outside conditional block
 
-    # Optional: intensity analysis + MusiCNN embeddings for Block PCA clustering
-    # Intensity required when: use_embeddings OR genre-aware clustering OR ramp sequencing
+    # Multi-dimensional clustering is the default. --fast selects BPM-only mode.
     embedding_dict = None
     intensity_dict: dict = {}
     auto_genre: str | None = None
     genre_dict_resolved: dict | None = None
-    need_intensity = (
-        use_embeddings or cluster_mode in ("per-genre", "mixed-genre") or sequence_mode == "ramp"
-    )
+    need_intensity = not fast
 
     if need_intensity:
         from playchitect.core.cache_db import CacheDB  # noqa: PLC0415
-        from playchitect.core.intensity_analyzer import IntensityAnalyzer  # noqa: PLC0415
+        from playchitect.core.intensity_analyzer import (  # noqa: PLC0415
+            IntensityAnalyzer,
+            IntensityFeatures,
+        )
 
         db_path = config.get_cache_dir() / "playchitect.db"
         cache_db = CacheDB(db_path)
@@ -261,12 +279,52 @@ def scan(
         int_analyzer = IntensityAnalyzer(
             cache_dir=config.get_cache_dir() / "intensity", cache_db=cache_db
         )
+        intensity_successes = 0
+        intensity_failures = 0
         with click.progressbar(audio_files, label="Intensity analysis", show_pos=True) as files:
             for file_path in files:
                 try:
                     intensity_dict[file_path] = int_analyzer.analyze(file_path)
+                    intensity_successes += 1
                 except Exception as exc:
+                    intensity_failures += 1
                     logger.warning("Intensity analysis failed for %s: %s", file_path.name, exc)
+
+        click.echo(f"{intensity_successes} tracks analysed, {intensity_failures} failed")
+
+        if intensity_successes and intensity_failures:
+            # Synthesise mean-feature fallbacks for failed tracks so they still cluster.
+            analysed_features = list(intensity_dict.values())
+            mean_rms = sum(f.rms_energy for f in analysed_features) / len(analysed_features)
+            mean_brightness = sum(f.brightness for f in analysed_features) / len(analysed_features)
+            mean_sub_bass = sum(f.sub_bass_energy for f in analysed_features) / len(
+                analysed_features
+            )
+            mean_kick = sum(f.kick_energy for f in analysed_features) / len(analysed_features)
+            mean_bass_harmonics = sum(f.bass_harmonics for f in analysed_features) / len(
+                analysed_features
+            )
+            mean_percussiveness = sum(f.percussiveness for f in analysed_features) / len(
+                analysed_features
+            )
+            mean_onset = sum(f.onset_strength for f in analysed_features) / len(analysed_features)
+
+            for file_path in audio_files:
+                if file_path in intensity_dict:
+                    continue
+                intensity_dict[file_path] = IntensityFeatures(
+                    file_path=file_path,
+                    file_hash="analysis-failed",
+                    rms_energy=mean_rms,
+                    brightness=mean_brightness,
+                    sub_bass_energy=mean_sub_bass,
+                    kick_energy=mean_kick,
+                    bass_harmonics=mean_bass_harmonics,
+                    percussiveness=mean_percussiveness,
+                    onset_strength=mean_onset,
+                    camelot_key=None,
+                    key_index=None,
+                )
 
         # Embedding extraction when requested (lazy import keeps ImportError contained)
         if use_embeddings:
@@ -426,7 +484,10 @@ def scan(
         top_features = sorted(feat_importance.items(), key=lambda x: x[1], reverse=True)[:3]
         top_str = ", ".join(f"{k}={v:.2f}" for k, v in top_features)
         click.echo(f"  Weight source: {weight_src} | Top features: {top_str}")
-    elif not intensity_dict:
+    elif intensity_dict:
+        # Default multi-dimensional path when the cluster result has no weight source
+        click.echo("  Weight source: intensity features (default clustering)")
+    else:
         # BPM-only clustering path
         click.echo("  Weight source: uniform (BPM-only clustering)")
 
@@ -464,8 +525,7 @@ def scan(
         click.echo("\nOpener / Closer recommendations:")
     else:
         click.echo(
-            "\nOpener / Closer recommendations: (use --cluster-mode or"
-            " --use-embeddings to enable intensity-based scoring)"
+            "\nOpener / Closer recommendations: (remove --fast to enable intensity-based scoring)"
         )
     for cluster in clusters:
         if not intensity_dict:

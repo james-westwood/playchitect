@@ -104,7 +104,9 @@ class TestScanSequencing:
         mock_extract.side_effect = make_fake_metadata
 
         mock_clusterer = mock_clusterer_cls.return_value
+        # Mock both clustering paths so the test survives the default-mode flip.
         mock_clusterer.cluster_by_bpm.return_value = [make_fake_cluster()]
+        mock_clusterer.cluster_by_features.return_value = [make_fake_cluster()]
         mock_clusterer.split_cluster.side_effect = lambda c, t: [c]
 
         runner = CliRunner()
