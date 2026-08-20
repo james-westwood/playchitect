@@ -191,7 +191,7 @@
       "owner": "ralph",
       "description": "In playchitect/cli/commands.py, make multi-dimensional clustering (cluster_by_features) the DEFAULT for the scan command — currently BPM-only runs unless flags are given, which means none of the intensity analysis runs on the default path. Changes: (1) IntensityAnalyzer runs by default, with results persisted via the existing cache_db so re-scans are fast; (2) add a --fast flag that selects the old BPM-only cluster_by_bpm path; (3) the 'Weight source' summary line must reflect the actual path taken; (4) update scan --help text. Keep --use-embeddings behaviour unchanged (it adds the MusiCNN block on top of intensity features). Edge case: tracks whose intensity analysis fails remain in clustering with BPM-only feature fallback, and are counted in the summary ('N tracks analysed, M failed').",
       "acceptance_criteria": "tests/cli/test_scan_defaults.py: default scan invokes cluster_by_features (mock the analyser); --fast invokes cluster_by_bpm; failed-analysis tracks are counted and reported in the summary; weight source string is correct per path; uv run pytest tests/ -o addopts='' -q green",
-      "completed": false,
+      "completed": true,
       "priority": 1
     },
     {
