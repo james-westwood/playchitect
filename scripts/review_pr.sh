@@ -8,7 +8,7 @@
 #
 # Gemini must be installed: npm install -g @google/gemini-cli
 # gh CLI must be installed and authenticated for GitHub commenting.
-# Review instructions live in GEMINI.md at the repo root.
+# Review instructions live in REVIEWER_INSTRUCTIONS.md at the repo root.
 
 set -euo pipefail
 
@@ -16,7 +16,7 @@ BASE="${1:-main}"
 MODEL="${2:-gemini-2.0-flash}"
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 REPO_ROOT="$(git -C "$SCRIPT_DIR" rev-parse --show-toplevel)"
-GEMINI_INSTRUCTIONS="$REPO_ROOT/GEMINI.md"
+GEMINI_INSTRUCTIONS="$REPO_ROOT/REVIEWER_INSTRUCTIONS.md"
 
 # ── Sanity checks ──────────────────────────────────────────────────────────────
 
@@ -31,7 +31,7 @@ if ! command -v gh &>/dev/null; then
 fi
 
 if [ ! -f "$GEMINI_INSTRUCTIONS" ]; then
-    echo "ERROR: GEMINI.md not found at $GEMINI_INSTRUCTIONS"
+    echo "ERROR: REVIEWER_INSTRUCTIONS.md not found at $GEMINI_INSTRUCTIONS"
     exit 1
 fi
 

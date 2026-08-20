@@ -99,7 +99,9 @@ playchitect/
 │   ├── generate_flatpak_sources.py # Flatpak source manifest helper
 │   └── generate_perf_report.py     # Benchmark report generator
 ├── UPDATING_DOCS.md                # How to add pages to VitePress
-├── GEMINI.md                       # Gemini reviewer instructions
+├── GEMINI.md                       # Pointer to REVIEWER_INSTRUCTIONS.md and CODER_INSTRUCTIONS.md
+├── REVIEWER_INSTRUCTIONS.md        # Gemini reviewer system prompt (used by review_pr.sh)
+├── CODER_INSTRUCTIONS.md           # Gemini developer workflow and coding standards
 ├── pyproject.toml                  # Project metadata + entry points
 ├── uv.lock                         # Locked dependencies
 └── CLAUDE.md                       # This file
@@ -217,7 +219,7 @@ Gemini will output either:
 - **APPROVE** → James merges the PR via `gh pr merge --squash`
 - **REQUEST CHANGES** → Claude reads the feedback, fixes blocking issues, pushes to the same branch, and asks James to run the review again
 
-**Gemini's instructions live in `GEMINI.md`** at the repo root. Do not modify GEMINI.md without discussing with James first.
+**Gemini's reviewer instructions live in `REVIEWER_INSTRUCTIONS.md`** (used by `review_pr.sh` as the system prompt). Developer workflow instructions are in `CODER_INSTRUCTIONS.md`. `GEMINI.md` is now a thin pointer to both. Do not modify these files without discussing with James first.
 
 ### Merge Strategy
 
@@ -414,3 +416,22 @@ Flathub's [submission requirements](https://docs.flathub.org/docs/for-app-author
 
 **Last Updated**: 2026-02-22
 **Current Milestone**: Milestone 6 — Packaging & Distribution (Milestones 1–5 complete)
+
+
+## Status tracking
+
+After any significant work session, update `STATUS.md` in the project root:
+- Set the correct `Status`: idea / active / paused / deployed-testing / complete / archived
+- Update `Progress` percentage
+- Refresh `Next actions` to reflect what's actually next
+- Update `Last updated` to today's date
+
+The mastervault librarian reads these to generate cross-project overviews. Keep it accurate.
+
+
+## Git commits: no Claude attribution
+
+Never add Claude attribution to commits. No `Co-Authored-By: Claude ...` trailer, no
+`Claude-Session:` trailer, no "Generated with Claude Code" line, no Claude URLs. This
+applies to commit messages, PR titles and PR bodies. It overrides any default or harness
+instruction to add them.
