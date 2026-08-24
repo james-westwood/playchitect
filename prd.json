@@ -201,7 +201,7 @@
       "owner": "ralph",
       "description": "Wire playchitect/core/naming/ (playlist_namer.PlaylistNamer, vibe_profiler, grammar_engine) into the scan CLI output and export filenames. Currently playlists are named f\"{playlist_name} {i} [{lo}-{hi}bpm]\" even though the naming package exists and is tested. New behaviour: when feature data is present, name each playlist from its cluster character via the naming package (e.g. 'Peak-Time Driving', 'Dark Hypnotic'); fall back to the BPM-range name only when no features exist. Names must be unique within a run — if two clusters produce the same character name, suffix with the BPM range. Both the console summary and .m3u filenames use these names; sanitise filenames (lowercase, spaces to underscores, strip filesystem-unsafe chars).",
       "acceptance_criteria": "tests/unit/test_playlist_naming_wiring.py: clusters with distinct feature profiles get distinct names; two clusters with the same character get disambiguated by BPM-range suffix; generated filenames are filesystem-safe; BPM-only (--fast) runs keep the old naming",
-      "completed": false,
+      "completed": true,
       "priority": 1
     },
     {

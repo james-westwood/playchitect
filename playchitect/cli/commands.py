@@ -10,9 +10,10 @@ import click
 
 from playchitect.core.audio_scanner import AudioScanner
 from playchitect.core.clustering import PlaylistClusterer
-from playchitect.core.export import CUEExporter, M3UExporter
+from playchitect.core.export import CUEExporter, M3UExporter, sanitize_filename
 from playchitect.core.importers import parse_rekordbox_xml
 from playchitect.core.metadata_extractor import MetadataExtractor
+from playchitect.core.naming import assign_cluster_names
 from playchitect.core.track_selector import TrackSelector
 from playchitect.utils.config import get_config
 from playchitect.utils.weight_config import WeightOverrides, load_weight_overrides
@@ -460,6 +461,10 @@ def scan(
         )
     clusters = split_clusters
 
+    # Assign display names to each cluster (character names when features exist,
+    # legacy BPM-range labels for BPM-only / --fast runs).
+    names = assign_cluster_names(clusters, intensity_dict, metadata_dict, playlist_name)
+
     # Perform sequencing
     from playchitect.core.sequencer import Sequencer  # noqa: PLC0415
 
@@ -492,11 +497,12 @@ def scan(
         click.echo("  Weight source: uniform (BPM-only clustering)")
 
     for i, cluster in enumerate(clusters):
+        name = names.get(cluster.cluster_id, f"Cluster {cluster.cluster_id}")
         duration_min = cluster.total_duration / 60 if cluster.total_duration else 0
         genre_label = f" [{cluster.genre}]" if cluster.genre else ""
         mood_label = f" ({cluster.mood})" if cluster.mood else ""
         click.echo(
-            f"  Cluster {i + 1}{genre_label}{mood_label}: {cluster.track_count} tracks, "
+            f'  Cluster {i + 1}: {cluster.track_count} tracks "{name}"{genre_label}{mood_label}, '
             f"BPM: {cluster.bpm_mean:.1f} ± {cluster.bpm_std:.1f}, "
             f"Duration: {duration_min:.1f} min"
         )
@@ -569,16 +575,16 @@ def scan(
         if export_cue:
             click.echo("  (CUE sheets would also be written alongside M3U playlists)")
         click.echo("\nPlaylist preview:")
-        for i, cluster in enumerate(clusters):
-            bpm_label = f"{int(cluster.bpm_mean)}-{int(cluster.bpm_mean + cluster.bpm_std)}bpm"
-            genre_label = f" {cluster.genre}" if cluster.genre else ""
-            filename = f"{playlist_name} {i + 1} [{bpm_label}{genre_label}].m3u"
+        for cluster in clusters:
+            filename = f"{sanitize_filename(names.get(cluster.cluster_id, 'cluster'))}.m3u"
             click.echo(f"  {filename} ({cluster.track_count} tracks)")
         click.echo("\n💡 Remove --dry-run to create actual playlist files")
     else:
         click.echo(f"\nExporting playlists to {output_dir}...")
         exporter = M3UExporter(output_dir, playlist_prefix=playlist_name)
-        playlist_paths = exporter.export_clusters(clusters, metadata_dict=metadata_dict)
+        playlist_paths = exporter.export_clusters(
+            clusters, metadata_dict=metadata_dict, names=names
+        )
 
         click.echo(f"\n✓ Successfully created {len(playlist_paths)} playlists:")
         for path in playlist_paths:
@@ -587,7 +593,9 @@ def scan(
         if export_cue:
             click.echo(f"\nWriting CUE sheets to {output_dir}...")
             cue_exporter = CUEExporter(output_dir, playlist_prefix=playlist_name)
-            cue_paths = cue_exporter.export_clusters(clusters, metadata_dict=metadata_dict)
+            cue_paths = cue_exporter.export_clusters(
+                clusters, metadata_dict=metadata_dict, names=names
+            )
             click.echo(f"✓ Successfully created {len(cue_paths)} CUE sheets:")
             for path in cue_paths:
                 click.echo(f"  {path.name}")

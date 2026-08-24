@@ -5,6 +5,7 @@ Supports M3U and CUE sheet export formats.
 """
 
 import logging
+import re
 from pathlib import Path
 from typing import TYPE_CHECKING
 
@@ -15,6 +16,29 @@ if TYPE_CHECKING:
     from playchitect.core.metadata_extractor import TrackMetadata
 
 logger = logging.getLogger(__name__)
+
+
+def sanitize_filename(name: str) -> str:
+    """Convert a display name into a filesystem-safe filename string.
+
+    Lowercases the name, converts whitespace to underscores, and removes all
+    characters outside the safe set ``[a-z0-9._-]``.
+
+    Args:
+        name: The display name to sanitize.
+
+    Returns:
+        A sanitized filename string.
+
+    Example:
+        >>> sanitize_filename("Dark Hypnotic [128-131bpm]")
+        'dark_hypnotic_128-131bpm'
+    """
+    safe = name.lower()
+    safe = re.sub(r"\s+", "_", safe)
+    safe = re.sub(r"[^a-z0-9._-]", "", safe)
+    safe = re.sub(r"_+", "_", safe)
+    return safe
 
 
 class M3UExporter:
@@ -37,24 +61,32 @@ class M3UExporter:
         cluster: ClusterResult,
         cluster_index: int = 0,
         metadata_dict: "dict[Path, TrackMetadata] | None" = None,
+        names: "dict[int | str, str] | None" = None,
     ) -> Path:
         """
         Export a single cluster to M3U playlist.
 
         Args:
             cluster: ClusterResult to export
-            cluster_index: Index for numbering (1-based in filename)
+            cluster_index: Index for numbering (1-based in filename) when no
+                explicit name is provided.
             metadata_dict: Optional path -> TrackMetadata for #EXTINF artist/title
+            names: Optional mapping of cluster_id to display name. When provided,
+                the sanitized display name is used as the filename.
 
         Returns:
             Path to created playlist file
         """
-        # Format BPM range in filename
-        bpm_label = f"{int(cluster.bpm_mean)}-{int(cluster.bpm_mean + cluster.bpm_std)}bpm"
-        genre_label = f" {cluster.genre}" if cluster.genre else ""
+        if names is not None and cluster.cluster_id in names:
+            filename = f"{sanitize_filename(names[cluster.cluster_id])}.m3u"
+        else:
+            # Format BPM range in filename
+            bpm_label = f"{int(cluster.bpm_mean)}-{int(cluster.bpm_mean + cluster.bpm_std)}bpm"
+            genre_label = f" {cluster.genre}" if cluster.genre else ""
 
-        # Create filename
-        filename = f"{self.playlist_prefix} {cluster_index + 1} [{bpm_label}{genre_label}].m3u"
+            # Create filename
+            filename = f"{self.playlist_prefix} {cluster_index + 1} [{bpm_label}{genre_label}].m3u"
+
         playlist_path = self.output_dir / filename
 
         logger.info(f"Exporting cluster {cluster_index} to {filename}")
@@ -90,6 +122,7 @@ class M3UExporter:
         self,
         clusters: list[ClusterResult],
         metadata_dict: "dict[Path, TrackMetadata] | None" = None,
+        names: "dict[int | str, str] | None" = None,
     ) -> list[Path]:
         """
         Export multiple clusters to M3U playlists.
@@ -97,6 +130,7 @@ class M3UExporter:
         Args:
             clusters: List of ClusterResult objects
             metadata_dict: Optional path -> TrackMetadata for #EXTINF lines
+            names: Optional mapping of cluster_id to display name.
 
         Returns:
             List of paths to created playlist files
@@ -106,7 +140,7 @@ class M3UExporter:
         playlist_paths = []
         for i, cluster in enumerate(clusters):
             playlist_path = self.export_cluster(
-                cluster, cluster_index=i, metadata_dict=metadata_dict
+                cluster, cluster_index=i, metadata_dict=metadata_dict, names=names
             )
             playlist_paths.append(playlist_path)
 
@@ -264,28 +298,40 @@ class CUEExporter:
         cluster: ClusterResult,
         cluster_index: int = 0,
         metadata_dict: "dict[Path, TrackMetadata] | None" = None,
+        names: "dict[int | str, str] | None" = None,
     ) -> Path:
         """
         Export a single cluster to a CUE sheet (single-file format).
 
         Args:
             cluster: ClusterResult to export.
-            cluster_index: Index for numbering (1-based in filename).
+            cluster_index: Index for numbering (1-based in filename) when no
+                explicit name is provided.
             metadata_dict: Optional path → TrackMetadata for titles and timing.
+            names: Optional mapping of cluster_id to display name. When provided,
+                the sanitized display name is used as the filename and the raw
+                display name as the CUE sheet title.
 
         Returns:
             Path to the created CUE file.
         """
-        bpm_label = f"{int(cluster.bpm_mean)}-{int(cluster.bpm_mean + cluster.bpm_std)}bpm"
-        genre_label = f" {cluster.genre}" if cluster.genre else ""
-        filename = f"{self.playlist_prefix} {cluster_index + 1} [{bpm_label}{genre_label}].cue"
+        if names is not None and cluster.cluster_id in names:
+            display_name = names[cluster.cluster_id]
+            filename = f"{sanitize_filename(display_name)}.cue"
+            title = display_name
+        else:
+            bpm_label = f"{int(cluster.bpm_mean)}-{int(cluster.bpm_mean + cluster.bpm_std)}bpm"
+            genre_label = f" {cluster.genre}" if cluster.genre else ""
+            filename = f"{self.playlist_prefix} {cluster_index + 1} [{bpm_label}{genre_label}].cue"
+            title = f"{self.playlist_prefix} {cluster_index + 1}{genre_label}"
+
         cue_path = self.output_dir / filename
         m3u_ref = filename.replace(".cue", ".m3u")
 
         sheet = self._generator.generate(
             cluster,
             metadata_dict or {},
-            title=f"{self.playlist_prefix} {cluster_index + 1}{genre_label}",
+            title=title,
             file_ref=m3u_ref,
         )
 
@@ -297,6 +343,7 @@ class CUEExporter:
         self,
         clusters: list[ClusterResult],
         metadata_dict: "dict[Path, TrackMetadata] | None" = None,
+        names: "dict[int | str, str] | None" = None,
     ) -> list[Path]:
         """
         Export multiple clusters to CUE sheets.
@@ -304,6 +351,7 @@ class CUEExporter:
         Args:
             clusters: List of ClusterResult objects.
             metadata_dict: Optional path → TrackMetadata for titles and timing.
+            names: Optional mapping of cluster_id to display name.
 
         Returns:
             List of paths to created CUE files.
@@ -311,7 +359,9 @@ class CUEExporter:
         logger.info("Exporting %d clusters to %s", len(clusters), self.output_dir)
         paths = []
         for i, cluster in enumerate(clusters):
-            path = self.export_cluster(cluster, cluster_index=i, metadata_dict=metadata_dict)
+            path = self.export_cluster(
+                cluster, cluster_index=i, metadata_dict=metadata_dict, names=names
+            )
             paths.append(path)
         logger.info("Exported %d CUE sheets", len(paths))
         return paths
