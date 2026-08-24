@@ -26,21 +26,21 @@ if TYPE_CHECKING:
 logger = logging.getLogger(__name__)
 
 
-def _legacy_name(cluster: "ClusterResult", index: int, playlist_name: str) -> str:
+def _legacy_name(cluster: ClusterResult, index: int, playlist_name: str) -> str:
     """Return the legacy BPM-range label used by the exporters."""
     bpm_label = f"{int(cluster.bpm_mean)}-{int(cluster.bpm_mean + cluster.bpm_std)}bpm"
     genre_label = f" {cluster.genre}" if cluster.genre else ""
     return f"{playlist_name} {index + 1} [{bpm_label}{genre_label}]"
 
 
-def _bpm_range_suffix(cluster: "ClusterResult") -> str:
+def _bpm_range_suffix(cluster: ClusterResult) -> str:
     """Return the BPM-range suffix in the existing exporter style."""
     return f"[{int(cluster.bpm_mean)}-{int(cluster.bpm_mean + cluster.bpm_std)}bpm]"
 
 
 def _raw_character_name(
-    cluster: "ClusterResult",
-    features: dict[Path, "IntensityFeatures"],
+    cluster: ClusterResult,
+    features: dict[Path, IntensityFeatures],
     library_profiles: list[VibeProfile],
 ) -> str | None:
     """Generate a raw, un-suffixed character name for a cluster.
@@ -56,9 +56,7 @@ def _raw_character_name(
     try:
         profile = compute_vibe_profile(cluster, features)
     except ValueError:
-        logger.debug(
-            "No vibe profile for cluster %s (missing features)", cluster.cluster_id
-        )
+        logger.debug("No vibe profile for cluster %s (missing features)", cluster.cluster_id)
         return None
 
     salience = score_salience(profile, library_profiles) if len(library_profiles) > 1 else {}
@@ -70,9 +68,9 @@ def _raw_character_name(
 
 
 def assign_cluster_names(
-    clusters: list["ClusterResult"],
-    features: dict[Path, "IntensityFeatures"],
-    metadata: dict[Path, "TrackMetadata"],
+    clusters: list[ClusterResult],
+    features: dict[Path, IntensityFeatures],
+    metadata: dict[Path, TrackMetadata],
     playlist_name: str,
 ) -> dict[int | str, str]:
     """Assign a display name to every cluster.
