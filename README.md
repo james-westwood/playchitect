@@ -16,6 +16,8 @@
 
 Playchitect transforms DJ playlist creation from rigid BPM-based grouping to intelligent multi-dimensional clustering. Using K-means analysis of BPM, spectral brightness, energy, and percussiveness, it creates coherent playlists that feel right—not just mathematically similar.
 
+> **Where this is heading:** Playchitect is being rebuilt around a learned transition model — co-occurrence graph embeddings mined from real DJ sets, audio embeddings (essentia discogs-effnet), and a personal taste layer trained on crossfaded A/B/C/D mix judgements, all validated against an eval harness with a BPM-window baseline. For the purpose, approach, and ML training methods, read **[docs/planning/ml-playlist-generator-plan.md](docs/planning/ml-playlist-generator-plan.md)**. The task-level execution list is `prd.json`.
+
 ## Key Features
 
 - **Intelligent Clustering**: K-means analysis on BPM + 7 audio intensity features

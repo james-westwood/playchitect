@@ -1,8 +1,9 @@
 # Plan: ML-Powered Playlist Generator
 
-**Status:** Approved direction, pre-Phase-1
+**Status:** Approved direction; Phase 1 in progress (TASK-15/16 done)
 **Author:** James + Kimi K3 (opencode session 2026-08-20), synthesised with a Claude Opus review
-**Supersedes:** the clustering-centric roadmap in ROADMAP.md; prd.json TASK-01..14 (seed-playlist) is ON HOLD pending Phase 2
+**Revised 2026-08-20** after external review: mainline reordered to the zero-external-dependency personal-metric loop; scraping demoted to a gated enhancement track. Technical fixes incorporated: choice-accuracy primary eval, deployment-constrained candidate sets, asymmetric transition score, rank-fusion blending, PCA whitening, judgement pre-rendering, response-time logging.
+**Supersedes:** the clustering-centric roadmap in ROADMAP.md; prd.json TASK-01..14 (seed-playlist) is ON HOLD pending Phase 4
 
 ---
 
@@ -18,91 +19,85 @@ Root cause: no measurable definition of "good". This plan installs one before an
 
 ## Guiding principles
 
-1. **Eval before modelling.** Nothing ships without beating the BPM-window baseline.
-2. **Two data sources, kept separate.** Population adjacency (other DJs' sets) = training prior. Personal labels (James's A/B/C/D judgements) = personalisation + eval. Never train on eval data.
-3. **Compose existing components.** intensity_analyzer, embedding_extractor, sequencer, compatibility (Camelot), cache_db, mixxx_sync all exist. This plan wires them into one pipeline; it does not greenfield them.
-4. **Clustering is scaffolding.** The endgame is seed → learned metric → beam-search sequence → Mixxx crate. Fix the default path cheaply; do not perfect it.
-5. **GUI and packaging last.** No GUI polish or Flatpak work until the generated playlists are worth playing.
+1. **Eval before modelling.** Nothing ships without beating the baselines with bootstrap CIs that exclude them.
+2. **The personal metric is the endgame — so the mainline has zero external dependencies.** Embedding ETL → eval harness → labelling tool → personal transition model is entirely under local control. The scraping/graph-prior work is an *enhancement track*: valuable if it lands, blocking nothing if it dies on anti-scraping or untracklisted sets.
+3. **Two label sources, kept separate.** Population adjacency (other DJs' sets, enhancement track) = prior only. Personal labels (James's A/B/C/D judgements) = training + eval (split by session). James's own sets = golden sanity set, never trained on.
+4. **Compose existing components.** intensity_analyzer, embedding_extractor, sequencer, compatibility (Camelot), cache_db all exist. Wire them into one pipeline; do not greenfield them.
+5. **Clustering is scaffolding.** The endgame is seed → transition model → beam-search sequence → Mixxx crate. Fix the default path cheaply; do not perfect it.
+6. **GUI and packaging last.**
 
 ## The library and data assets (verified)
 
 - Library: `/mnt/1tb_ssd/Media/Music` — **1,726 tracks**
 - Mixxx DB: `~/.mixxx/mixxxdb.sqlite` (2.4MB, only 4-5 sets — too small to train on)
-- James's own sets: 4-5 on Mixcloud with CUE sheets (ordering known) — **golden eval set**, never train
-- External: 1001tracklists.com, mixesdb.com — millions of sets by other artists
-
-### Seed artist list (for scraping queries)
-
-Union of library roster + r/Techno canon, three groups:
-
-- **Axis 1 — UK industrial/Birmingham:** Surgeon, Regis, Blawan, Perc, Makaton, Black Merlin, Ancient Methods, Clouds, Ansome, Vatican Shadow, SNTS (Perc Trax, Downwards, Sandwell District)
-- **Axis 2 — Hypnotic/Spanish + aligned:** Oscar Mulero, Reeko, Exium, Lewis Fautzi, Kwartz, Unbalance, Kessell, CRVEL, Kmyle, Keikari, Jurango, DVS1, Planetary Assault Systems, Function, Takaaki Itoh (PoleGroup, Semantica, Warm Up, Axis, HUSH)
-- **r/Techno canon:** Robert Hood, Jeff Mills, Ben Klock, Marcel Dettmann, Shed, Rødhåd, Sleeparchive, Terrence Dixon, Luke Slater, Paula Temple, Blawan, Joey Beltram, Basic Channel / Moritz von Oswald
-- **EXCLUDED — Axis 3 (UK bass/dub/dubstep, ~40% of library):** Peverelist, Kowton, Asusu, Simo Cell, Stenny, Forest Drive West, Toma Kami, Mala, Coki, Skream, Benga, Jack Sparrow, Kromestar, etc. Not techno per James 2026-08-20. Tag separately in the data model (`uk-bass/dub/dubstep`); exclude from techno adjacency mining. May get its own mining pass later.
-- **EXCLUDED — business techno / mainstage:** Charlotte de Witte, Amelie Lens, Drumcode flagship names. They poison the adjacency graph with mainstage co-occurrences.
+- James's own sets: 4-5 on Mixcloud with CUE sheets — **golden sanity set**, eval-only, never trained on
+- External (enhancement track only): 1001tracklists.com, mixesdb.com
 
 ---
 
 ## Phase 1 — Fix the default path (stopgap usability)
 
-Cheap, TDD-able, makes the tool useful tonight. Clustering stays scaffolding.
+Cheap, TDD-able, no ML risk. Clustering stays scaffolding.
 
-1. **Fix `split_cluster`** (core/clustering.py:840): replace random shuffle-and-dice with recursive re-clustering — re-run K-means inside an over-sized cluster with higher K; if features don't separate, split by energy-arc (RMS) ordering, never randomly. Sub-clusters must report their *own* stats, not parent stats.
-2. **Multi-dimensional clustering becomes the default** in `scan`; BPM-only moves behind `--fast`. Intensity analysis runs by default (cached in cache_db).
-3. **Wire the naming package** (core/naming/ — vibe_profiler, grammar_engine) into CLI playlist output so playlists get character names, not `Playlist N [130-133bpm]`.
-4. **Fail loudly** when K selection collapses (e.g. K=2 on 190 tracks with dominant cluster): log a warning that features didn't separate and suggest `--use-embeddings`.
+1. **Fix `split_cluster`** (core/clustering.py:840): recursive re-clustering instead of random shuffle-and-dice; sub-clusters report their own stats. *(TASK-15 — done)*
+2. **Multi-dimensional clustering default** in `scan`; BPM-only behind `--fast`. *(TASK-16 — done)*
+3. **Wire the naming package** into CLI/export names. *(TASK-17)*
+4. **Fail loudly** on degenerate K (dominant cluster >= 70% with K <= 2 on >= 50 tracks → warning suggesting `--use-embeddings`). *(TASK-18)*
 
-**Done when:** default `scan` on `dark 4` produces distinguishable, character-named playlists with per-cluster stats; tests green.
+**Done when:** default `scan` on `dark 4` produces distinguishable, character-named playlists with per-cluster stats; tests green. **Human gate before Phase 2.**
 
-## Phase 2 — Embedding cache + match-rate spike (HARD GATE)
+## Phase 2 — Personal metric mainline (no external dependencies)
 
-The deliverable is a **number** that gates the architecture. STOP and report to James before Phase 3.
+### 2.1 Embedding cache (TASK-19)
 
-1. **Embedding cache ETL:** essentia `discogs-effnet` embeddings for all 1,726 tracks; store in Parquet keyed by **file content hash** (not path — path-keyed caches rot on library reorg); fit PCA to 64 dims and persist the transform. Reuse `core/embedding_extractor.py` (swap musicnn → discogs-effnet) and `core/cache_db.py` patterns. Pull BPM/key from Mixxx DB where present rather than recomputing.
-2. **Seed artist extractor:** derive the axis-1/axis-2 artist list from library metadata (filename + tags), merge with the r/Techno canon list above → `data/seed_artists.txt`.
-3. **Scrapers:** 1001tracklists + MixesDB, seeded by the artist list. Rate-limit politely, cache every fetched page to disk. ToS-grey: personal research only.
-4. **Fuzzy resolver:** match tracklist entries (artist/title strings) to library tracks: normalisation (case, punctuation, `(Original Mix)` stripping), label cat-number match, duration agreement. Report precision on a hand-checked sample.
-5. **Own sets:** parse James's 4-5 Mixcloud tracklists + CUE sheets → golden eval pairs (held out, never trained on).
+essentia `discogs-effnet` embeddings for all 1,726 tracks; Parquet keyed by **content hash** (sha256 of first 1MB + size), not path. Fit `PCA(n_components=64, whiten=True)` and persist — whitening so the Phase 2.4 diagonal weights are interpretable as pure feature importance rather than relearning the variance profile. Pull BPM/key from Mixxx DB where present rather than recomputing.
 
-**Gate — report to James and STOP:**
-- Tracks embedded / failed, PCA variance retained
-- Sets scraped per source; tracklist entries parsed
-- **Pairs surviving resolution** (both tracks in library), per source and total
-- Resolver precision estimate
-- Recommendation: is the surviving-pair count enough for a population prior (rule of thumb: ≥2k pairs), or does the design pivot (e.g. metadata co-occurrence graph as prior instead of learned metric pretraining)?
+### 2.2 Eval harness (TASK-25)
 
-## Phase 3 — Eval harness (before any modelling)
+`playchitect eval`. Two metrics, two candidate sets:
 
-1. `playchitect eval` command: given track A, rank library; report where the true next track lands. Metrics: Recall@10, Recall@50, MRR. **Split by set, not by pair** (pair-splitting leaks).
-2. Bootstrap CIs on all metrics (small eval sets → wide error bars; the guardrail must not misfire on noise).
-3. Baselines: random, BPM-window-only, raw embedding cosine. **Guardrail: any learned metric that cannot beat BPM-window-only is worth nothing.**
-4. Eval data = golden sets + held-out personal labels. Log every eval run (git-style history) so metric-vs-label-count curves are plottable later.
+- **Primary: held-out choice accuracy.** For each held-out A/B/C/D judgement, the model must rank James's chosen candidate first; chance is 33%. ~150 held-out labels gives real statistical power — this is why the primary metric lives on the labels, not the golden sets.
+- **Secondary (sanity): next-track retrieval** on the golden sets (Recall@10/50, MRR), split by set never by pair. With only ~100 golden pairs this has wide CIs forever — it is a directional check, not a gate.
+- **Candidate sets:** (a) *deployment-constrained* — the BPM-drift + Camelot-feasible window around the anchor, the same constraint beam search will apply; (b) unconstrained full library. **The gate uses (a).** Rationale: unconstrained ranking punishes the metric for surfacing tracks it will never be asked about, and hands the BPM baseline free recall from a constraint the system applies anyway.
+- **Baselines:** random-within-window, raw-cosine-within-window, BPM-proximity-within-window. All metrics with bootstrap CIs (1000 resamples). Harness must run cleanly in the zero-label state (baselines only) and grow as labels accumulate.
 
-## Phase 4 — Choice-labelling tool
+### 2.3 Choice-labelling tool (TASK-26)
 
 Terminal script, no GUI:
 
-1. Present: last 20s of track A crossfaded into first 20s of candidates B, C, D (render the blend with ffmpeg — DJs judge the overlap, not the concatenation). Keys 1/2/3 + **s(kip)**. Skip is informative: ambiguous triplets get excluded.
-2. **Active sampling**: candidates from the same metric-neighbourhood under the current model (random pairs are ~90% obvious rejects and teach nothing). This is what makes ~600 labels enough instead of 6,000.
-3. Append-only JSONL log: timestamp, session ID, tracks, choice. (Late-night judgement drift is checkable only if logged.)
-4. Budget: ~30s/judgement; 200 choices for first signal, 600-800 for a usable metric. 15-minute sessions.
+1. Anchor A: last 20s crossfaded (ffmpeg) into first 20s of candidates B, C, D. Keys 1/2/3 + s(kip). DJs judge the blend, not the concatenation.
+2. **Pre-render the next judgement's three blends while the current one plays.** Without this, a 15-minute session yields ~8 judgements instead of ~25 — the naive ~30s/judgement budget ignores render time and three ~40s crossfades.
+3. **Active sampling, explicit cold start:** candidates from A's ~30-nearest neighbourhood under the *current* model; **round one uses raw discogs-effnet cosine** from TASK-19 (no learned metric exists yet). Random pairs are ~90% obvious rejects and teach nothing.
+4. Append-only `data/labels.jsonl`: `{ts, session_id, anchor, candidates, choice (null = skip), response_ms}`. Response time is logged from day one — fast choices are higher-confidence labels and can be loss-weighted later at zero cost now. Split by **session** (not judgement) into train/held-out.
+5. Realistic budget: ~15-25 judgements per 15-minute session; 200 labels ≈ 8-13 sessions.
 
-## Phase 5 — Metric learning
+### 2.4 Personal transition model (TASK-27)
 
-1. **Diagonal Mahalanobis** over the 64-d PCA space, triplet/listwise margin loss (~30 lines of torch, seconds on CPU). Move to low-rank only if diagonal plateaus.
-2. Two-stage: pretrain on population adjacency (generic techno DJ practice), fine-tune on James's labels (personal deviations). Pragmatic fallback at this data scale: `score = α·population_prior + (1−α)·personal_metric`, α tuned on held-out personal labels.
-3. Retrain as labels accumulate; plot eval metric vs label count; stop labelling when the curve flattens.
-4. Watch-items: population data encodes *other DJs'* context (filter scraped sets to the seed-list gene pool to control for it); "sounds similar" ≠ "mixes well" (deliberate contrast) — attack only after the eval is stable.
+`score(A→B) = −d_M(A,B) + wᵀ·Δ(A,B)`
 
-## Phase 6 — Sequencing + integration
+- `d_M`: diagonal Mahalanobis over the whitened 64-d embeddings (64 params), margin loss on chosen-beats-losers constraints (3 per judgement), torch, CPU-seconds.
+- `Δ`: signed deltas (BPM, RMS energy, brightness, percussiveness, sub_bass) — **mandatory, not optional**. A pure distance is symmetric; transitions are directional (A→B ≠ B→A, energy usually rises, deliberate contrast exists). Without the delta term the model class structurally cannot represent what the labels encode.
+- **Guardrail:** must beat the raw-cosine-within-window baseline on held-out choice accuracy with a bootstrap CI excluding the baseline. Report failure honestly if not.
 
-1. Beam search over the learned metric: hard constraints (per-transition BPM drift, Camelot compatibility via existing `core/compatibility.py`), soft energy-arc objective (wrap existing `core/sequencer.py` strategies — do not rewrite).
-2. Output: Mixxx crate + M3U/CUE via existing exporters.
-3. Re-scope the on-hold prd.json seed-playlist tasks (TASK-01..14) to use the learned metric.
-4. Only then: GUI wiring for seed → playlist in the GTK app.
+**Done when:** a trained model artifact beats the within-window baselines on held-out labels, or the harness reports exactly where it falls short. Human gate before Phase 4 integration.
+
+## Phase 3 — Enhancement track: co-occurrence graph prior (parallel, gated, optional)
+
+Runs in parallel with or after Phase 2. **Its failure blocks nothing** — the mainline stands alone. If it lands, it slots into the Phase 4 blend.
+
+1. Seed artist extractor (TASK-20), scrapers (TASK-21), fuzzy resolver (TASK-22), own-sets golden harvest (TASK-23), match-rate + coverage report (TASK-24) → human gate TASK-H1.
+2. **Scraping reality check:** MixesDB is MediaWiki — use its **API**, not page scraping. 1001tracklists sits behind Cloudflare with aggressive anti-scraping, and underground hypnotic/industrial sets are exactly the ones full of `ID - ID` entries — expect real engineering pain and low resolve rates there. Both fine: this track is optional.
+3. **Graph embeddings:** factorise the **directed** transition matrix (transitions are directional; check empirically whether direction matters vs undirected), artist/label backoff for unseen tracks. The graph records *actual mixes*, including deliberate contrast — complementing the audio metric, which is blind to it.
+
+## Phase 4 — Sequencing + integration
+
+1. Beam search over the transition score: hard constraints (per-transition BPM drift, Camelot via existing `core/compatibility.py`), soft energy arc (wrap existing `core/sequencer.py` — do not rewrite).
+2. **Blending (only if the graph prior landed):** never linearly blend raw scores — the signals live on unrelated, query-dependent scales. Per-query rank-transform, then combine ranks (reciprocal-rank fusion is the boring, robust choice at this data scale); tune fusion weights on held-out personal labels.
+3. Output: Mixxx crate + M3U/CUE via existing exporters.
+4. Re-scope the blocked prd.json TASK-01..14 to the transition model. GUI last.
 
 ## Explicitly deferred
 
-- GUI polish (GUI-10/11/12-style tasks), Flatpak/PyPI packaging (old Milestone 6), Five Rhythms extras, Rekordbox import extras.
-- UK-bass axis mining (own pass, later).
-- RalphZilla auto-loop: this plan runs human-gated via the opencode orchestrator, not AFK auto-merge.
+- GUI polish, Flatpak/PyPI packaging, Five Rhythms extras, Rekordbox extras.
+- UK-bass axis mining (own pass, later — tagged `uk-bass/dub/dubstep`, excluded from the techno seeds).
+- RalphZilla AFK auto-loop: this plan runs human-gated via the opencode orchestrator.

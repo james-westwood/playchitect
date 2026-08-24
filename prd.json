@@ -216,73 +216,108 @@
     },
     {
       "id": "TASK-19",
-      "epic": "Phase 2 — Spike",
+      "epic": "Phase 2 — Personal Metric",
       "title": "embedding_cache_etl",
       "owner": "ralph",
-      "description": "Build the embedding cache. (1) Extend playchitect/core/embedding_extractor.py with a discogs-effnet model option (download from essentia into ~/.cache/playchitect/models/ following the existing musicnn auto-download pattern). (2) New module playchitect/core/embedding_cache.py: class EmbeddingCache with put(track_path: Path, vector: np.ndarray) -> None and get(track_path: Path) -> np.ndarray | None, backed by data/embeddings.parquet keyed by CONTENT HASH — sha256 of the first 1MB of the audio file plus file size (fast, stable across renames/moves) — NOT by path. Columns: content_hash, path, model_version, embedding (float32 list), created_at. (3) scripts/embed_library.py: walk the library, skip cached, embed the rest, log progress every 50 tracks; must be idempotent. (4) Fit PCA(n_components=64) on the full matrix, persist to data/embedding_pca.joblib, log variance explained. uv add pyarrow joblib. essentia-tensorflow stays an optional extra as it is today.",
+      "description": "Build the embedding cache. (1) Extend playchitect/core/embedding_extractor.py with a discogs-effnet model option (download from essentia into ~/.cache/playchitect/models/ following the existing musicnn auto-download pattern). (2) New module playchitect/core/embedding_cache.py: class EmbeddingCache with put(track_path: Path, vector: np.ndarray) -> None and get(track_path: Path) -> np.ndarray | None, backed by data/embeddings.parquet keyed by CONTENT HASH — sha256 of the first 1MB of the audio file plus file size (fast, stable across renames/moves) — NOT by path. Columns: content_hash, path, model_version, embedding (float32 list), created_at. (3) scripts/embed_library.py: walk the library, skip cached, embed the rest, log progress every 50 tracks; must be idempotent. (4) Fit PCA(n_components=64, whiten=True) on the full matrix — whitening so the TASK-27 diagonal Mahalanobis weights are interpretable as pure feature importance rather than relearning the variance profile, persist to data/embedding_pca.joblib, log variance explained. uv add pyarrow joblib. essentia-tensorflow stays an optional extra as it is today.",
       "acceptance_criteria": "tests/unit/test_embedding_cache.py: put/get roundtrip preserves the vector; get succeeds after the file is renamed (same bytes, new path — content-hash keying); second run of the script on a small fixture dir embeds 0 new tracks; persisted PCA reloads with identical components",
       "completed": false,
       "priority": 2
     },
     {
       "id": "TASK-20",
-      "epic": "Phase 2 — Spike",
+      "epic": "Enhancement — Graph Prior (parallel, gated, optional)",
       "title": "seed_artist_extractor",
       "owner": "ralph",
       "description": "scripts/build_seed_artists.py: extract the unique artist roster from the library (mutagen tags 'artist'/'albumartist' where present, else filename 'Artist - Title' parsing consistent with metadata_extractor behaviour). Write data/seed_artists.txt, one artist per line under comment headers: '# axis1-uk-industrial', '# axis2-hypnotic', '# rtechno-canon', '# excluded-uk-bass', '# unmatched'. Classification is exact-match (case-insensitive, punctuation-stripped) against canonical lists embedded in the script, taken from docs/planning/ml-playlist-generator-plan.md — axis 1 (Surgeon, Regis, Blawan, Perc, Makaton, Black Merlin, Ancient Methods, Clouds, Ansome, Vatican Shadow, SNTS), axis 2 (Oscar Mulero, Reeko, Exium, Lewis Fautzi, Kwartz, Unbalance, Kessell, CRVEL, Kmyle, Keikari, Jurango, DVS1, Planetary Assault Systems, Function, Takaaki Itoh), canon (Robert Hood, Jeff Mills, Ben Klock, Marcel Dettmann, Shed, Rodhad, Sleeparchive, Terrence Dixon, Luke Slater, Paula Temple, Joey Beltram, Basic Channel). UK-bass/dub/dubstep (Peverelist, Kowton, Asusu, Simo Cell, Stenny, Forest Drive West, Toma Kami, Mala, Coki, Skream, Benga, Jack Sparrow, Kromestar, Goth-Trad, Eusebeia, Silkie, Sepia) goes to excluded-uk-bass. Anything unmatched goes to '# unmatched' for human review. Print per-section counts to stdout.",
       "acceptance_criteria": "tests/unit/test_seed_artists.py: Surgeon classifies to axis1; Peverelist lands in excluded-uk-bass; an unknown artist lands in unmatched; each artist appears exactly once; output file is byte-identical across two runs",
       "completed": false,
-      "priority": 2
+      "priority": 6,
+      "note": "Enhancement track: parallel/optional. Its failure blocks nothing — the personal-metric mainline (TASK-19, 25, 26, 27) stands alone."
     },
     {
       "id": "TASK-21",
-      "epic": "Phase 2 — Spike",
+      "epic": "Enhancement — Graph Prior (parallel, gated, optional)",
       "title": "tracklist_scrapers",
       "owner": "ralph",
       "description": "New package playchitect/scrape/. (1) client.py — polite cached HTTP: every fetched page is written to data/scrape_cache/<host>/<sha256(url)>.html BEFORE parsing; a cache hit means zero network; minimum 5s delay between live requests; descriptive personal-research user-agent. (2) tracklists_1001.py — parse a 1001tracklists set page into ordered entries [{position, artist, title, timestamp}] handling their tracklist markup including 'w/' mashup lines (split into separate entries) and [Label] annotations. (3) mixesdb.py — same for mixesdb.com artist/category pages (MediaWiki markup: '# HH:MM Artist - Title [Label]'). Public functions per source: fetch_set(url: str) -> list[TrackEntry] and fetch_artist_sets(artist: str) -> list[str] (set URLs). No DB writes; parsing only, network isolated behind client.py so tests run fully offline against committed fixtures.",
       "acceptance_criteria": "tests/scrape/test_scrapers.py: parser tests use fixture HTML under tests/scrape/fixtures/ and make ZERO network calls; 1001 parser extracts ordered entries with timestamps; mixesdb parser handles '# HH:MM' lines; client never fetches the same URL twice (cache hit asserted via mock transport); live path enforces the 5s delay (assert sleep called)",
       "completed": false,
-      "priority": 2
+      "priority": 6,
+      "note": "Enhancement track: parallel/optional. Its failure blocks nothing — the personal-metric mainline (TASK-19, 25, 26, 27) stands alone."
     },
     {
       "id": "TASK-22",
-      "epic": "Phase 2 — Spike",
+      "epic": "Enhancement — Graph Prior (parallel, gated, optional)",
       "title": "fuzzy_resolver",
       "owner": "ralph",
       "description": "playchitect/scrape/resolve.py: resolve scraped tracklist entries to library tracks. Steps in order: (1) normalise — lowercase, NFKD unicode fold, collapse punctuation/whitespace, strip bracketed annotations ('(Original Mix)', '[Rodz-Konez]') into a separate field; (2) exact normalised (artist, title) match against the library metadata table; (3) fuzzy: rapidfuzz token_sort_ratio >= 92 on artist AND >= 90 on title, plus duration agreement within +/-8s when the tracklist entry carries a duration; if two library candidates fall within 2 points of each other, mark unresolved (ambiguity beats guessing). Return dataclass Resolution(status: Literal['exact','fuzzy','unresolved'], library_path: Path | None, score: float). uv add rapidfuzz. CLI: scripts/resolve_tracklists.py runs the resolver over all scraped sets, writes data/resolutions.parquet, and writes a random 30-row fuzzy-match sample to data/resolver_sample.md for human precision checking (seeded RNG for reproducibility).",
       "acceptance_criteria": "tests/scrape/test_resolve.py: exact match resolves as exact; '(Original Mix)' variants normalise to the base title; near-duplicate artist spellings resolve fuzzy with the expected score; two similar library tracks produce unresolved (ambiguity rule); duration disagreement beyond tolerance produces unresolved",
       "completed": false,
-      "priority": 2
+      "priority": 6,
+      "note": "Enhancement track: parallel/optional. Its failure blocks nothing — the personal-metric mainline (TASK-19, 25, 26, 27) stands alone."
     },
     {
       "id": "TASK-23",
-      "epic": "Phase 2 — Spike",
+      "epic": "Enhancement — Graph Prior (parallel, gated, optional)",
       "title": "own_sets_golden_eval",
       "owner": "ralph",
       "description": "scripts/harvest_own_sets.py: build James's golden eval set from his 4-5 Mixcloud sets. Input data/own_sets.yaml: list of {url, cue_path?} — the human fills this in (a task the orchestrator should surface early). Mixcloud set pages expose the tracklist in embedded JSON; parse ordered (artist, title) pairs from it. Where cue_path is present, cross-check ordering against the CUE sheet and prefer CUE on conflict (it is the frame-accurate source). Resolve every pair through playchitect/scrape/resolve.py. Output data/golden_eval.jsonl: first line {\"_meta\": {\"role\": \"eval-only\", \"note\": \"never training data\"}}, then one line per adjacent ordered pair {set_id, position, track_a_path, track_b_path} — only pairs where BOTH ends resolved. Fallback: own_sets.yaml may instead carry an inline 'tracklist' list of 'Artist - Title' strings per set; support both input modes so a fragile Mixcloud parse never blocks the eval set.",
       "acceptance_criteria": "tests/scrape/test_own_sets.py: inline-tracklist mode produces ordered adjacent pairs; CUE-conflict mode prefers CUE ordering (fixture with a deliberate mismatch); pairs with an unresolved end are dropped and counted in the summary; first output line marks the file eval-only",
       "completed": false,
-      "priority": 2
+      "priority": 6,
+      "note": "Enhancement track: parallel/optional. Its failure blocks nothing — the personal-metric mainline (TASK-19, 25, 26, 27) stands alone."
     },
     {
       "id": "TASK-24",
-      "epic": "Phase 2 — Spike",
+      "epic": "Enhancement — Graph Prior (parallel, gated, optional)",
       "title": "match_rate_report",
       "owner": "ralph",
-      "description": "scripts/match_rate_report.py — the Phase 2 deliverable and HARD GATE. Joins embedding-cache stats + scrape output + resolutions + library, and writes docs/planning/match-rate-report.md with: (1) tracks embedded / failed; PCA variance explained; (2) sets scraped and tracklist entries parsed, per source; (3) adjacency pairs total, and pairs where BOTH ends resolve to the library, per source and overall — this is the number that gates the architecture; (4) resolver outcome distribution (exact / fuzzy / unresolved); (5) pointer to the 30-row human-checkable sample in data/resolver_sample.md; (6) a clearly marked RECOMMENDATION section: surviving pairs >= 2000 -> 'population prior viable, proceed to Phase 3'; below -> 'prior too sparse; pivot option: metadata co-occurrence graph as prior instead of learned-metric pretraining'. The script is deterministic: same inputs, byte-identical numbers.",
-      "acceptance_criteria": "tests/scrape/test_match_report.py: fixture inputs produce a report containing all four stat sections; the recommendation text switches correctly on the 2000-pair threshold; running twice produces identical output",
+      "description": "scripts/match_rate_report.py — the Phase 2 deliverable and HARD GATE. Joins embedding-cache stats + scrape output + resolutions + library, and writes docs/planning/match-rate-report.md with: (1) tracks embedded / failed; PCA variance explained; (2) sets scraped and tracklist entries parsed, per source; (3) adjacency pairs total, and pairs where BOTH ends resolve to the library, per source and overall; (4) LIBRARY COVERAGE in the co-occurrence graph: fraction of library tracks appearing anywhere in the scraped sets, and fraction of library ARTISTS appearing (artist-level backoff coverage) — the graph prior needs no audio ownership, so coverage, not pair-survival, gates it; (5) resolver outcome distribution (exact / fuzzy / unresolved); (6) pointer to the 30-row human-checkable sample in data/resolver_sample.md; (7) a clearly marked RECOMMENDATION section on TWO independent axes: audio-metric pretraining viable iff surviving pairs >= 2000; graph prior viable iff artist-level coverage >= 50% (either can proceed without the other — see the plan doc Phase 2 gate). The script is deterministic: same inputs, byte-identical numbers.",
+      "acceptance_criteria": "tests/scrape/test_match_report.py: fixture inputs produce a report containing all five stat sections; the recommendation switches correctly on BOTH thresholds (2000 surviving pairs for audio pretraining, 50% artist coverage for graph prior) independently; running twice produces identical output",
       "completed": false,
-      "priority": 2
+      "priority": 6,
+      "note": "Enhancement track: parallel/optional. Its failure blocks nothing — the personal-metric mainline (TASK-19, 25, 26, 27) stands alone."
     },
     {
       "id": "TASK-H1",
-      "epic": "Phase 2 — Spike",
+      "epic": "Enhancement — Graph Prior (parallel, gated, optional)",
       "title": "review_match_rate_gate",
       "owner": "human",
-      "description": "HARD GATE — orchestrator must not create or start Phase 3 work until this task is completed. Read docs/planning/match-rate-report.md and eyeball data/resolver_sample.md (30 fuzzy matches — estimate precision by eye). Decide: proceed to Phase 3 (eval harness + learned metric) or pivot to a metadata co-occurrence graph prior. Record the decision in this task's note field, then mark completed.",
+      "description": "ENHANCEMENT-TRACK GATE — gates only the graph prior proceeding into Phase 4 blending. The personal-metric mainline (TASK-19, 25, 26, 27) does NOT wait on this. Read docs/planning/match-rate-report.md and eyeball data/resolver_sample.md (30 fuzzy matches — estimate precision by eye). Decide: proceed to Phase 3 (eval harness + learned metric) or pivot to a metadata co-occurrence graph prior. Record the decision in this task's note field, then mark completed.",
       "acceptance_criteria": "Decision recorded in the note field of this task",
       "completed": false,
+      "priority": 7
+    },
+    {
+      "id": "TASK-25",
+      "epic": "Phase 2 — Personal Metric",
+      "title": "eval_harness",
+      "owner": "ralph",
+      "description": "New package playchitect/eval/ + `playchitect eval` CLI command. TWO metrics, TWO candidate sets. Primary metric: held-out choice accuracy — for each held-out A/B/C/D judgement from data/labels.jsonl (produced by TASK-26; may not exist yet), the model under test must rank James's chosen candidate first among the 3; chance is 33%. Report accuracy with bootstrap CIs (1000 resamples over judgements). Secondary sanity metric: next-track retrieval on the golden sets in data/golden_eval.jsonl (may be absent), Recall@10/50 + MRR, split by SET never by pair — with only ~100 golden pairs this is directional, never a gate. Both metrics computed two ways: (a) deployment-constrained — candidates restricted to the BPM-drift + Camelot-feasible window around the anchor (same constraint Phase 4 beam search applies; reuse playchitect/core/compatibility.py for key logic); (b) unconstrained full library. THE GATE USES (a): unconstrained ranking punishes the metric for surfacing tracks it will never be asked about, and hands BPM baselines free recall from a constraint the real system applies anyway. Baselines to implement: random-within-window, raw-cosine-within-window (on the TASK-19 whitened PCA embeddings), BPM-proximity-within-window. Harness must run cleanly with zero labels (baselines + golden sets only) and with neither input present (baselines on synthetic fixtures only). Deterministic given a fixed seed. Log every run's results to data/eval_history.jsonl (append-only) so metric-vs-label-count curves are plottable later.",
+      "acceptance_criteria": "tests/eval/test_eval_harness.py: synthetic labels + fixture embeddings produce choice-accuracy numbers matching hand-computed values; the constrained candidate set excludes BPM-incompatible and Camelot-incompatible tracks; bootstrap CIs bracket the point estimates; zero-label run reports baselines without crashing; set-level split keeps set ids disjoint between train and eval; eval_history.jsonl appends one line per run",
+      "completed": false,
       "priority": 3
+    },
+    {
+      "id": "TASK-26",
+      "epic": "Phase 2 — Personal Metric",
+      "title": "choice_labelling_tool",
+      "owner": "ralph",
+      "description": "scripts/label_transitions.py — terminal choice-labelling tool, no GUI. Per judgement: anchor track A's last 20s crossfaded (ffmpeg pipe render) into the first 20s of each of 3 candidates B/C/D; keys 1/2/3 choose, s skips. CRITICAL: pre-render the NEXT judgement's three blends in a background thread while the current one plays — without pre-rendering a 15-minute session yields ~8 judgements instead of ~25 (the naive 30s/judgement budget ignores render time and three ~40s crossfades). Active sampling: B/C/D drawn from A's ~30-nearest neighbourhood under the current metric so each judgement resolves a genuine ambiguity (random candidates are ~90% obvious rejects). EXPLICIT COLD START: when no trained model artifact exists (data/transition_model.json absent), sample neighbourhoods under raw discogs-effnet cosine from the TASK-19 cache. After TASK-27 trains, switch to the learned model. Append-only log data/labels.jsonl, one JSON object per line: {ts (ISO8601 UTC), session_id (uuid per run), anchor (content hash), candidates ([3 content hashes]), choice (0|1|2|null — null = skip; skips are informative, excluded from training), response_ms (int, REQUIRED — fast choices are higher-confidence labels and may be loss-weighted later)}. 15-minute sessions by default (configurable); graceful resume appends to existing history without rewriting it.",
+      "acceptance_criteria": "tests/scrape/test_labelling.py (or tests/unit/test_labelling.py): JSONL schema roundtrip including response_ms and null-choice skips; candidate sampler returns neighbourhood members, not uniform-random library tracks (assert against fixture embeddings); cold start uses raw cosine when no model artifact exists, learned model when it does; pre-render pipeline overlaps render with playback (assert with mocked render/play); resume appends without touching existing lines",
+      "completed": false,
+      "priority": 4
+    },
+    {
+      "id": "TASK-27",
+      "epic": "Phase 2 — Personal Metric",
+      "title": "transition_model",
+      "owner": "ralph",
+      "description": "playchitect/core/transition_model.py — the personal transition model. score(A->B) = -d_M(A,B) + w^T * delta(A,B). d_M = diagonal Mahalanobis over the whitened 64-d PCA embeddings from TASK-19 (64 learned params). delta = SIGNED deltas B-minus-A on (bpm, rms_energy, brightness, percussiveness, sub_bass) (5 params) — MANDATORY, not optional: a pure distance is symmetric by construction and transitions are directional (energy usually rises; deliberate contrast exists), so without the delta term the model class structurally cannot represent what the labels encode. Train on data/labels.jsonl: each judgement yields 3 pairwise margin constraints (chosen beats each loser); torch, CPU, seconds. Split labels by SESSION (never by judgement) into train/held-out. Evaluate via the TASK-25 harness: held-out choice accuracy within the constrained candidate set, bootstrap CIs. GUARDRAIL: must beat the raw-cosine-within-window baseline with the bootstrap CI excluding the baseline point estimate — if not, report failure honestly and stop; do not ship a metric that loses to cosine. Save artifact to data/transition_model.json: diag weights, delta weights, training metadata (label count, session ids, date, held-out accuracy, baseline comparison).",
+      "acceptance_criteria": "tests/unit/test_transition_model.py: model overfits a small synthetic consistent dataset to >90% train accuracy (loss optimises correctly); score is asymmetric — score(A,B) != score(B,A) when deltas are nonzero; artifact saves/loads with identical weights; session-level split keeps session ids disjoint; integration test: synthetic labels where the correct choice always has positive RMS delta — a pure-distance variant must fail and the full model must pass, proving the delta term is doing the work",
+      "completed": false,
+      "priority": 5
     }
   ]
 }
