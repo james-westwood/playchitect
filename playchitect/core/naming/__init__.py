@@ -1,5 +1,6 @@
 """Playlist naming support: vibe profiling, grammar engine, and intelligent naming."""
 
+from playchitect.core.naming.assignment import assign_cluster_names
 from playchitect.core.naming.grammar_engine import generate_name
 from playchitect.core.naming.playlist_namer import TAG_TO_DESCRIPTORS, PlaylistNamer
 from playchitect.core.naming.vibe_profiler import (
@@ -11,6 +12,7 @@ from playchitect.core.naming.vibe_profiler import (
 )
 
 __all__ = [
+    "assign_cluster_names",
     "VibeProfile",
     "compute_vibe_profile",
     "score_salience",
