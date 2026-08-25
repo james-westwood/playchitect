@@ -24,9 +24,10 @@ All of `orchestrator-handoff.md` still applies. The short version:
   eval-only; label splits are by session, never by judgement.
 - **TASK-H1 gates the enhancement track only**, never the mainline.
 
-One deviation from the original handoff: `main` has now been **pushed to origin** at James's
-explicit request, for backup. The no-push rule was a "don't create GitHub ceremony" rule, not
-a "never back up" rule; treat pushing `main` as allowed and PRs/issues as still off.
+One deviation from the original handoff: **pushing is now allowed.** `main` was reconciled with
+`origin/main` on 2026-08-25 (see "The fork and the merge" below) and pushed. The no-push rule was
+a "don't create GitHub ceremony" rule, not a "never back up" rule — treat pushing `main` as
+allowed and PRs/issues as still off.
 
 ## Where the project stands
 
@@ -80,7 +81,7 @@ Weight source: pca | Top features: onset_strength=0.29, brightness=0.24, rms_ene
 | "Weight source" is not BPM-only | TASK-16 | **Pass.** `Weight source: pca`, clustering on all 8 features with EWKM per-cluster weights. The old `uniform` / BPM-only default is gone. |
 | Degenerate-K warning fires | TASK-18 | **Pass.** Fired on real data at 86.9% dominance, surfaced in both the log and stdout. |
 | Tests green | — | **Pass.** 1379 passed, 2 skipped. |
-| Playlists are *distinguishable* | — | **Human judgement — see below.** |
+| Playlists are *distinguishable* | — | **Passed** by James, 2026-08-25, with the sameness accepted as designed stopgap behaviour. See below. |
 
 ### The judgement call
 
@@ -105,6 +106,19 @@ stopgap — "clustering is scaffolding, do not perfect it".
 **Orchestrator's read:** Phase 1 did what it was scoped to do. The residual indistinguishability
 is exactly the problem Phase 2 is designed to solve, so this reads as a pass with a known
 limitation rather than a failure — but the gate is James's.
+
+### Gate outcome — PASSED, 2026-08-25
+
+James passed the gate. Two orchestrators (Claude Opus and Kimi K3) independently reached the
+same recommendation and he took it. **Phase 1 does not close until TASK-28 lands** — silent
+track loss is an integrity bug rather than polish, and it sits inside the Phase 1 epic at
+priority 1. TASK-29 stays deferred at priority 6.
+
+The reasoning on the sameness, for the record: it is the designed stopgap behaviour on a
+genuinely homogeneous single-genre folder, and the tool now says so out loud rather than
+silently shipping diced noise. The remedy is Phase 2's embedding space, not more K-selection
+tuning. Sending Phase 1 back for it would contradict the plan's own "clustering is scaffolding,
+do not perfect it".
 
 ## Defects the evidence run exposed
 
@@ -147,15 +161,58 @@ track topping both rankings is returned at the head of both lists and
 
 Cosmetic rather than corrupting, so prioritised at **6** — backlog, do it when convenient.
 
+## The fork and the merge (2026-08-25)
+
+The repo had been forked in two for two months and nobody had noticed. Recorded here because it
+explains why the plan says what it says.
+
+`main` and `origin/main` diverged at `0268829` (**2026-06-15**) and never rejoined:
+
+- **`origin/main`** carried the **seed-playlist feature, built and merged 2026-06-15/16** via
+  PRs #220-224 (issue #219): `core/features.py`, `core/seed_playlist.py`, the CLI `playlist`
+  command, the LibraryView make-playlist button, ~1,070 lines of tests.
+- **local `main`** carried the ML replan, first commit **2026-08-20** — branched off that same
+  June fork point.
+
+So `ml-playlist-generator-plan.md` was authored against a **two-month-stale checkout**. It
+recorded TASK-01..14 as unstarted, and its founding premise ("~18k LOC, 1,334 tests, and is not
+usable") was formed without the seed-playlist feature in view. **James deferred revisiting that
+premise to Phase 4.** The practical consequence is that Phase 4's "re-scope TASK-01..14 to the
+transition model" has a head start: adapt `seed_playlist.py`, do not rebuild it.
+
+The merge itself was small. `playchitect/cli/commands.py` auto-merged cleanly — `scan` with
+`--fast` and the `playlist` command occupy disjoint regions. Only `prd.json` and `STATUS.md`
+conflicted. Task states were set from what actually landed, not from what either file claimed:
+TASK-01..10 and TASK-13 completed; **TASK-11/12 still blocked — implemented but unmerged on
+`origin/feature/219-task11-12-gui-wiring`** (`main_window.py` +72, `test_main_window_seed.py`
++750), to be merged during the Phase 4 GUI pass; TASK-14 blocked, never started.
+
+Merged tree: **1419 passed, 2 skipped**, pre-commit all green.
+
+### The ralph loop is dormant — no guard needed
+
+It was flagged that a live ralph loop might autonomously pick up the human-gated TASK-19 once
+the merge marked earlier tasks complete. Checked, and it will not:
+
+- No cron entry, no systemd user unit, no timer for this repo, no running process.
+- RalphZilla's `ralph.log` was last written **2026-06-06**; its newest summary is 2026-04-29.
+- `ralphzilla/prd.json` has `"project": "ralphzilla"` — it drives itself, not playchitect. The
+  stray `ralphzilla/playchitect/` directory holds only `__pycache__`.
+
+If a loop is ever pointed at this repo again, note that it must skip tasks carrying
+`"status": "blocked"` — that is the only thing keeping the parked TASK-11/12/14 out of the
+pickup order.
+
 ## What a fresh session should do next
 
-1. **Do not start Phase 2 (TASK-19) without James's go-ahead** — the Phase 1 gate above is
-   still open.
-2. If the gate passes and TASK-28 keeps priority 1, take **TASK-28** through
+1. **TASK-28** is the next pickup (priority 1) and closes Phase 1. Take it through
    Triage → Tests → Implement → Docs, delegating with complete self-contained prompts.
-3. Then **TASK-19**, and the Phase 2 mainline in priority order: 19 → 25 → 26 → 27.
-4. Re-running the evidence scan is cheap now the cache is warm (~20 min for 405 tracks). Worth
-   repeating after TASK-28 to confirm 405 in / 405 out.
+2. Re-run the evidence scan after TASK-28 to confirm **405 in / 405 out**. It is cheap now the
+   intensity cache is warm — about 20 minutes for 405 tracks.
+3. Then **TASK-19**, and the Phase 2 mainline in priority order: 19 → 25 → 26 → 27. Phase 2
+   ends at a human gate on TASK-27's guardrail result.
+4. Phase 1's gate is passed; **the next human gate is the Phase 1 → Phase 2 transition once
+   TASK-28 is green.** Do not run past it.
 
 ## Gotchas
 

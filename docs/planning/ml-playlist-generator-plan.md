@@ -1,9 +1,10 @@
 # Plan: ML-Powered Playlist Generator
 
-**Status:** Approved direction; Phase 1 in progress (TASK-15/16 done)
+**Status:** Phase 1 passed its human gate 2026-08-25 (TASK-15..18 done); closes on TASK-28. Phase 2 next.
 **Author:** James + Kimi K3 (opencode session 2026-08-20), synthesised with a Claude Opus review
 **Revised 2026-08-20** after external review: mainline reordered to the zero-external-dependency personal-metric loop; scraping demoted to a gated enhancement track. Technical fixes incorporated: choice-accuracy primary eval, deployment-constrained candidate sets, asymmetric transition score, rank-fusion blending, PCA whitening, judgement pre-rendering, response-time logging.
-**Supersedes:** the clustering-centric roadmap in ROADMAP.md; prd.json TASK-01..14 (seed-playlist) is ON HOLD pending Phase 4
+**Supersedes:** the clustering-centric roadmap in ROADMAP.md; prd.json TASK-01..14 (seed-playlist) is parked pending Phase 4
+**Correction (2026-08-25):** this plan was authored from a checkout that predated the seed-playlist merges of 2026-06-16 (PRs #220-224), so it recorded TASK-01..14 as unstarted when TASK-01..10 and TASK-13 had in fact shipped. The premise below is stated without that work in view. James deferred revisiting it to Phase 4 — see `orchestrator-handoff-phase1-evidence.md`.
 
 ---
 
@@ -94,7 +95,7 @@ Runs in parallel with or after Phase 2. **Its failure blocks nothing** — the m
 1. Beam search over the transition score: hard constraints (per-transition BPM drift, Camelot via existing `core/compatibility.py`), soft energy arc (wrap existing `core/sequencer.py` — do not rewrite).
 2. **Blending (only if the graph prior landed):** never linearly blend raw scores — the signals live on unrelated, query-dependent scales. Per-query rank-transform, then combine ranks (reciprocal-rank fusion is the boring, robust choice at this data scale); tune fusion weights on held-out personal labels.
 3. Output: Mixxx crate + M3U/CUE via existing exporters.
-4. Re-scope the blocked prd.json TASK-01..14 to the transition model. GUI last.
+4. Re-scope the parked prd.json TASK-01..14 to the transition model — **adapt the shipped `core/seed_playlist.py` and `core/features.py` rather than building anew**, and merge the outstanding GUI wiring from `origin/feature/219-task11-12-gui-wiring` (TASK-11/12) plus the missing `playlist` CLI reference (TASK-14). **Revisit this plan's premise here**, per the correction note at the top. GUI last.
 
 ## Explicitly deferred
 
