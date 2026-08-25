@@ -211,7 +211,7 @@
       "owner": "ralph",
       "description": "In playchitect/core/clustering.py, after clustering completes, detect degenerate separation: if the largest cluster holds >= 70% of all tracks AND auto-selected K <= 2 AND n_tracks >= 50, log a WARNING 'Clusters did not separate: largest cluster holds X% of N tracks. Consider --use-embeddings or --genre hints for better separation.' and surface the same line in the CLI summary output. Pure logging/UX — no change to clustering behaviour itself. Motivation: on the real 190-track library K collapsed to 2 with a 184-track dominant cluster and the tool silently produced garbage.",
       "acceptance_criteria": "tests/unit/test_clustering_warnings.py: synthetic 190-track dataset with 184 near-identical feature rows triggers the warning (caplog); well-separated synthetic data does not; warning text suggests --use-embeddings",
-      "completed": false,
+      "completed": true,
       "priority": 1
     },
     {
