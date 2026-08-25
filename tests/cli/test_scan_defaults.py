@@ -22,6 +22,7 @@ from mutagen.flac import FLAC
 from playchitect.cli.commands import scan
 from playchitect.core.clustering import PlaylistClusterer
 from playchitect.core.intensity_analyzer import IntensityFeatures
+from playchitect.core.metadata_extractor import TrackMetadata
 
 # ---------------------------------------------------------------------------
 # Helpers
@@ -313,3 +314,71 @@ class TestScanFastPath:
         output_lower = result.output.lower()
         assert "fast" in output_lower
         assert "per-genre" in output_lower
+
+
+class TestDegenerateKWarningCli:
+    """Degenerate K warning surfaced in the scan CLI summary."""
+
+    def _make_uniform_music_dir(self, root: Path, count: int = 60) -> Path:
+        """Create a directory of tiny FLACs with identical metadata."""
+        music_dir = root / "music"
+        music_dir.mkdir()
+        for i in range(count):
+            _write_flac(music_dir / f"track_{i:02d}.flac", bpm=128.0)
+        return music_dir
+
+    def test_summary_surfaces_degenerate_warning(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        """CLI echoes the degenerate-cluster warning when features collapse."""
+
+        music_dir = self._make_uniform_music_dir(tmp_path)
+
+        monkeypatch.setattr("playchitect.core.cache_db.CacheDB", FakeCacheDB)
+        FakeIntensityAnalyzer.reset()
+
+        class NearIdenticalAnalyzer(FakeIntensityAnalyzer):
+            """Return near-identical intensity features for most tracks, with a few outliers."""
+
+            def analyze(self, path: Path) -> IntensityFeatures:
+                jitter = 0.0005
+                idx = int(path.stem.split("_")[1])
+                outlier = idx >= 54
+                return IntensityFeatures(
+                    file_path=path,
+                    file_hash="fakehash",
+                    rms_energy=0.85 if outlier else 0.5 + jitter * (idx % 5),
+                    brightness=0.85 if outlier else 0.5 + jitter * (idx % 7),
+                    sub_bass_energy=0.8 if outlier else 0.3 + jitter * (idx % 3),
+                    kick_energy=0.9 if outlier else 0.6 + jitter * (idx % 11),
+                    bass_harmonics=0.8 if outlier else 0.4 + jitter * (idx % 4),
+                    percussiveness=0.9 if outlier else 0.5 + jitter * (idx % 6),
+                    onset_strength=0.9 if outlier else 0.5 + jitter * (idx % 8),
+                    camelot_key="8B",
+                    key_index=0.0,
+                )
+
+        monkeypatch.setattr(
+            "playchitect.core.intensity_analyzer.IntensityAnalyzer",
+            NearIdenticalAnalyzer,
+        )
+
+        def fake_extract(self, path: Path) -> TrackMetadata:
+            return TrackMetadata(filepath=path, bpm=128.0, duration=360.0)
+
+        monkeypatch.setattr(
+            "playchitect.core.metadata_extractor.MetadataExtractor.extract",
+            fake_extract,
+        )
+
+        runner = CliRunner()
+        result = runner.invoke(
+            scan,
+            [str(music_dir), "--dry-run", "--target-tracks", "25"],
+        )
+        assert result.exit_code == 0, result.output
+
+        # The warning is logged/surfaced after the initial clustering (before
+        # target-size splits). With 54 near-identical tracks and 6 outliers, auto-K
+        # collapses to 2 with a dominant cluster (>=70%), so the warning must fire.
+        assert "Clusters did not separate" in result.output

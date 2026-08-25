@@ -443,6 +443,9 @@ def scan(
         click.echo("Error: Clustering failed", err=True)
         sys.exit(1)
 
+    if clusterer.last_degenerate_warning:
+        click.echo(f"\nWarning: {clusterer.last_degenerate_warning}")
+
     # Split any cluster that exceeds the target size
     split_clusters: list = []
     for cluster in clusters:
