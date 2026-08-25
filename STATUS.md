@@ -1,19 +1,25 @@
 # Playchitect
-**Status:** paused
+**Status:** active
 **Priority:** medium
-**Progress:** ~20%
-**Last updated:** 2026-05-19
+**Progress:** ~45%
+**Last updated:** 2026-08-25
 **Repo:** `~/Programming/personal/playchitect`
 
 ## What it does
-Game design tool; uses the ralph dev loop.
+Smart DJ playlist manager. Clusters a music library on BPM plus audio intensity features so
+playlists cohere by character, not just tempo. CLI and GTK4 GUI; M3U and CUE export.
 
 ## Why it matters
-Useful personal tool and test case for RalphZilla's autonomous dev loop.
+Replaces rigid BPM-bucket playlist scripts for real DJ sets, and is the test case for the
+ralph dev loop.
 
 ## Next actions
-- [ ] Resume once RalphZilla is stable enough to drive development
-- [ ] Define MVP scope
+- [ ] Human gate: judge Phase 1 output quality — see `docs/planning/orchestrator-handoff-phase1-evidence.md`
+- [ ] TASK-28: fix silent track loss in cluster dedup (405 in, 398 out)
+- [ ] TASK-19: embedding cache ETL, start of the Phase 2 personal-metric mainline
 
 ## Notes
-<!-- Paused pending RalphZilla maturity -->
+<!-- Milestones 1-5 complete. Now executing docs/planning/ml-playlist-generator-plan.md:
+     Phase 1 (default-path fixes, TASK-15..18) complete and awaiting the human gate.
+     Phase 2 is the personal-metric loop: embedding cache, eval harness, labelling tool,
+     transition model. Seed-playlist work TASK-01..14 is on hold pending Phase 4 rescoping. -->
