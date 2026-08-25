@@ -148,6 +148,9 @@ class PlaylistClusterer:
         self._last_features_paths: list[Path] | None = None
         self._last_features_normalized_8d: np.ndarray | None = None
 
+        # Surface a warning when auto-K clustering fails to separate the library.
+        self.last_degenerate_warning: str | None = None
+
     # ── Public API ─────────────────────────────────────────────────────────────
 
     def cluster_by_bpm(self, metadata_dict: dict[Path, TrackMetadata]) -> list[ClusterResult]:
@@ -171,6 +174,7 @@ class PlaylistClusterer:
             return self._create_single_cluster(valid_tracks)
 
         logger.info(f"Clustering {len(valid_tracks)} tracks by BPM")
+        self.last_degenerate_warning = None
 
         tracks = list(valid_tracks.keys())
         bpms = np.array([valid_tracks[t].bpm for t in tracks]).reshape(-1, 1)
@@ -194,6 +198,7 @@ class PlaylistClusterer:
                 f"Duration: {r.total_duration / 60:.1f} min"
             )
 
+        self._check_degenerate_separation(results, optimal_k, k_was_auto=True)
         self._store_bpm_state(valid_tracks)
         return results
 
@@ -295,6 +300,7 @@ class PlaylistClusterer:
             return self._create_single_cluster(valid_meta)
 
         logger.info(f"Clustering {len(valid_paths)} tracks on {len(FEATURE_NAMES)} features")
+        self.last_degenerate_warning = None
 
         # Build (N, 8) feature matrix: BPM column + 7 intensity columns (raw BPM)
         bpm_col = np.array([[metadata_dict[p].bpm or 120.0] for p in valid_paths])
@@ -454,6 +460,8 @@ class PlaylistClusterer:
                     f"top feature: {top} ({r.feature_importance[top]:.2f})"
                 )
 
+        k_was_auto = n_playlists is None or n_playlists <= 0
+        self._check_degenerate_separation(results, optimal_k, k_was_auto=k_was_auto)
         return results
 
     def _cluster_per_genre(
@@ -559,6 +567,48 @@ class PlaylistClusterer:
         )
 
     # ── Private helpers ────────────────────────────────────────────────────────
+
+    def _check_degenerate_separation(
+        self,
+        results: list[ClusterResult],
+        optimal_k: int,
+        k_was_auto: bool,
+    ) -> None:
+        """Check if auto-selected clustering produced a degenerate dominant cluster.
+
+        A library is flagged when the largest cluster holds at least 70% of the
+        tracks, the final K is at most 2, K was auto-selected, and the library
+        has at least 50 tracks. When triggered, a WARNING is logged and the
+        message is stored in ``last_degenerate_warning`` so callers can surface it.
+
+        Args:
+            results: Cluster results produced by the current run.
+            optimal_k: Final K value that was selected.
+            k_was_auto: Whether K was auto-selected rather than forced.
+        """
+        if not k_was_auto:
+            return
+        if optimal_k > 2:
+            return
+
+        total_tracks = sum(r.track_count for r in results)
+        if total_tracks < 50:
+            return
+        if not results:
+            return
+
+        largest = max(r.track_count for r in results)
+        pct = largest / total_tracks * 100
+        if pct < 70:
+            return
+
+        msg = (
+            f"Clusters did not separate: largest cluster holds {pct:.1f}% "
+            f"of {total_tracks} tracks. Consider --use-embeddings or "
+            f"--genre hints for better separation."
+        )
+        logger.warning(msg)
+        self.last_degenerate_warning = msg
 
     def _build_cluster_results(
         self,
