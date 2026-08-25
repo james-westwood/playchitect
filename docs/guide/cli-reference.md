@@ -6,7 +6,7 @@ Playchitect provides two primary commands: `scan` for analysis/playlist generati
 
 Scan a music directory and create intelligent playlists based on audio features. Multi-dimensional clustering (BPM + 7 intensity features) is used by default, with intensity results cached for fast re-scans. Use `--fast` to select the old BPM-only behaviour and skip intensity analysis. Note that `--fast` cannot be combined with `--use-embeddings` or `--cluster-mode per-genre|mixed-genre`.
 
-When auto-selected clustering fails to separate a library (where the dominant cluster holds $\ge$ 70% of tracks with auto-K $\le$ 2 across 50+ tracks), scan prints a warning suggesting `--use-embeddings` or `--genre` hints for better separation.
+When auto-selected clustering fails to separate a library (where the dominant cluster holds >= 70% of tracks with auto-K <= 2 across 50+ tracks), scan prints a warning suggesting `--use-embeddings` or `--genre` hints for better separation.
 
 When intensity analysis runs by default, playlists are named after each cluster's musical character (e.g. 'Dark Journey'). Playlists sharing the same character receive a BPM-range suffix for disambiguation, and export filenames are automatically sanitized (lowercase with underscores). Passing `--fast` keeps the legacy `Playlist N [bpm-range]` naming.
 
