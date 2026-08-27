@@ -1,7 +1,7 @@
 # Playchitect
 **Status:** active
 **Priority:** medium
-**Progress:** ~58%
+**Progress:** ~62%
 **Last updated:** 2026-08-27
 **Repo:** `~/Programming/personal/playchitect`
 
@@ -24,12 +24,13 @@ the rigid BPM-bucket playlist scripts.
 - Seed-based playlist engine (`features.py`, `seed_playlist.py`, CLI `playlist`) — PRs #220-224
 - ML plan Phase 1 COMPLETE: recursive re-clustering, multi-dimensional scan default, character
   naming, degenerate-K warning, and the dedup track-loss fix (TASK-15..18, TASK-28)
-- 1,427 tests, CI (ruff, ty, pytest, Fedora 41)
+- ML plan Phase 2 started: content-addressed embedding cache + ETL script (TASK-19)
+- 1,450 tests, CI (ruff, ty, pytest, Fedora 41)
 
 ## Next actions
-- [ ] Human gate: open Phase 2? Also needs a decision on whether EWKM labels should win over
-      K-means assignment — see `docs/planning/orchestrator-handoff-phase1-evidence.md`
-- [ ] TASK-19: embedding cache ETL, start of the Phase 2 personal-metric mainline
+- [ ] TASK-31: pin essentia, smoke-test embeddings, hash-pin model downloads — gates the
+      library-wide embedding run
+- [ ] Run the batch embedding job over the library once TASK-31 passes
 - [ ] TASK-25/26/27: eval harness, choice-labelling tool, transition model
 
 ## Parked
