@@ -5,6 +5,22 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 ---
 
+## [Unreleased]
+
+### Fixed
+
+- **Silent track loss in large libraries** — when clustering libraries with 80+ tracks
+  (where EWKM per-cluster weight refinement engages), a bug in `_deduplicate_clusters`
+  filtered out boundary tracks that EWKM had moved without ever reassigning them,
+  silently removing them from playlists with no warning. The number of affected tracks
+  depends on library feature geometry; one test library lost 7 of 405 tracks. Deduplication
+  now conservatively reassigns every track to its nearest centroid, guaranteeing the
+  output contains exactly the same tracks as the input. Cluster statistics
+  (BPM mean/std, duration, feature means) are recomputed for any cluster that loses
+  or gains members during reassignment.
+
+---
+
 ## [1.0.0] — 2026-02-22
 
 First stable release of Playchitect.

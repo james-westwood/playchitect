@@ -821,6 +821,52 @@ class PlaylistClusterer:
             )
         ]
 
+    def _recompute_cluster_stats(
+        self,
+        tracks: list[Path],
+        metadata_dict: dict[Path, TrackMetadata],
+        intensity_dict: dict[Path, IntensityFeatures],
+    ) -> tuple[float, float, float, dict[str, float] | None]:
+        """Recompute BPM/duration/feature-mean stats from a set of surviving tracks.
+
+        Mirrors the formulas used by ``_build_cluster_results`` so that fresh
+        stats produced here agree with what a from-scratch build would report
+        for the same track set.
+
+        Args:
+            tracks: Surviving tracks for a cluster after reassignment.
+            metadata_dict: Mapping of file path -> track metadata.
+            intensity_dict: Mapping of file path -> intensity features.
+
+        Returns:
+            Tuple of (bpm_mean, bpm_std, total_duration, feature_means).
+            ``feature_means`` is ``None`` when no intensity data is available.
+        """
+        bpm_values: list[float] = []
+        durations: list[float] = []
+        for t in tracks:
+            meta = metadata_dict.get(t)
+            if meta is None:
+                continue
+            if meta.bpm is not None:
+                bpm_values.append(meta.bpm)
+            durations.append(meta.duration or 0.0)
+
+        bpm_mean = float(np.mean(bpm_values)) if bpm_values else 0.0
+        bpm_std = float(np.std(bpm_values)) if bpm_values else 0.0
+        total_duration = float(sum(durations))
+
+        feature_means: dict[str, float] | None = None
+        rows = [t for t in tracks if t in intensity_dict and t in metadata_dict]
+        if rows:
+            bpm_col = np.array([[metadata_dict[t].bpm or 120.0] for t in rows])
+            intensity_matrix = np.array([intensity_dict[t].to_feature_vector() for t in rows])
+            raw = np.hstack([bpm_col, intensity_matrix])
+            feature_means = {name: float(raw[:, i].mean()) for i, name in enumerate(FEATURE_NAMES)}
+            feature_means["hardness"] = float(np.mean([intensity_dict[t].hardness for t in rows]))
+
+        return bpm_mean, bpm_std, total_duration, feature_means
+
     def _deduplicate_clusters(
         self,
         results: list[ClusterResult],
@@ -828,18 +874,42 @@ class PlaylistClusterer:
         track_order: list[Path],
     ) -> list[ClusterResult]:
         """
-        Remove duplicate tracks from clusters.
+        Conservatively resolve cluster membership by nearest-centroid reassignment.
 
-        For each track that appears in multiple clusters, keep it only in the
-        cluster whose centroid it is closest to.
+        Historical context (BUG-02 / #192): downstream consumers require that
+        no track appears in more than one cluster's ``tracks`` list. Normal
+        K-means labels are already disjoint, but when EWKM per-cluster weight
+        refinement runs (>= ``_MIN_TRACKS_EWKM`` tracks, no embeddings; see
+        ``cluster_by_features``), the membership recorded on each
+        ``ClusterResult`` reflects the EWKM-*refined* labels while the
+        ``centroid`` stored on that same result is still the raw (pre-EWKM)
+        K-means centroid (see ``_build_cluster_results``). Recomputing each
+        track's nearest centroid against those raw centroids can therefore
+        legitimately disagree with a track's EWKM-assigned cluster for
+        boundary tracks.
+
+        TASK-28: the previous implementation treated that disagreement as "this
+        track doesn't belong here" and removed the track from its current
+        cluster without ever adding it anywhere else, silently losing tracks
+        (verified: 405 tracks in, 398 out on a real library). This version
+        performs a full reassignment — every track is placed in the cluster
+        whose centroid it is nearest to — rather than a remove-only filter, so
+        the set of tracks returned is always exactly the set of tracks passed
+        in: never lost, never duplicated. Whenever a cluster's membership
+        actually changes as a result, its BPM/duration/feature-mean stats are
+        recomputed from the surviving members (see
+        ``_recompute_cluster_stats``) instead of being copied stale from the
+        pre-dedup result.
 
         Args:
-            results: List of ClusterResult objects
-            features: Normalized feature matrix (N, D) for all tracks, indexed by track_order
-            track_order: Order of tracks that corresponds to features rows
+            results: List of ClusterResult objects (pre-dedup).
+            features: Feature matrix (N, D) in the same space as each result's
+                ``centroid`` (i.e. whatever matrix produced the K-means
+                labels), indexed by ``track_order``.
+            track_order: Order of tracks that corresponds to rows in ``features``.
 
         Returns:
-            Deduped ClusterResult list
+            Deduped ClusterResult list with disjoint, lossless track membership.
         """
         if not results:
             return results
@@ -848,42 +918,118 @@ class PlaylistClusterer:
         track_to_idx: dict[Path, int] = {t: i for i, t in enumerate(track_order)}
 
         # Build cluster_id -> centroid map
-        cluster_centroids: dict[int | str, np.ndarray] = {}
-        for r in results:
-            if r.centroid is not None:
-                cluster_centroids[r.cluster_id] = r.centroid
+        cluster_centroids: dict[int | str, np.ndarray] = {
+            r.cluster_id: r.centroid for r in results if r.centroid is not None
+        }
 
         if not cluster_centroids:
             return results
 
-        # Determine which cluster each track belongs to (closest centroid)
+        # Current (pre-dedup) cluster each track sits in, preserving the
+        # concatenated cross-cluster track order for stable output ordering.
+        current_cluster: dict[Path, int | str] = {}
+        ordered_tracks: list[Path] = []
+        for r in results:
+            for t in r.tracks:
+                current_cluster[t] = r.cluster_id
+                ordered_tracks.append(t)
+
+        # Reassign every track to its nearest centroid. This is a full
+        # reassignment (every track always lands somewhere), not a
+        # remove-only filter — see docstring above for why that distinction
+        # matters.
         track_to_cluster: dict[Path, int | str] = {}
-        for track, idx in track_to_idx.items():
-            if idx >= len(features):
+        missing_feature_count = 0
+        for t in ordered_tracks:
+            idx = track_to_idx.get(t)
+            if idx is None or idx >= len(features):
+                # No feature vector available for this track (should not
+                # happen via the sole production call site in
+                # cluster_by_features); keep it where it already is rather
+                # than losing it.
+                track_to_cluster[t] = current_cluster[t]
+                missing_feature_count += 1
                 continue
             track_vec = features[idx]
+            best_cluster = current_cluster[t]
             min_dist = float("inf")
-            best_cluster: int | str = 0
             for cluster_id, centroid in cluster_centroids.items():
                 dist = float(np.linalg.norm(track_vec - centroid))
                 if dist < min_dist:
                     min_dist = dist
                     best_cluster = cluster_id
-            track_to_cluster[track] = best_cluster
+            track_to_cluster[t] = best_cluster
 
-        # Rebuild cluster results with only closest-cluster tracks
+        if missing_feature_count:
+            logger.warning(
+                "_deduplicate_clusters: %d track(s) had no feature vector for "
+                "nearest-centroid reassignment; kept in their current cluster "
+                "to avoid dropping them",
+                missing_feature_count,
+            )
+
+        # Group tracks by resolved cluster, preserving relative order.
+        tracks_by_cluster: dict[int | str, list[Path]] = {}
+        for t in ordered_tracks:
+            tracks_by_cluster.setdefault(track_to_cluster[t], []).append(t)
+
+        # Stashed by cluster_by_features (the sole caller) before dedup runs;
+        # used to recompute stats for clusters whose membership changed. Can
+        # be None only when _deduplicate_clusters is invoked directly (e.g.
+        # in isolated unit tests) rather than via cluster_by_features.
+        metadata_dict = self._last_metadata_dict
+        intensity_dict = self._last_intensity_dict
+
         deduped: list[ClusterResult] = []
+        total_kept = 0
         for r in results:
-            kept_tracks = [t for t in r.tracks if track_to_cluster.get(t) == r.cluster_id]
+            kept_tracks = tracks_by_cluster.get(r.cluster_id, [])
+
+            if not kept_tracks:
+                # Cluster lost all members to nearer centroids elsewhere —
+                # drop it, mirroring how _build_cluster_results skips empty
+                # clusters rather than emitting a hollow ClusterResult.
+                logger.debug("Dedup: cluster %s ended up empty; dropping it", r.cluster_id)
+                continue
+
+            total_kept += len(kept_tracks)
+            membership_changed = set(kept_tracks) != set(r.tracks)
+
+            if not membership_changed:
+                bpm_mean, bpm_std = r.bpm_mean, r.bpm_std
+                total_duration = r.total_duration
+                feature_means = r.feature_means
+            elif metadata_dict is not None and intensity_dict is not None:
+                bpm_mean, bpm_std, total_duration, recomputed_means = self._recompute_cluster_stats(
+                    kept_tracks, metadata_dict, intensity_dict
+                )
+                feature_means = (
+                    recomputed_means if recomputed_means is not None else r.feature_means
+                )
+            else:
+                # No cached state to recompute from (direct-call path). Stats
+                # remain stale in this case, but membership is still correct
+                # and lossless — only the isolated-unit-test call path hits
+                # this branch, never cluster_by_features.
+                logger.debug(
+                    "Dedup: cluster %s membership changed but no cached "
+                    "metadata/intensity state is available to recompute "
+                    "stats; keeping pre-dedup stats",
+                    r.cluster_id,
+                )
+                bpm_mean, bpm_std = r.bpm_mean, r.bpm_std
+                total_duration = r.total_duration
+                feature_means = r.feature_means
+
             deduped.append(
                 ClusterResult(
                     cluster_id=r.cluster_id,
                     tracks=kept_tracks,
-                    bpm_mean=r.bpm_mean,
-                    bpm_std=r.bpm_std,
+                    bpm_mean=bpm_mean,
+                    bpm_std=bpm_std,
                     track_count=len(kept_tracks),
-                    total_duration=r.total_duration,
-                    feature_means=r.feature_means,
+                    total_duration=total_duration,
+                    feature_means=feature_means,
                     feature_importance=r.feature_importance,
                     weight_source=r.weight_source,
                     embedding_variance_explained=r.embedding_variance_explained,
@@ -893,6 +1039,19 @@ class PlaylistClusterer:
                     closer=r.closer,
                     centroid=r.centroid,
                 )
+            )
+
+        if total_kept != len(ordered_tracks):
+            # Should be unreachable given the full-reassignment strategy above
+            # (every track in ordered_tracks is placed into exactly one
+            # cluster's tracks_by_cluster bucket). Logged loudly rather than
+            # silently returning a short result, per TASK-28.
+            logger.warning(
+                "_deduplicate_clusters: track count mismatch after dedup — "
+                "started with %d tracks, returning %d; %d may have been lost",
+                len(ordered_tracks),
+                total_kept,
+                len(ordered_tracks) - total_kept,
             )
 
         return deduped
