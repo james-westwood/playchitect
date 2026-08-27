@@ -171,7 +171,7 @@ force EWKM across a K-means boundary, and carries a
 `test_fixture_actually_triggers_ewkm_reassignment` guard that fails loudly if a future numerics
 change makes the fixture stop exercising the bug.
 
-### Follow-up finding: EWKM's label refinement is discarded (needs a decision)
+### Follow-up finding: EWKM's label refinement is discarded — DECIDED, see TASK-30
 
 Confirmed empirically while gating TASK-28, on the 90-track fixture: EWKM moves 9 tracks, and
 dedup's nearest-centroid pass then reassigns all 90 by the raw K-means rule, so **final
@@ -188,6 +188,49 @@ the labels win would change clustering behaviour, which TASK-28's spec explicitl
 was left alone. **It needs James's decision before anyone specs it:** should EWKM's assignment
 win over K-means, or is EWKM intended as a weighting scheme only? The answer determines whether
 this is a bug or a naming problem.
+
+**Sharpened on review (2026-08-27).** It is worse than "half-wired" — there are three
+mismatches, all verified in code:
+
+1. `ewkm_refine` alternates weighted assignment, centroid update and weight update to
+   convergence, but `return labels, per_cluster_weights` (weighting.py ~line 314) **discards the
+   converged EWKM centroids**.
+2. `_build_cluster_results` stores `centroid=kmeans.cluster_centers_[cid]` — the raw pre-EWKM
+   centroid — alongside EWKM-refined membership.
+3. EWKM runs in `features_normalized` (unweighted) space; `_deduplicate_clusters` compares in
+   `features_for_kmeans` (PCA-weighted) space.
+
+So dedup judged EWKM's assignments against stale centroids in the wrong metric.
+
+**Decision (James, 2026-08-27): weight-only. Strip the label path. → TASK-30, priority 6.**
+
+In the literature EWKM (Jing, Ng & Huang 2007) *is* an assignment algorithm — the weights are
+intermediate state of an alternating optimisation, and "weight-only EWKM" is not a thing. That
+was weighed and rejected for this codebase on three grounds:
+
+1. **Effect size.** The reassignment moves ~1.7% of tracks on the real library (7 of 405), in a
+   component the plan explicitly calls scaffolding. Do not spend correct-implementation-plus-
+   regression-test effort on a scaffold.
+2. **Two bugs from one mismatch is a trap.** BUG-02 (#192) and TASK-28 (405 in, 398 out) both
+   trace to this coupling. The right response to a trap is to remove it, not to finally wire it
+   correctly.
+3. **The founding idea is inherited properly by Phase 2.4.** "Tempo is not what defines us" stops
+   being an 8-feature heuristic and becomes 64 learned diagonal weights over whitened embeddings
+   plus directional deltas, trained on real judgements. EWKM's promise graduates rather than dies.
+
+The weights keep earning their place honestly: the closed-form softmax over within-cluster
+dispersion describes *what each cluster is tight on*, which is real signal for the naming and
+characterisation layer. What it does not legitimately describe is assignment.
+
+**One requirement the orchestrator added to the spec.** The weights are currently computed
+against EWKM's own drifted partition. If membership becomes plain K-means while the weights still
+describe EWKM's partition, the mismatch returns in a subtler form — so TASK-30 requires the
+profile be computed from the *shipped* K-means labels and centroids. `_ewkm_weight_update`
+already does this in one closed-form shot and can be reused directly.
+
+**Accepted cost:** EWKM's boundary-track refinement is lost. At 1.7% on a scaffolding component
+that is acceptable, and the learned metric recovers those tracks properly if they turn out to
+matter.
 
 ### TASK-29 — same track as both opener and closer (priority 6)
 
@@ -250,7 +293,8 @@ pickup order.
 3. On his go-ahead, take **TASK-19** (embedding cache ETL, `PCA(n_components=64, whiten=True)`)
    through Triage → Tests → Implement → Docs, then the mainline in order: 19 → 25 → 26 → 27.
    Phase 2 ends at a human gate on TASK-27's guardrail result.
-4. TASK-29 (opener == closer) remains open at priority 6, backlog.
+4. TASK-29 (opener == closer) and TASK-30 (EWKM weight-only) remain open at priority 6, backlog.
+   Neither blocks Phase 2.
 
 ## Gotchas
 
