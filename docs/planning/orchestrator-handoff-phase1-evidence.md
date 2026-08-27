@@ -80,7 +80,7 @@ Weight source: pca | Top features: onset_strength=0.29, brightness=0.24, rms_ene
 | Per-cluster stats differ, not copied from parent | TASK-15 | **Pass.** Parent cluster 0 was 346 tracks @ 128.8 ± 19.8 BPM; its sub-clusters report their own, much tighter stats (136.7 ± 8.9, 104.2 ± 6.2, 73.3 ± 6.7, 68.1 ± 4.7). Durations are per-cluster too, 18.8 → 348.2 min. This is genuine recursive re-clustering, not the old shuffle-and-dice. |
 | "Weight source" is not BPM-only | TASK-16 | **Pass.** `Weight source: pca`, clustering on all 8 features with EWKM per-cluster weights. The old `uniform` / BPM-only default is gone. |
 | Degenerate-K warning fires | TASK-18 | **Pass.** Fired on real data at 86.9% dominance, surfaced in both the log and stdout. |
-| Tests green | — | **Pass.** 1379 passed, 2 skipped. |
+| Tests green | — | **Pass.** 1379 passed, 2 skipped at gate time; 1427 passed, 2 skipped after TASK-28. |
 | Playlists are *distinguishable* | — | **Passed** by James, 2026-08-25, with the sameness accepted as designed stopgap behaviour. See below. |
 
 ### The judgement call
@@ -125,7 +125,7 @@ do not perfect it".
 Both are now specified as prd.json tasks. Neither was in Phase 1's scope; both were found by
 running against a real library rather than a fixture.
 
-### TASK-28 — silent track loss in cluster dedup (priority 1)
+### TASK-28 — silent track loss in cluster dedup (priority 1) — FIXED 2026-08-27
 
 405 tracks went into clustering and **398 came out**. Seven tracks vanished with no log line
 and no user-visible message; the cluster stat lines and the 17 playlists both sum to 398.
@@ -150,6 +150,44 @@ from the pre-dedup result — so any cluster that lost members reports **stale s
 Prioritised at **1** (ahead of TASK-19) on the grounds that it is silent data loss on the
 mainline default path, it is cheap and TDD-shaped, and it undermines confidence in any future
 evidence run. Flip it to a later priority if you would rather Phase 2 start first.
+
+**Resolution (2026-08-27, commit `005dbc5`, merged `38b078b`).** Deduplication is now
+conservative: every track is reassigned to its nearest centroid rather than filtered out, so the
+returned set always equals the input set. Clusters whose membership changes have their stats
+recomputed from survivors via a new `_recompute_cluster_stats` helper. The BUG-02 no-duplicates
+guarantee is preserved — the fix deliberately did NOT take the "skip dedup when EWKM ran" option
+the task spec also allowed, because that would disable the duplicate guard on exactly the
+>= 80-track case, i.e. every real library.
+
+Verified end to end on the real library: **409 tracks in, 409 out** across 18 playlists, against
+405 in / 398 out before. The TASK-18 degenerate-K warning now reports "87.3% of 409 tracks"; it
+had previously been computing its percentage off the post-loss population of 398.
+
+Why fixtures missed it for so long: `_deduplicate_clusters` came from BUG-02 (#192), whose
+regression test builds **30 tracks**, and EWKM only engages at `_MIN_TRACKS_EWKM = 80`. The bug
+and its own regression test were structurally incapable of meeting. The new
+`tests/unit/test_clustering_dedup.py` builds 90 tracks with inverted per-feature dispersion to
+force EWKM across a K-means boundary, and carries a
+`test_fixture_actually_triggers_ewkm_reassignment` guard that fails loudly if a future numerics
+change makes the fixture stop exercising the bug.
+
+### Follow-up finding: EWKM's label refinement is discarded (needs a decision)
+
+Confirmed empirically while gating TASK-28, on the 90-track fixture: EWKM moves 9 tracks, and
+dedup's nearest-centroid pass then reassigns all 90 by the raw K-means rule, so **final
+membership is identical to plain K-means**. `ewkm_refine` computes refined labels that nothing
+downstream honours.
+
+This is **not a TASK-28 regression** — it is pre-existing. The old code also imposed raw K-means
+membership; it simply *deleted* the disagreeing tracks instead of placing them. TASK-28 changed
+"drop the 9" to "place the 9", which was its entire scope.
+
+EWKM is therefore half-wired: its per-cluster *weights* still do real work (they feed
+`feature_importance` and the "top feature" reporting), but its *labels* are nullified. Making
+the labels win would change clustering behaviour, which TASK-28's spec explicitly forbade, so it
+was left alone. **It needs James's decision before anyone specs it:** should EWKM's assignment
+win over K-means, or is EWKM intended as a weighting scheme only? The answer determines whether
+this is a bug or a naming problem.
 
 ### TASK-29 — same track as both opener and closer (priority 6)
 
@@ -205,14 +243,14 @@ pickup order.
 
 ## What a fresh session should do next
 
-1. **TASK-28** is the next pickup (priority 1) and closes Phase 1. Take it through
-   Triage → Tests → Implement → Docs, delegating with complete self-contained prompts.
-2. Re-run the evidence scan after TASK-28 to confirm **405 in / 405 out**. It is cheap now the
-   intensity cache is warm — about 20 minutes for 405 tracks.
-3. Then **TASK-19**, and the Phase 2 mainline in priority order: 19 → 25 → 26 → 27. Phase 2
-   ends at a human gate on TASK-27's guardrail result.
-4. Phase 1's gate is passed; **the next human gate is the Phase 1 → Phase 2 transition once
-   TASK-28 is green.** Do not run past it.
+1. **Phase 1 is complete.** TASK-15..18 and TASK-28 are all merged to `main`; the evidence
+   rescan confirms 409 in / 409 out. Suite at 1427 passed, 2 skipped.
+2. **The next human gate is open and unresolved: opening Phase 2 at TASK-19.** Do not start it
+   without James's go-ahead. Also awaiting his decision on the EWKM-labels finding above.
+3. On his go-ahead, take **TASK-19** (embedding cache ETL, `PCA(n_components=64, whiten=True)`)
+   through Triage → Tests → Implement → Docs, then the mainline in order: 19 → 25 → 26 → 27.
+   Phase 2 ends at a human gate on TASK-27's guardrail result.
+4. TASK-29 (opener == closer) remains open at priority 6, backlog.
 
 ## Gotchas
 

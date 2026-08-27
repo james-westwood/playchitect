@@ -1,8 +1,8 @@
 # Playchitect
 **Status:** active
 **Priority:** medium
-**Progress:** ~55%
-**Last updated:** 2026-08-25
+**Progress:** ~58%
+**Last updated:** 2026-08-27
 **Repo:** `~/Programming/personal/playchitect`
 
 ## What it does
@@ -22,12 +22,13 @@ the rigid BPM-bucket playlist scripts.
 - GTK4 GUI (Library, Playlists, Set Builder, Export views) + LibraryView make-playlist button
 - Energy arc sequencing, harmonic mixing, Rekordbox import, Mixxx sync
 - Seed-based playlist engine (`features.py`, `seed_playlist.py`, CLI `playlist`) — PRs #220-224
-- ML plan Phase 1: recursive re-clustering, multi-dimensional scan default, character naming,
-  degenerate-K warning (TASK-15..18)
-- 1,379 tests, CI (ruff, ty, pytest, Fedora 41)
+- ML plan Phase 1 COMPLETE: recursive re-clustering, multi-dimensional scan default, character
+  naming, degenerate-K warning, and the dedup track-loss fix (TASK-15..18, TASK-28)
+- 1,427 tests, CI (ruff, ty, pytest, Fedora 41)
 
 ## Next actions
-- [ ] TASK-28: fix silent track loss in cluster dedup (405 tracks in, 398 out) — closes Phase 1
+- [ ] Human gate: open Phase 2? Also needs a decision on whether EWKM labels should win over
+      K-means assignment — see `docs/planning/orchestrator-handoff-phase1-evidence.md`
 - [ ] TASK-19: embedding cache ETL, start of the Phase 2 personal-metric mainline
 - [ ] TASK-25/26/27: eval harness, choice-labelling tool, transition model
 
