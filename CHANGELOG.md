@@ -7,6 +7,24 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 ## [Unreleased]
 
+### Added
+
+- **Semantic embedding cache** — content-addressed parquet-backed cache for neural audio
+  embeddings (via `EmbeddingCache`). Entries are keyed by content hash — sha256 of the
+  first 1 MB of the file plus its total size — so a renamed or moved track retains its
+  cached embedding without recomputation. Re-computing the same content upserts rather
+  than appends, and cache files can be persisted and shared across library reorganisations.
+  Also includes `fit_and_save_pca()` to reduce raw embedding dimensionality (e.g., 1280-D
+  discogs-effnet) to a smaller whitened PCA space (default 64 components) for downstream
+  clustering and feature weighting.
+- **Library embedding ETL script** — `scripts/embed_library.py` idempotently walks a
+  library, skips already-cached tracks, and embeds the rest. Useful for pre-computing
+  embeddings for a library once, then incrementally updating as new tracks arrive. Also
+  adds optional `discogs-effnet` embedding model (1280-D vectors) alongside the existing
+  MusiCNN model, auto-downloaded into `~/.cache/playchitect/models/` on first use. The
+  `[embeddings]` extra is optional and not installed by default; the cache and ETL
+  infrastructure work out of the box, but computing embeddings requires installing it.
+
 ### Fixed
 
 - **Silent track loss in large libraries** — when clustering libraries with 80+ tracks

@@ -1074,3 +1074,123 @@ class TestCorruptCache:
 
         result = extractor._load_from_cache(file_hash)
         assert result is None
+
+
+# ── TestDiscogsEffnetOption ───────────────────────────────────────────────────
+#
+# TASK-19 extends EmbeddingExtractor with a discogs-effnet model option for the
+# embedding-cache ETL pipeline (playchitect/core/embedding_cache.py and
+# scripts/embed_library.py), auto-downloading into ~/.cache/playchitect/models/
+# following the exact pattern already used for the MusiCNN model below
+# (module-level URL constants + a lazily-initialised, auto-downloading model
+# reached through the existing generic `_download_model` helper).
+#
+# This part of the contract is NOT covered by prd.json's acceptance criteria
+# (those only specify tests/unit/test_embedding_cache.py) and the task brief
+# gives no fixed method/attribute names for it, so these tests encode one
+# reasonable proposal rather than a locked-in requirement:
+#   * module constant `_DISCOGS_EFFNET_URL` (mirrors `_MSD_MUSICNN_URL`)
+#   * constructor kwarg `discogs_effnet_model_path: Path | None = None`,
+#     defaulting to `_DEFAULT_MODEL_DIR / "discogs-effnet-bs64-1.pb"`
+#   * private `_ensure_discogs_effnet_model()` that downloads via the
+#     existing `_download_model(target, pb_url, meta_url)` helper, exactly
+#     like `_ensure_model()` does for the MusiCNN pair of models.
+# See the Test Writer report for this task for the explicit flag that this
+# sub-contract is negotiable and may need renaming to match the eventual
+# implementation.
+
+
+class TestDiscogsEffnetOption:
+    """Contract for the discogs-effnet auto-download model option."""
+
+    def test_discogs_effnet_url_constant_defined(self) -> None:
+        url = emb_mod._DISCOGS_EFFNET_URL  # ty: ignore[unresolved-attribute]
+        assert isinstance(url, str)
+        assert url.startswith("https://")
+        assert "discogs-effnet" in url
+
+    def test_default_discogs_effnet_path_under_default_model_dir(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        monkeypatch.setattr(emb_mod, "_ESSENTIA_AVAILABLE", True)
+        extractor = EmbeddingExtractor(
+            model_path=tmp_path / "fake.pb",
+            mood_model_path=tmp_path / "fake_mood.pb",
+            cache_enabled=False,
+        )
+
+        discogs_path = extractor.discogs_effnet_model_path  # ty: ignore[unresolved-attribute]
+        assert discogs_path.parent == emb_mod._DEFAULT_MODEL_DIR
+        assert "discogs-effnet" in discogs_path.name
+
+    def test_custom_discogs_effnet_model_path_respected(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        monkeypatch.setattr(emb_mod, "_ESSENTIA_AVAILABLE", True)
+        custom = tmp_path / "custom_models" / "discogs-effnet-bs64-1.pb"
+
+        extractor = EmbeddingExtractor(
+            model_path=tmp_path / "fake.pb",
+            mood_model_path=tmp_path / "fake_mood.pb",
+            discogs_effnet_model_path=custom,  # ty: ignore[unknown-argument]
+            cache_enabled=False,
+        )
+
+        assert extractor.discogs_effnet_model_path == custom  # ty: ignore[unresolved-attribute]
+
+    def test_ensure_discogs_effnet_model_triggers_download_when_missing(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        """
+        Mirrors TestEnsureModel.test_ensure_model_triggers_download_when_missing
+        for the discogs-effnet model: when the .pb is absent, the extractor
+        must call _download_model with the discogs-effnet target path and URL.
+        """
+        monkeypatch.setattr(emb_mod, "_ESSENTIA_AVAILABLE", True)
+        discogs_target = tmp_path / "models" / "discogs-effnet-bs64-1.pb"
+
+        extractor = EmbeddingExtractor(
+            model_path=tmp_path / "fake.pb",
+            mood_model_path=tmp_path / "fake_mood.pb",
+            discogs_effnet_model_path=discogs_target,  # ty: ignore[unknown-argument]
+            cache_enabled=False,
+        )
+
+        downloaded: list[tuple[Path, str]] = []
+
+        def fake_download(target: Path, pb_url: str, meta_url: str) -> None:
+            downloaded.append((target, pb_url))
+            target.parent.mkdir(parents=True, exist_ok=True)
+            target.write_bytes(b"fake discogs-effnet model")
+
+        extractor._download_model = fake_download  # ty: ignore[invalid-assignment]
+
+        extractor._ensure_discogs_effnet_model()  # ty: ignore[unresolved-attribute]
+
+        assert len(downloaded) == 1
+        assert downloaded[0][0] == discogs_target
+        assert downloaded[0][1] == emb_mod._DISCOGS_EFFNET_URL  # ty: ignore[unresolved-attribute]
+
+    def test_ensure_discogs_effnet_model_skips_download_when_present(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        monkeypatch.setattr(emb_mod, "_ESSENTIA_AVAILABLE", True)
+        discogs_target = tmp_path / "models" / "discogs-effnet-bs64-1.pb"
+        discogs_target.parent.mkdir(parents=True, exist_ok=True)
+        discogs_target.write_bytes(b"already downloaded")
+
+        extractor = EmbeddingExtractor(
+            model_path=tmp_path / "fake.pb",
+            mood_model_path=tmp_path / "fake_mood.pb",
+            discogs_effnet_model_path=discogs_target,  # ty: ignore[unknown-argument]
+            cache_enabled=False,
+        )
+
+        downloaded: list[Path] = []
+        extractor._download_model = lambda target, *a: downloaded.append(  # ty: ignore[invalid-assignment]
+            target
+        )
+
+        extractor._ensure_discogs_effnet_model()  # ty: ignore[unresolved-attribute]
+
+        assert downloaded == []

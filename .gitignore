@@ -53,6 +53,11 @@ ralph-loop.log
 *.cache
 .analysis_cache/
 
+# Generated embedding cache artefacts (TASK-19) -- data/ itself is tracked
+# (icons, desktop file), but these are large, regenerable, per-machine outputs.
+data/embeddings.parquet
+data/embedding_pca.joblib
+
 # OS
 .DS_Store
 Thumbs.db
