@@ -654,7 +654,7 @@ embeddings = [
 [package.metadata]
 requires-dist = [
     { name = "click", specifier = ">=8.1.0" },
-    { name = "essentia-tensorflow", marker = "extra == 'embeddings'" },
+    { name = "essentia-tensorflow", marker = "extra == 'embeddings'", specifier = "==2.1b6.dev1389" },
     { name = "joblib", specifier = ">=1.5.3" },
     { name = "librosa", specifier = ">=0.10.0" },
     { name = "mutagen", specifier = ">=1.47.0" },

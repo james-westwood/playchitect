@@ -38,7 +38,13 @@ dependencies = [
 
 [project.optional-dependencies]
 embeddings = [
-    "essentia-tensorflow",
+    # Pinned deliberately to this dev-line build: it is the last release with
+    # cp313 wheels (upstream has since moved on to cp314). Do not "helpfully"
+    # relax this to an unpinned "essentia-tensorflow" -- see TASK-31 and
+    # tests/unit/test_packaging.py for the regression guard, and
+    # tests/unit/test_model_integrity.py for why the individual model
+    # downloads are separately sha256-pinned.
+    "essentia-tensorflow==2.1b6.dev1389",
 ]
 gui = [
     # PyGObject (gi) must be installed via the OS package manager — it cannot be

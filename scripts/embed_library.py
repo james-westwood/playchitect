@@ -23,12 +23,25 @@ import click
 import numpy as np
 
 from playchitect.core.audio_scanner import AudioScanner
-from playchitect.core.embedding_cache import EmbeddingCache
+from playchitect.core.embedding_cache import _DEFAULT_MODEL_VERSION, EmbeddingCache
 
 logger = logging.getLogger(__name__)
 
 _DEFAULT_LOG_EVERY: int = 50
 _DEFAULT_CACHE_PATH: Path = Path("data") / "embeddings.parquet"
+
+
+class EmbeddingDimensionMismatchError(RuntimeError):
+    """
+    Raised when a computed embedding's dimensionality does not match what
+    its declared ``model_version`` promises.
+
+    The EmbeddingCache's ``model_version`` column is what makes the model
+    choice reversible later -- a column that lies (e.g. a MusiCNN 200-D
+    vector silently stored under the "discogs-effnet-1" label) poisons the
+    cache in a way that is hard to detect afterwards. Raising this instead
+    of writing the mismatched row keeps that guarantee intact.
+    """
 
 
 def embed_library(
@@ -99,13 +112,33 @@ def _real_embed_fn(track_path: Path) -> np.ndarray:
         track_path: Path to the audio file to embed.
 
     Returns:
-        The computed embedding vector as a float32 numpy array.
+        The computed discogs-effnet embedding vector as a float32 numpy
+        array, matching the dimensionality declared by the cache's
+        ``model_version`` ("discogs-effnet-1").
+
+    Raises:
+        EmbeddingDimensionMismatchError: If the computed vector's shape does
+            not match ``_DISCOGS_EFFNET_EMBEDDING_DIM`` -- writing a
+            mismatched vector under the "discogs-effnet-1" label would
+            silently poison the cache, so this fails loudly instead.
     """
-    from playchitect.core.embedding_extractor import EmbeddingExtractor  # noqa: PLC0415
+    from playchitect.core.embedding_extractor import (  # noqa: PLC0415
+        _DISCOGS_EFFNET_EMBEDDING_DIM,
+        EmbeddingExtractor,
+    )
 
     extractor = EmbeddingExtractor()
-    features = extractor.analyze(track_path)
-    return features.embedding
+    vector = extractor.analyze_discogs_effnet(track_path)
+
+    if vector.shape != (_DISCOGS_EFFNET_EMBEDDING_DIM,):
+        raise EmbeddingDimensionMismatchError(
+            f"Embedding computed for {track_path} has shape {vector.shape}, "
+            f"expected ({_DISCOGS_EFFNET_EMBEDDING_DIM},) to match the "
+            f"'{_DEFAULT_MODEL_VERSION}' model_version recorded by the "
+            "cache. Refusing to write a mismatched row."
+        )
+
+    return vector
 
 
 @click.command()
