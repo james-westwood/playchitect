@@ -45,6 +45,16 @@ _MIREX_MOODS_URL = (
 )
 _MIREX_MOODS_META = "https://essentia.upf.edu/models/classification-heads/moods_mirex/moods_mirex-msd-musicnn-1.json"
 
+# discogs-effnet: alternative embedding model used by the TASK-19 embedding
+# cache ETL pipeline (playchitect/core/embedding_cache.py,
+# scripts/embed_library.py). Produces 1280-dimensional embeddings.
+_DISCOGS_EFFNET_URL = (
+    "https://essentia.upf.edu/models/feature-extractors/discogs-effnet/discogs-effnet-bs64-1.pb"
+)
+_DISCOGS_EFFNET_META = (
+    "https://essentia.upf.edu/models/feature-extractors/discogs-effnet/discogs-effnet-bs64-1.json"
+)
+
 _EMBEDDING_SAMPLE_RATE: int = 16000
 _EMBEDDING_DIM: int = 128
 _DEFAULT_MODEL_DIR: Path = Path.home() / ".cache" / "playchitect" / "models"
@@ -134,6 +144,7 @@ class EmbeddingExtractor:
         cache_enabled: bool = True,
         sample_rate: int = _EMBEDDING_SAMPLE_RATE,
         cache_db: Any | None = None,  # CacheDB type hinted as Any to avoid circular import
+        discogs_effnet_model_path: Path | None = None,
     ):
         """
         Initialise the extractor.
@@ -145,6 +156,8 @@ class EmbeddingExtractor:
             cache_enabled: Whether to cache results to disk.
             sample_rate: Audio sample rate required by MusiCNN (16 000 Hz).
             cache_db:   Optional SQLite-backed CacheDB instance for persisting moods.
+            discogs_effnet_model_path: Path to discogs-effnet-bs64-1.pb, used by
+                the TASK-19 embedding cache ETL pipeline. None → auto-download.
 
         Raises:
             RuntimeError: When essentia-tensorflow is not installed.
@@ -158,6 +171,9 @@ class EmbeddingExtractor:
         self.model_path = model_path or (_DEFAULT_MODEL_DIR / "msd-musicnn-1.pb")
         self.mood_model_path = mood_model_path or (
             _DEFAULT_MODEL_DIR / "moods_mirex-msd-musicnn-1.pb"
+        )
+        self.discogs_effnet_model_path = discogs_effnet_model_path or (
+            _DEFAULT_MODEL_DIR / "discogs-effnet-bs64-1.pb"
         )
         self.cache_enabled = cache_enabled
         self.sample_rate = sample_rate
@@ -329,6 +345,13 @@ class EmbeddingExtractor:
                 graphFilename=str(self.mood_model_path),
                 input=_MOOD_INPUT_LAYER,
                 output=_MOOD_OUTPUT_LAYER,
+            )
+
+    def _ensure_discogs_effnet_model(self) -> None:
+        """Download the discogs-effnet model .pb if it is not already present."""
+        if not self.discogs_effnet_model_path.exists():
+            self._download_model(
+                self.discogs_effnet_model_path, _DISCOGS_EFFNET_URL, _DISCOGS_EFFNET_META
             )
 
     def _download_model(self, target: Path, pb_url: str, meta_url: str) -> None:
