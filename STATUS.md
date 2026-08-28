@@ -1,8 +1,8 @@
 # Playchitect
 **Status:** active
 **Priority:** medium
-**Progress:** ~62%
-**Last updated:** 2026-08-27
+**Progress:** ~64%
+**Last updated:** 2026-08-28
 **Repo:** `~/Programming/personal/playchitect`
 
 ## What it does
@@ -28,9 +28,8 @@ the rigid BPM-bucket playlist scripts.
 - 1,450 tests, CI (ruff, ty, pytest, Fedora 41)
 
 ## Next actions
-- [ ] TASK-31: pin essentia, smoke-test embeddings, hash-pin model downloads — gates the
-      library-wide embedding run
-- [ ] Run the batch embedding job over the library once TASK-31 passes
+- [ ] Run the batch embedding job over the library — MUST launch under a hard memory cap:
+      `systemd-run --user --scope -p MemoryMax=4G`. See TASK-33 note for the 2026-08-28 incident.
 - [ ] TASK-25/26/27: eval harness, choice-labelling tool, transition model
 
 ## Parked
