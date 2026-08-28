@@ -2,6 +2,7 @@
 Unit tests for embedding_extractor module.
 """
 
+import hashlib
 import json
 from pathlib import Path
 from typing import Any
@@ -516,9 +517,14 @@ class TestEmbeddingExtractorDownload:
         target = tmp_path / "models" / "msd-musicnn-1.pb"
         meta = target.with_suffix(".json")
         calls: list[tuple[str, Path]] = []
+        # TASK-31 rail 3: _download_model now verifies the downloaded .pb's
+        # sha256, so the fake must actually write bytes to `dest` (as the
+        # real urlretrieve would) for that check to have something to hash.
+        fake_content = b"fake msd-musicnn model bytes"
 
         def fake_urlretrieve(url: str, dest: object) -> None:
             calls.append((url, Path(str(dest))))
+            Path(str(dest)).write_bytes(fake_content)
 
         monkeypatch.setattr(
             "playchitect.core.embedding_extractor.urllib.request.urlretrieve",
@@ -526,7 +532,12 @@ class TestEmbeddingExtractorDownload:
         )
 
         extractor = EmbeddingExtractor(model_path=target, cache_enabled=False)
-        extractor._download_model(target, _MSD_MUSICNN_URL, "https://fake.json")
+        extractor._download_model(
+            target,
+            _MSD_MUSICNN_URL,
+            "https://fake.json",
+            expected_sha256=hashlib.sha256(fake_content).hexdigest(),
+        )
 
         assert len(calls) == 2
         assert calls[0] == (_MSD_MUSICNN_URL, target)
@@ -539,9 +550,11 @@ class TestEmbeddingExtractorDownload:
 
         custom_path = tmp_path / "my_models" / "msd-musicnn-1.pb"
         retrieved: list[Path] = []
+        fake_content = b"fake msd-musicnn model bytes"
 
         def fake_urlretrieve(url: str, dest: object) -> None:
             retrieved.append(Path(str(dest)))
+            Path(str(dest)).write_bytes(fake_content)
 
         monkeypatch.setattr(
             "playchitect.core.embedding_extractor.urllib.request.urlretrieve",
@@ -549,7 +562,12 @@ class TestEmbeddingExtractorDownload:
         )
 
         extractor = EmbeddingExtractor(model_path=custom_path, cache_enabled=False)
-        extractor._download_model(custom_path, _MSD_MUSICNN_URL, "https://fake.json")
+        extractor._download_model(
+            custom_path,
+            _MSD_MUSICNN_URL,
+            "https://fake.json",
+            expected_sha256=hashlib.sha256(fake_content).hexdigest(),
+        )
 
         assert retrieved[0] == custom_path
 
@@ -959,7 +977,10 @@ class TestEnsureModel:
         model_file = tmp_path / "missing.pb"
         mood_file = tmp_path / "missing_mood.pb"
 
-        def fake_download(target: Path, *args: Any) -> None:
+        # TASK-31 rail 3: _ensure_model() now passes a required keyword-only
+        # expected_sha256 through to _download_model, so the fake must
+        # accept (and ignore) it too.
+        def fake_download(target: Path, *args: Any, **kwargs: Any) -> None:
             target.parent.mkdir(parents=True, exist_ok=True)
             target.write_bytes(b"fake_model")  # create it
             downloaded.append(target)
@@ -1033,7 +1054,12 @@ class TestDownloadFailure:
         target = tmp_path / "msd-musicnn-1.pb"
         extractor = EmbeddingExtractor(model_path=target, cache_enabled=False)
         with pytest.raises(OSError, match="network error"):
-            extractor._download_model(target, _MSD_MUSICNN_URL, "https://fake.json")
+            extractor._download_model(
+                target,
+                _MSD_MUSICNN_URL,
+                "https://fake.json",
+                expected_sha256=emb_mod._MSD_MUSICNN_SHA256,  # ty: ignore[unresolved-attribute]
+            )
 
 
 # ── TestCorruptCache ──────────────────────────────────────────────────────────
@@ -1158,7 +1184,10 @@ class TestDiscogsEffnetOption:
 
         downloaded: list[tuple[Path, str]] = []
 
-        def fake_download(target: Path, pb_url: str, meta_url: str) -> None:
+        # TASK-31 rail 3: _ensure_discogs_effnet_model() now passes a
+        # required keyword-only expected_sha256 through to _download_model,
+        # so the fake must accept (and ignore) it too.
+        def fake_download(target: Path, pb_url: str, meta_url: str, **kwargs: Any) -> None:
             downloaded.append((target, pb_url))
             target.parent.mkdir(parents=True, exist_ok=True)
             target.write_bytes(b"fake discogs-effnet model")

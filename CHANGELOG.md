@@ -24,6 +24,27 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
   MusiCNN model, auto-downloaded into `~/.cache/playchitect/models/` on first use. The
   `[embeddings]` extra is optional and not installed by default; the cache and ETL
   infrastructure work out of the box, but computing embeddings requires installing it.
+- **discogs-effnet inference path** — `EmbeddingExtractor.analyze_discogs_effnet()` runs
+  the discogs-effnet model and returns the raw mean-pooled 1280-D vector. Wired into
+  `scripts/embed_library.py`'s `_real_embed_fn`, which previously called the MusiCNN
+  `analyze()` pathway despite the cache being labelled `discogs-effnet-1` — the batch
+  ETL now writes vectors that actually match the model_version recorded alongside them,
+  and refuses to write a row if the produced dimensionality ever disagrees with that
+  label.
+- **Model download integrity pins** — `EmbeddingExtractor._download_model()` now
+  verifies each downloaded model's sha256 against a pinned digest (`_MSD_MUSICNN_SHA256`,
+  `_MIREX_MOODS_SHA256`, `_DISCOGS_EFFNET_SHA256`), raising `ModelIntegrityError` and
+  deleting the file on mismatch. essentia.upf.edu publishes no checksums, so this is
+  trust-on-first-use: it protects against a model file silently changing under us on a
+  later download, not the very first one.
+- **Pre-batch embedding smoke check** — `run_embedding_smoke_check()` runs a small audio
+  fixture through discogs-effnet twice (two independent `EmbeddingExtractor` instances)
+  and validates dimensionality, finiteness, L2-norm sanity, and cross-instance
+  reproducibility before a full library batch run, raising `EmbeddingSmokeCheckError` on
+  failure. Intended as a pre-flight gate for `scripts/embed_library.py`.
+- **Exact essentia-tensorflow pin** — the `embeddings` extra now pins
+  `essentia-tensorflow==2.1b6.dev1389` exactly, the last dev-line build with cp313
+  wheels, rather than an unpinned `essentia-tensorflow`.
 
 ### Fixed
 
