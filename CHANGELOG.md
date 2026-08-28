@@ -48,6 +48,15 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 ### Fixed
 
+- **`scripts/embed_library.py` could exhaust system memory on large libraries** — the
+  batch embedding script rebuilt its entire TensorFlow/essentia model (~924 MB) for
+  every single track instead of once per run, growing resident memory by roughly 1 GB
+  per track. On a 1,730-track library this froze the workstation and crashed other
+  applications after only 7 tracks had been written. The model is now constructed
+  exactly once per run and reused for every track. The script also gained a
+  configurable `--memory-ceiling-mb` safety net (`MemoryCeilingExceededError`) that
+  aborts the run before a future leak can repeat the incident, and its progress log now
+  reports current resident memory so growth is visible during a long run.
 - **Silent track loss in large libraries** — when clustering libraries with 80+ tracks
   (where EWKM per-cluster weight refinement engages), a bug in `_deduplicate_clusters`
   filtered out boundary tracks that EWKM had moved without ever reassigning them,
