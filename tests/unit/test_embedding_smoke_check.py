@@ -82,7 +82,7 @@ _EXPECTED_DIM = 1280
 
 
 def _write_synthetic_wav(
-    path: Path, duration_seconds: float = 1.0, sample_rate: int = 16000
+    path: Path, duration_seconds: float = 5.0, sample_rate: int = 16000
 ) -> None:
     """
     Write a short synthetic sine-wave WAV fixture.
@@ -90,6 +90,14 @@ def _write_synthetic_wav(
     The smoke check only cares about the model's output shape/finiteness/
     reproducibility, not musical content, so a synthetic tone is sufficient
     and keeps this test file free of any committed binary fixture.
+
+    Default duration is 5.0s, comfortably above discogs-effnet's ~2.048s
+    minimum (128 mel frames * 256-sample hop / 16 kHz). Below that
+    threshold the model returns zero frames, and mean-pooling an empty
+    array silently collapses to a NaN scalar rather than a (1280,) vector
+    -- which would fail these tests for a reason unrelated to what they are
+    actually testing. Kept well clear of the cliff edge in case the
+    model's framing shifts slightly.
     """
     import soundfile as sf  # noqa: PLC0415
 

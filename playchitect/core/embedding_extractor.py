@@ -22,14 +22,20 @@ import numpy as np
 logger = logging.getLogger(__name__)
 
 try:
-    # Essentia imports are optional; ty doesn't have stubs for them
-    from essentia.standard import TensorflowPredict2D  # type: ignore
-    from essentia.standard import (  # type: ignore
-        TensorflowPredictEffnetDiscogs as _DiscogsEffnetModel,
-    )
-    from essentia.standard import (  # type: ignore
-        TensorflowPredictMusiCNN as _EssentiaModel,
-    )
+    # Essentia imports are optional. essentia-tensorflow builds its
+    # `essentia.standard` algorithm classes (TensorflowPredictMusiCNN,
+    # TensorflowPredictEffnetDiscogs, ...) dynamically at runtime via its SWIG
+    # bindings, so there are no static attributes for ty to resolve even when
+    # the package is installed -- unlike a plain "no stubs" situation, this
+    # can never be fixed by adding stubs. Suppressed centrally via the
+    # `allowed-unresolved-imports` analysis setting in pyproject.toml instead
+    # of a local ignore comment, because a local ignore comment would itself
+    # be reported as unused when essentia is absent and the whole module
+    # fails to resolve differently -- see the comment in pyproject.toml for
+    # why this must stay stable across both states.
+    from essentia.standard import TensorflowPredict2D
+    from essentia.standard import TensorflowPredictEffnetDiscogs as _DiscogsEffnetModel
+    from essentia.standard import TensorflowPredictMusiCNN as _EssentiaModel
 
     _ESSENTIA_AVAILABLE = True
 except ImportError:
@@ -106,6 +112,15 @@ _MOOD_OUTPUT_LAYER: str = "PartitionedCall"
 # distinct from "PartitionedCall:0" which carries the 400-class predictions).
 _DISCOGS_EFFNET_EMB_OUTPUT_LAYER: str = "PartitionedCall:1"
 
+# discogs-effnet consumes patches of 128 mel frames at a 256-sample hop over
+# 16 kHz audio -- roughly 2.048s of audio minimum (128 * 256 / 16000). Below
+# that threshold the model returns zero frames and mean-pooling an empty
+# array silently collapses to a NaN scalar rather than raising, so this is
+# used as an explicit pre-flight guard in analyze_discogs_effnet(). Measured
+# directly against the installed model on 2026-08-27: 2.0s -> zero frames,
+# 2.5s -> a valid (1280,) vector.
+_DISCOGS_EFFNET_MIN_AUDIO_SECONDS: float = 2.048
+
 # MSD tags → our genre vocabulary (used by infer_genre)
 _TAG_GENRE_MAP: dict[str, str] = {
     "techno": "techno",
@@ -143,6 +158,19 @@ class EmbeddingSmokeCheckError(RuntimeError):
     Distinct from ``FileNotFoundError`` (a caller error, raised separately)
     -- this exception specifically signals that the model produced output
     that does not look like a valid embedding.
+    """
+
+
+class AudioTooShortForEmbeddingError(RuntimeError):
+    """
+    Raised when an audio clip is too short for discogs-effnet to produce a
+    single output frame.
+
+    discogs-effnet patches audio into 128-mel-frame windows at a 256-sample
+    hop over 16 kHz audio (~2.048s minimum); below that it returns zero
+    frames. Mean-pooling zero frames silently collapses to a NaN scalar
+    rather than raising, so ``analyze_discogs_effnet`` raises this instead
+    of returning malformed output.
     """
 
 
@@ -398,6 +426,10 @@ class EmbeddingExtractor:
 
         Raises:
             FileNotFoundError: If the file does not exist.
+            AudioTooShortForEmbeddingError: If the audio is shorter than
+                ``_DISCOGS_EFFNET_MIN_AUDIO_SECONDS``, in which case the
+                model produces zero frames and there is nothing valid to
+                mean-pool.
         """
         if not filepath.exists():
             raise FileNotFoundError(f"Audio file not found: {filepath}")
@@ -422,6 +454,23 @@ class EmbeddingExtractor:
 
         # Frame-level embeddings → (N_frames, 1280); mean-pool → (1280,)
         emb_frames = self._model_discogs_effnet(y)
+        if emb_frames.size == 0:
+            duration_seconds = len(y) / self.sample_rate
+            logger.error(
+                "discogs-effnet produced zero frames for %s (%.3fs, below the ~%.3fs minimum)",
+                filepath.name,
+                duration_seconds,
+                _DISCOGS_EFFNET_MIN_AUDIO_SECONDS,
+            )
+            raise AudioTooShortForEmbeddingError(
+                f"Audio file '{filepath.name}' is {duration_seconds:.3f}s long, "
+                "which is too short for discogs-effnet to produce a single "
+                f"embedding frame (requires approximately "
+                f"{_DISCOGS_EFFNET_MIN_AUDIO_SECONDS:.3f}s or more). The model "
+                "returned zero frames; mean-pooling them would silently "
+                "produce a NaN scalar instead of a (1280,) vector."
+            )
+
         return np.mean(emb_frames, axis=0).astype(np.float32)
 
     # ── Private helpers ───────────────────────────────────────────────────────

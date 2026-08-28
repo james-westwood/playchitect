@@ -125,6 +125,21 @@ indent-style = "space"
 [tool.ty.environment]
 python-version = "3.13"
 
+[tool.ty.analysis]
+# essentia-tensorflow (optional "embeddings" extra, see TASK-31) builds its
+# `essentia.standard` algorithm classes (e.g. TensorflowPredictMusiCNN,
+# TensorflowPredictEffnetDiscogs) dynamically at runtime via SWIG bindings, so
+# there are no static attributes for ty to resolve even when the package is
+# installed. Without this, `ty check` is environment-dependent: it is clean
+# when essentia is absent (whole module unresolved, silently permitted) but
+# reports `unresolved-import` for the dynamic members when essentia IS
+# installed, since the module then resolves but the attributes don't. This
+# setting suppresses `unresolved-import` for this module glob unconditionally
+# in both states, so the check result no longer depends on install state.
+# Do not remove this just because the diagnostics are absent on a machine
+# without essentia installed — see playchitect/core/embedding_extractor.py.
+allowed-unresolved-imports = ["essentia.**"]
+
 [tool.pytest.ini_options]
 testpaths = ["tests"]
 python_files = ["test_*.py"]
