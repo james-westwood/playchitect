@@ -121,6 +121,20 @@ _DISCOGS_EFFNET_EMB_OUTPUT_LAYER: str = "PartitionedCall:1"
 # 2.5s -> a valid (1280,) vector.
 _DISCOGS_EFFNET_MIN_AUDIO_SECONDS: float = 2.048
 
+# MusiCNN frames audio differently from discogs-effnet and needs a longer
+# clip: it consumes patches of 187 mel frames, and TensorflowInputMusiCNN
+# frames 16 kHz audio with frameSize=512 / hopSize=256 using essentia's
+# centred framing (startFromZero=False), giving
+# frames = floor((N - 1) / 256) + 2. Solving frames >= 187 gives
+# N >= 185 * 256 + 1 = 47361 samples = 2.9600625s. Measured by binary search
+# against the installed msd-musicnn-1.pb: 47360 samples -> 0 frames, 47361
+# samples -> 187 frames. The nominal 187 * 256 / 16000 = 2.992s figure
+# overstates the requirement, because centred framing supplies the first
+# frames from zero-padding. Below this threshold the model returns zero
+# frames, and mean-pooling them silently yields NaN instead of raising, so
+# analyze() uses this as an explicit post-inference guard.
+_MUSICNN_MIN_AUDIO_SECONDS: float = 2.9600625
+
 # MSD tags → our genre vocabulary (used by infer_genre)
 _TAG_GENRE_MAP: dict[str, str] = {
     "techno": "techno",
@@ -163,14 +177,17 @@ class EmbeddingSmokeCheckError(RuntimeError):
 
 class AudioTooShortForEmbeddingError(RuntimeError):
     """
-    Raised when an audio clip is too short for discogs-effnet to produce a
-    single output frame.
+    Raised when an audio clip is too short for an embedding model to produce
+    a single output frame.
 
-    discogs-effnet patches audio into 128-mel-frame windows at a 256-sample
-    hop over 16 kHz audio (~2.048s minimum); below that it returns zero
-    frames. Mean-pooling zero frames silently collapses to a NaN scalar
-    rather than raising, so ``analyze_discogs_effnet`` raises this instead
-    of returning malformed output.
+    Both supported models patch audio into fixed-length mel-frame windows at
+    a 256-sample hop over 16 kHz audio, and each has its own minimum:
+    discogs-effnet needs ``_DISCOGS_EFFNET_MIN_AUDIO_SECONDS``, MusiCNN the
+    longer ``_MUSICNN_MIN_AUDIO_SECONDS``. Below its threshold a model
+    returns zero frames, and mean-pooling zero frames silently collapses to
+    a NaN scalar rather than raising, so ``analyze`` and
+    ``analyze_discogs_effnet`` raise this instead of returning (or caching)
+    malformed output.
     """
 
 
@@ -303,6 +320,11 @@ class EmbeddingExtractor:
 
         Raises:
             FileNotFoundError: If the file does not exist.
+            AudioTooShortForEmbeddingError: If the audio is shorter than
+                ``_MUSICNN_MIN_AUDIO_SECONDS``, in which case the model
+                produces zero frames and there is nothing valid to
+                mean-pool. Raised before any cache write, so a NaN
+                embedding is never persisted.
         """
         if not filepath.exists():
             raise FileNotFoundError(f"Audio file not found: {filepath}")
@@ -326,6 +348,24 @@ class EmbeddingExtractor:
 
         # Frame-level embeddings → (N_frames, 128); mean-pool → (128,)
         emb_frames = self._model_emb(y)
+        # len() rather than .size: the essentia bindings return a plain empty
+        # list for zero frames in some builds and a (0, 128) ndarray in
+        # others, and only len() covers both.
+        if len(emb_frames) == 0:
+            duration_seconds = len(y) / self.sample_rate
+            logger.error(
+                "MusiCNN produced zero frames for %s (%.3fs, below the ~%.3fs minimum)",
+                filepath.name,
+                duration_seconds,
+                _MUSICNN_MIN_AUDIO_SECONDS,
+            )
+            raise AudioTooShortForEmbeddingError(
+                f"Audio file '{filepath.name}' is {duration_seconds:.3f}s long, "
+                "which is too short for MusiCNN to produce a single embedding "
+                f"frame (requires approximately {_MUSICNN_MIN_AUDIO_SECONDS:.3f}s "
+                "or more). The model returned zero frames; mean-pooling them "
+                "would silently produce a NaN embedding."
+            )
         embedding = np.mean(emb_frames, axis=0).astype(np.float32)
 
         # Frame-level sigmoid activations → (N_frames, 50); mean → (50,)
@@ -360,7 +400,9 @@ class EmbeddingExtractor:
         """
         Analyze a batch of files.
 
-        Files that fail analysis are skipped and logged at WARNING level.
+        Files that fail analysis are skipped and logged at WARNING level;
+        clips rejected as too short for the model are named as such rather
+        than reported as a generic failure.
 
         Args:
             filepaths: List of audio file paths.
@@ -380,6 +422,10 @@ class EmbeddingExtractor:
 
                 # If we just computed it and have a DB, it's already put in analyze()
                 results[fp] = feat
+            except AudioTooShortForEmbeddingError as exc:
+                # Named separately from the generic handler so the log line
+                # states the real cause rather than a downstream symptom.
+                logger.warning("Skipping %s: audio too short for MusiCNN — %s", fp.name, exc)
             except Exception as exc:
                 logger.warning("Embedding extraction failed for %s: %s", fp.name, exc)
         return results

@@ -9,8 +9,10 @@ from collections.abc import Callable
 from pathlib import Path
 
 import pytest
+import soundfile as sf
 from pytest_benchmark.fixture import BenchmarkFixture
 
+import playchitect.core.embedding_extractor as emb_mod
 from playchitect.core.audio_scanner import AudioScanner
 from playchitect.core.clustering import ClusterResult, PlaylistClusterer
 from playchitect.core.export import CUEExporter, M3UExporter
@@ -35,11 +37,37 @@ THRESHOLD_CUE_EXPORT = 0.050  # 50ms for 50 tracks
 THRESHOLD_CLI_INFO = 10.0  # 10s for 10 tracks (uv run overhead in CI)
 THRESHOLD_CLI_SCAN = 12.0  # 12s for 10 tracks
 
+# ── Embedding benchmark fixture sizing (TASK-32) ─────────────────────────────
+#
+# MusiCNN patches audio into 187 mel frames (frameSize=512, hopSize=256 at
+# 16 kHz, essentia's centred framing), so it needs at least 47361 samples =
+# 2.9600625s of audio before it emits a single frame. Measured by binary
+# search against the installed msd-musicnn-1.pb on 2026-08-29: 47360 samples
+# -> 0 frames, 47361 -> 187 frames. Below that, mean-pooling zero frames
+# silently yields NaN and the whole --use-embeddings run collapses.
+#
+# The shared synthetic_library default of 0.5s is therefore unusable here,
+# but must NOT be changed: at 4.0s, IntensityAnalyzer.analyze takes ~0.349s
+# against a 0.150s threshold (2.3x over) and MetadataExtractor.extract_batch
+# lands within 6% of its threshold. So this benchmark gets its own longer
+# library and every other benchmark keeps the 0.5s one.
+#
+# 4.0s gives ~35% headroom over the 2.96s floor (3.0s would leave only 1.3%,
+# inside the rounding noise of int(22050 * D) plus the 22050 -> 16000
+# resample) while staying inside the single-patch regime, so per-track
+# extraction costs the same ~0.09s as a 3.0s clip. 5.0s would cross into a
+# second patch (~20% dearer) for no extra safety.
+EMBEDDING_BENCHMARK_TRACK_SECONDS = 4.0
+# Cold-run cost is dominated by the one-time ~4-5s TensorFlow graph load, not
+# per-track work, so trimming the track count barely helps and weakens the
+# benchmark. Kept at 10, matching benchmark_target_library.
+EMBEDDING_BENCHMARK_TRACK_COUNT = 10
+
 
 @pytest.fixture(scope="module")
 def benchmark_target_library(
     tmp_path_factory: pytest.TempPathFactory,
-    synthetic_library: Callable[[int], Path],
+    synthetic_library: Callable[..., Path],
 ) -> Path:
     """
     Provides a small subset of audio files for benchmarking.
@@ -81,6 +109,29 @@ def benchmark_target_library(
     return synthetic_library(10)
 
 
+@pytest.fixture(scope="module")
+def embedding_benchmark_library(
+    benchmark_target_library: Path,
+    synthetic_library: Callable[..., Path],
+) -> Path:
+    """
+    Benchmark target for the MusiCNN embedding path specifically.
+
+    Real music (PLAYCHITECT_BENCH_MUSIC_PATH) is already long enough, so that
+    library is reused untouched. The synthetic fallback, however, must be
+    generated at EMBEDDING_BENCHMARK_TRACK_SECONDS rather than the shared
+    0.5s default -- see the constant's comment for why the default itself
+    must stay at 0.5s.
+    """
+    if os.environ.get("PLAYCHITECT_BENCH_MUSIC_PATH"):
+        return benchmark_target_library
+
+    return synthetic_library(
+        EMBEDDING_BENCHMARK_TRACK_COUNT,
+        EMBEDDING_BENCHMARK_TRACK_SECONDS,
+    )
+
+
 def run_cli_command(command: list[str], cwd: Path | None = None) -> subprocess.CompletedProcess:
     """Helper to run a playchitect CLI command."""
     full_cmd = command if command[0] == "uv" else CLI_COMMAND.split() + command
@@ -106,9 +157,15 @@ class TestFastPerformanceChecks:
         assert benchmark.stats.stats.mean < THRESHOLD_CLI_SCAN  # type: ignore
 
     def test_playchitect_scan_with_embeddings_dry_run_cli(
-        self, benchmark: BenchmarkFixture, benchmark_target_library: Path
+        self, benchmark: BenchmarkFixture, embedding_benchmark_library: Path
     ):
-        """Benchmark playchitect scan --use-embeddings --dry-run command."""
+        """
+        Benchmark playchitect scan --use-embeddings --dry-run command.
+
+        Uses embedding_benchmark_library (4.0s clips), not the shared 0.5s
+        benchmark_target_library: MusiCNN emits zero frames below ~2.96s, so
+        the 0.5s library makes this exit 1 rather than measure anything.
+        """
         try:
             import importlib.util
 
@@ -119,14 +176,14 @@ class TestFastPerformanceChecks:
 
         benchmark(
             run_cli_command,
-            ["scan", str(benchmark_target_library), "--use-embeddings", "--dry-run"],
+            ["scan", str(embedding_benchmark_library), "--use-embeddings", "--dry-run"],
         )
         # No threshold for embeddings yet as it's environment dependent
 
     def test_audio_scanner_scan(
         self,
         benchmark: BenchmarkFixture,
-        synthetic_library: Callable[[int], Path],
+        synthetic_library: Callable[..., Path],
     ):
         """Benchmark AudioScanner.scan with a small synthetic library."""
         library_path = synthetic_library(50)
@@ -135,7 +192,7 @@ class TestFastPerformanceChecks:
         assert benchmark.stats.stats.mean < THRESHOLD_AUDIO_SCANNER  # type: ignore
 
     def test_metadata_extractor_extract_batch(
-        self, benchmark: BenchmarkFixture, synthetic_library: Callable[[int], Path]
+        self, benchmark: BenchmarkFixture, synthetic_library: Callable[..., Path]
     ):
         """Benchmark MetadataExtractor.extract_batch with a small synthetic library."""
         library_path = synthetic_library(50)
@@ -147,7 +204,7 @@ class TestFastPerformanceChecks:
         assert benchmark.stats.stats.mean < THRESHOLD_METADATA_EXTRACTOR  # type: ignore
 
     def test_intensity_analyzer_analyze(
-        self, benchmark: BenchmarkFixture, synthetic_library: Callable[[int], Path]
+        self, benchmark: BenchmarkFixture, synthetic_library: Callable[..., Path]
     ):
         """Benchmark IntensityAnalyzer.analyze on a single synthetic audio file."""
         library_path = synthetic_library(1)
@@ -230,3 +287,64 @@ class TestFastPerformanceChecks:
         exporter = CUEExporter(output_dir=tmp_path)
         benchmark(exporter.export_clusters, [cluster], metadata_dict=metadata_dict)
         assert benchmark.stats.stats.mean < THRESHOLD_CUE_EXPORT  # type: ignore
+
+
+class TestBenchmarkLibraryDurations:
+    """
+    Guards on the audio length of the benchmark fixtures themselves.
+
+    The embedding benchmark and every other benchmark pull from deliberately
+    different libraries; these tests keep that split from silently collapsing
+    in either direction.
+    """
+
+    def test_shared_synthetic_library_stays_short(
+        self, synthetic_library: Callable[..., Path]
+    ) -> None:
+        """
+        The shared synthetic_library default must stay at 0.5s. Lengthening it
+        to 4.0s pushes IntensityAnalyzer.analyze to ~0.349s against the 0.150s
+        THRESHOLD_INTENSITY_ANALYZER (2.3x over, a hard fail) and puts
+        MetadataExtractor.extract_batch within 6% of its own threshold.
+        Tracks needing longer audio must get their own fixture instead.
+        """
+        library_path = synthetic_library(1)
+        clips = list(library_path.rglob("*.flac"))
+        assert clips, "synthetic_library must produce at least one FLAC file"
+
+        for clip in clips:
+            info = sf.info(str(clip))
+            assert info.duration == pytest.approx(0.5, abs=0.01), (
+                f"{clip.name} is {info.duration}s; the shared synthetic_library "
+                "default must remain 0.5s"
+            )
+
+    def test_embedding_benchmark_library_clears_the_musicnn_minimum(
+        self, embedding_benchmark_library: Path
+    ) -> None:
+        """
+        Every clip fed to the --use-embeddings benchmark must be comfortably
+        longer than MusiCNN's measured minimum, or the model emits zero frames
+        and the CLI exits 1 instead of producing a measurement.
+        """
+        if os.environ.get("PLAYCHITECT_BENCH_MUSIC_PATH"):
+            pytest.skip("Real-music benchmark library; clip lengths are not ours to assert.")
+
+        minimum = getattr(emb_mod, "_MUSICNN_MIN_AUDIO_SECONDS", None)
+        assert minimum is not None, (
+            "embedding_extractor must define a module-level "
+            "_MUSICNN_MIN_AUDIO_SECONDS constant recording the measured "
+            "MusiCNN minimum audio duration (2.9600625s at 16 kHz)"
+        )
+
+        clips = list(embedding_benchmark_library.rglob("*.flac"))
+        assert len(clips) == EMBEDDING_BENCHMARK_TRACK_COUNT
+
+        for clip in clips:
+            duration = sf.info(str(clip)).duration
+            # 20% headroom over the floor, so int(sample_rate * seconds)
+            # rounding and the 22050 -> 16000 resample cannot drag a clip
+            # back under it.
+            assert duration >= float(minimum) * 1.2, (
+                f"{clip.name} is {duration}s, too close to the {minimum}s MusiCNN minimum"
+            )

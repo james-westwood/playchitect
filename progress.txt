@@ -18,3 +18,4 @@
 [2026-04-13] [GUI-10] library_view_tag_chips_and_storage_stats: implemented and merged (PR #215)
 [2026-04-13] [GUI-11] playlists_view_stitch_polish: implemented and merged (PR #216)
 [2026-04-13] [GUI-12] set_builder_block_and_card_colors: implemented and merged (PR #217)
+[2026-08-29] [TASK-32] fix_embeddings_benchmark_short_fixtures: measured the MusiCNN minimum audio length at 2.9600625s (47,361 samples at 16kHz; binary-searched against msd-musicnn-1.pb — 47,360 -> 0 frames, 47,361 -> 187) and recorded it as _MUSICNN_MIN_AUDIO_SECONDS; added the missing zero-frame guard to EmbeddingExtractor.analyze, which previously cached a NaN embedding for clips under ~3s; scan --use-embeddings now reports "Embedded N of M tracks" and fails at the embedding stage naming the cause instead of an opaque "Clustering failed"; gave the embeddings benchmark its own 4.0s fixture, leaving the shared 0.5s synthetic_library unchanged

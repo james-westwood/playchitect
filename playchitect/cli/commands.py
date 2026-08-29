@@ -4,6 +4,7 @@ CLI commands for Playchitect.
 
 import logging
 import sys
+from collections import Counter
 from pathlib import Path
 
 import click
@@ -23,6 +24,116 @@ logging.basicConfig(
     level=logging.INFO, format="%(asctime)s - %(name)s - %(levelname)s - %(message)s"
 )
 logger = logging.getLogger(__name__)
+
+# Per-track embedding failures are logged individually, but a whole library of
+# identical warnings drowns the aggregate summary that follows. Only the first
+# few are logged at WARNING; the rest drop to DEBUG. The summary (and, on total
+# failure, the aggregate error) is always emitted regardless.
+EMBEDDING_WARNING_LOG_LIMIT = 3
+
+# Human-readable bucket name for clips the embedding model rejects as too
+# short. Kept as a constant because the aggregate diagnostic both counts and
+# reports it.
+EMBEDDING_REASON_TOO_SHORT = "audio too short for MusiCNN"
+
+
+def _classify_embedding_failure(exc: Exception) -> str:
+    """
+    Bucket an embedding failure into a short, countable reason string.
+
+    Args:
+        exc: The exception raised by ``EmbeddingExtractor.analyze``.
+
+    Returns:
+        ``EMBEDDING_REASON_TOO_SHORT`` for clips below the model's framing
+        minimum, otherwise the exception's type name so that unrelated
+        failures aggregate per type rather than per message.
+    """
+    from playchitect.core.embedding_extractor import (  # noqa: PLC0415
+        AudioTooShortForEmbeddingError,
+    )
+
+    if isinstance(exc, AudioTooShortForEmbeddingError):
+        return EMBEDDING_REASON_TOO_SHORT
+    return type(exc).__name__
+
+
+def _dominant_embedding_failure(failures: Counter[str]) -> tuple[str, int]:
+    """
+    Return the most common failure reason and its count.
+
+    Args:
+        failures: Counter of reason strings produced by
+            ``_classify_embedding_failure``.
+
+    Returns:
+        A ``(reason, count)`` tuple. Ties resolve in favour of the too-short
+        reason: it is the one with a concrete, actionable fix, so surfacing
+        it is more useful than an arbitrary ordering of equally common causes.
+    """
+    return max(
+        failures.items(),
+        key=lambda item: (item[1], item[0] == EMBEDDING_REASON_TOO_SHORT),
+    )
+
+
+def _report_embedding_outcome(*, attempted: int, succeeded: int, failures: Counter[str]) -> None:
+    """
+    Summarise the embedding stage and abort when nothing could be embedded.
+
+    A partial failure is reported and the run continues on the embeddings it
+    did get. A total failure is fatal here, at the embedding stage, rather
+    than a few lines later as an opaque "Clustering failed" from the
+    clusterer's empty-feature guard.
+
+    Args:
+        attempted: Number of tracks fed to the extractor.
+        succeeded: Number of tracks that produced an embedding.
+        failures: Counter of failure reasons across the attempted tracks.
+
+    Raises:
+        SystemExit: With status 1 when tracks were attempted and none
+            succeeded.
+    """
+    if attempted == 0:
+        return
+
+    click.echo(f"Embedded {succeeded} of {attempted} tracks")
+    if succeeded > 0:
+        return
+
+    from playchitect.core.embedding_extractor import (  # noqa: PLC0415
+        _MUSICNN_MIN_AUDIO_SECONDS,
+    )
+
+    reason, reason_count = _dominant_embedding_failure(failures)
+    logger.error(
+        "Embedding extraction produced no usable embeddings (0 of %d); "
+        "most common cause: %s (%d tracks)",
+        attempted,
+        reason,
+        reason_count,
+    )
+    click.echo(
+        f"Error: No embeddings could be extracted — 0 of {attempted} tracks succeeded.",
+        err=True,
+    )
+    click.echo(
+        f"Most common cause: {reason} ({reason_count} of {attempted} tracks).",
+        err=True,
+    )
+    if failures[EMBEDDING_REASON_TOO_SHORT]:
+        click.echo(
+            "MusiCNN needs at least "
+            f"{_MUSICNN_MIN_AUDIO_SECONDS:.3f}s of audio per track to produce "
+            "a single embedding frame.",
+            err=True,
+        )
+    click.echo(
+        "Re-run without --use-embeddings to cluster on BPM and intensity features only.",
+        err=True,
+    )
+    sys.exit(1)
 
 
 @click.group()
@@ -346,11 +457,14 @@ def scan(
                 # Pass cache_db to EmbeddingExtractor
                 emb_extractor = EmbeddingExtractor(model_path=resolved_model, cache_db=cache_db)
                 click.echo("\nExtracting MusiCNN embeddings (may download models on first run)...")
+                embedding_failures: Counter[str] = Counter()
+                embedding_attempted = 0
                 with click.progressbar(
                     audio_files, label="Embedding files", show_pos=True
                 ) as files:
                     embedding_dict = {}
                     for file_path in files:
+                        embedding_attempted += 1
                         try:
                             feat = emb_extractor.analyze(file_path)
                             embedding_dict[file_path] = feat
@@ -366,7 +480,20 @@ def scan(
                                         feat.primary_mood,
                                     )
                         except Exception as exc:
-                            logger.warning("Embedding failed for %s: %s", file_path.name, exc)
+                            reason = _classify_embedding_failure(exc)
+                            embedding_failures[reason] += 1
+                            log = (
+                                logger.warning
+                                if embedding_failures.total() <= EMBEDDING_WARNING_LOG_LIMIT
+                                else logger.debug
+                            )
+                            log("Embedding failed for %s: %s", file_path.name, exc)
+
+                _report_embedding_outcome(
+                    attempted=embedding_attempted,
+                    succeeded=len(embedding_dict),
+                    failures=embedding_failures,
+                )
 
                 # Auto-detect genre by majority vote across all tracks
                 genres: list[str] = []

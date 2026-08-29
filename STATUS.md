@@ -1,8 +1,8 @@
 # Playchitect
 **Status:** active
 **Priority:** medium
-**Progress:** ~64%
-**Last updated:** 2026-08-28
+**Progress:** ~66%
+**Last updated:** 2026-08-29
 **Repo:** `~/Programming/personal/playchitect`
 
 ## What it does
@@ -24,13 +24,21 @@ the rigid BPM-bucket playlist scripts.
 - Seed-based playlist engine (`features.py`, `seed_playlist.py`, CLI `playlist`) — PRs #220-224
 - ML plan Phase 1 COMPLETE: recursive re-clustering, multi-dimensional scan default, character
   naming, degenerate-K warning, and the dedup track-loss fix (TASK-15..18, TASK-28)
-- ML plan Phase 2 started: content-addressed embedding cache + ETL script (TASK-19)
-- 1,450 tests, CI (ruff, ty, pytest, Fedora 41)
+- ML plan Phase 2 started: content-addressed embedding cache + ETL script (TASK-19), essentia
+  pin + model-download integrity + pre-batch smoke check (TASK-31), embed_library OOM fix
+  (TASK-33), and the embedding short-audio guard + CLI diagnostics (TASK-32)
+- 1,511 tests, CI (ruff, ty, pytest, Fedora 41)
 
 ## Next actions
 - [ ] Run the batch embedding job over the library — MUST launch under a hard memory cap:
       `systemd-run --user --scope -p MemoryMax=4G`. See TASK-33 note for the 2026-08-28 incident.
 - [ ] TASK-25/26/27: eval harness, choice-labelling tool, transition model
+- [ ] Follow-ups surfaced by TASK-32: `_EMBEDDING_DIM = 128` is stale against the model's
+      actual 204-dimension output; `analyze_discogs_effnet` still guards with `.size == 0`
+      so it misses the empty-list shape; cache rows written before the NaN guard are not
+      re-validated, so the cache needs rebuilding once
+- [ ] CI does not install the `embeddings` extra, so the embeddings benchmark skips there.
+      Decide whether to add an essentia job or accept local-only coverage
 
 ## Parked
 - TASK-11/12: MainWindow seed generation wiring — implemented on the unmerged branch
