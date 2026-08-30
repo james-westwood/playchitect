@@ -322,7 +322,14 @@ class PlaylistClusterer:
             # Further filter to tracks that also have embeddings
             valid_paths = [p for p in valid_paths if p in embedding_dict]
             if not valid_paths:
-                logger.error("No tracks with embeddings found; cannot use embedding_dict")
+                # Defensive backstop for callers that do not pre-check the
+                # embedding stage themselves (GUI, ETL scripts); the CLI
+                # fails earlier with a diagnostic naming the cause.
+                logger.error(
+                    "None of the supplied tracks have an embedding, so embedding-aware "
+                    "clustering cannot run. Check that embedding extraction succeeded "
+                    "before calling this, or cluster without embeddings."
+                )
                 return []
 
             # Rebuild feature matrix for the embedding-filtered subset of paths
