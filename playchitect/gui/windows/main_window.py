@@ -18,6 +18,7 @@ from playchitect.core.intensity_analyzer import IntensityAnalyzer, IntensityFeat
 from playchitect.core.metadata_extractor import MetadataExtractor, TrackMetadata  # noqa: E402
 from playchitect.core.naming.playlist_namer import PlaylistNamer  # noqa: E402
 from playchitect.core.play_history import PlayHistory  # noqa: E402
+from playchitect.core.seed_playlist import generate_playlist_from_seed  # noqa: E402
 from playchitect.core.sequencer import Sequencer, sequence_fresh  # noqa: E402
 from playchitect.core.track_previewer import TrackPreviewer  # noqa: E402
 from playchitect.gui.preferences_window import PreferencesWindow  # noqa: E402
@@ -275,6 +276,7 @@ class PlaychitectWindow(Adw.ApplicationWindow):
         self._library_view.connect("scan-complete", self._on_library_scan_complete)
         self._library_view.connect("track-selected", self._on_library_track_selected)
         self._library_view.connect("preview-toggled", self._on_preview_toggled)
+        self._library_view.connect("make-playlist-seed", self._on_make_playlist_seed)
 
         # Create track preview panel (hidden by default)
         self._track_preview = TrackPreviewPanel()
@@ -606,6 +608,80 @@ class PlaychitectWindow(Adw.ApplicationWindow):
         else:
             # Stop playback when hiding panel
             self._track_preview._stop_playback()
+
+    def _on_make_playlist_seed(
+        self,
+        _view: LibraryView,
+        filepath: str,
+        duration_mins: float,
+        sequence_mode: str,
+    ) -> None:
+        """Handle seed playlist generation from the library view."""
+        seed_path = Path(filepath)
+
+        # Show loading state
+        self._spinner.start()
+        self._cluster_btn.set_sensitive(False)
+        self.set_title("Playchitect — generating playlist…")
+
+        # Kick off background work so the GTK main loop stays responsive
+        threading.Thread(
+            target=self._seed_generation_worker,
+            args=(seed_path, duration_mins, sequence_mode),
+            daemon=True,
+        ).start()
+
+    def _seed_generation_worker(
+        self, seed_path: Path, duration_mins: float, sequence_mode: str
+    ) -> None:
+        """Background worker for seed-based playlist generation."""
+        try:
+            # Ensure intensity features are computed
+            if not self._intensity_map:
+                config = get_config()
+                cache_dir = config.get_cache_dir() / "intensity"
+                analyzer = IntensityAnalyzer(cache_dir=cache_dir)
+                self._intensity_map = analyzer.analyze_batch(list(self._metadata_map.keys()))
+
+            # Generate the playlist
+            result = generate_playlist_from_seed(
+                seed_path,
+                self._intensity_map,
+                self._metadata_map,
+                duration_mins,
+                sequence_mode=sequence_mode,
+            )
+
+            GLib.idle_add(self._on_seed_generation_complete, result)
+        except Exception:
+            logger.exception("Error generating seed playlist")
+            GLib.idle_add(self._on_seed_generation_error)
+
+    def _on_seed_generation_complete(self, result: ClusterResult) -> bool:
+        """Handle successful seed playlist generation on main thread."""
+        self._spinner.stop()
+        self._cluster_btn.set_sensitive(True)
+
+        # Load result into playlists view
+        self._playlists_view.load_clusters([result])
+
+        # Switch to playlists view
+        self._view_stack.set_visible_child_name("playlists")
+
+        # Update nav sidebar
+        self._nav_list.select_row(self._nav_list.get_row_at_index(_NAV_PLAYLISTS))
+
+        # Update title
+        self._track_title = f"Playchitect — Seed: {result.genre}"
+        self.set_title(self._track_title)
+        return False
+
+    def _on_seed_generation_error(self) -> bool:
+        """Handle seed playlist generation error on main thread."""
+        self._spinner.stop()
+        self._cluster_btn.set_sensitive(True)
+        self.set_title("Playchitect — playlist generation failed")
+        return False
 
     def _on_preview_prev(self, _panel: TrackPreviewPanel) -> None:
         """Handle previous track request from preview panel."""
