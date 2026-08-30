@@ -48,6 +48,38 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 ### Fixed
 
+- **Tracks shorter than ~3 s could cache a NaN embedding** — MusiCNN needs at least
+  2.9600625 s of audio (47,361 samples at 16 kHz) before it emits a single embedding
+  frame. Below that it returned zero frames, and mean-pooling zero frames collapsed to
+  NaN rather than raising, so `EmbeddingExtractor.analyze()` returned a NaN vector and
+  wrote it straight to the embedding cache. Any library containing a short interlude,
+  intro or skit was therefore silently poisoning its own cache. `analyze()` now raises
+  `AudioTooShortForEmbeddingError` before pooling and before any cache write, matching
+  the guard `analyze_discogs_effnet()` already had. The threshold is recorded as
+  `_MUSICNN_MIN_AUDIO_SECONDS`, measured by binary search against the installed
+  `msd-musicnn-1.pb` rather than derived from the nominal patch length; it differs from
+  discogs-effnet's 2.0320625 s, so the existing effnet constant could not be reused.
+  Note that cache rows written before this fix are not re-validated, so any NaN entries
+  already persisted remain until the cache is rebuilt.
+- **`scan --use-embeddings` failed with a misleading error when nothing could be
+  embedded** — a run in which no track produced an embedding fell through to the
+  clusterer and reported `Error: Clustering failed`, which sends the reader looking in
+  the wrong place. The embedding stage now always reports `Embedded N of M tracks`, and
+  on zero successes it fails there with an aggregate error naming the dominant cause,
+  the counts, the minimum track length and the option of re-running without
+  `--use-embeddings`. Partial failures are unchanged: the run proceeds on whatever did
+  embed. Per-track failures beyond the first three drop from `WARNING` to `DEBUG` so a
+  library-wide failure does not bury the summary.
+- **Embeddings benchmark failed whenever essentia was actually installed** —
+  `test_playchitect_scan_with_embeddings_dry_run_cli` drove `scan --use-embeddings` over
+  the shared `synthetic_library` fixture, whose 0.5 s clips are far below the MusiCNN
+  minimum, so the run always exited 1. The benchmark now builds its own 4.0 s library
+  from a dedicated fixture. The shared fixture stays at 0.5 s deliberately: lengthening
+  it pushes `test_intensity_analyzer_analyze` from 0.087 s to 0.349 s against a 0.150 s
+  threshold and makes `test_metadata_extractor_extract_batch` flaky. The failure was
+  pre-existing rather than a regression, and invisible in CI because CI does not install
+  the `embeddings` extra.
+
 - **`scripts/embed_library.py` could exhaust system memory on large libraries** — the
   batch embedding script rebuilt its entire TensorFlow/essentia model (~924 MB) for
   every single track instead of once per run, growing resident memory by roughly 1 GB

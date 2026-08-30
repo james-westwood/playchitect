@@ -40,6 +40,51 @@ playchitect scan [OPTIONS] [MUSIC_PATH]
 | `--sequence-mode` | `ENUM` | `fixed` | Track sequencing mode: `ramp` (intensity build) or `fixed` (no change, default). |
 | `--help` | `FLAG` | - | Show this message and exit. |
 
+### Semantic embeddings (`--use-embeddings`)
+
+`--use-embeddings` adds MusiCNN semantic embeddings to the clustering feature space. It requires the optional `essentia-tensorflow` dependency, which is not installed by default:
+
+```bash
+uv pip install "playchitect[embeddings]"
+```
+
+The model is auto-downloaded to `~/.cache/playchitect/models/` on first use unless `--model-path` points at an existing `msd-musicnn-1.pb`.
+
+#### Minimum track length
+
+MusiCNN needs at least **2.96 seconds** of audio per track before it emits a single embedding frame. Anything shorter is skipped: the model returns zero frames, and there is nothing to pool into an embedding. This is a real constraint on real libraries — short interludes, intros, skits and stingers are commonly below it.
+
+Short tracks are skipped individually, not fatally. Every run reports how many tracks made it through:
+
+```
+Embedded 118 of 124 tracks
+```
+
+Clustering then proceeds on the tracks that did produce an embedding.
+
+#### When no track can be embedded
+
+If *no* track yields an embedding, the run stops at the embedding stage rather than continuing into clustering, and names the most common cause:
+
+```
+Embedded 0 of 12 tracks
+Error: No embeddings could be extracted — 0 of 12 tracks succeeded.
+Most common cause: audio too short for MusiCNN (12 of 12 tracks).
+MusiCNN needs at least 2.960s of audio per track to produce a single embedding frame.
+Re-run without --use-embeddings to cluster on BPM and intensity features only.
+```
+
+The first three per-track failures are logged at `WARNING`, naming the file and the reason; the rest drop to `DEBUG` so a library-wide failure does not bury the summary that follows it.
+
+#### Troubleshooting
+
+| Symptom | Likely cause | Fix |
+| :--- | :--- | :--- |
+| `Error: No embeddings could be extracted` with `audio too short for MusiCNN` | Every track is under 2.96 s | Point `scan` at the full-length tracks, or re-run without `--use-embeddings` |
+| `Embedded N of M tracks` with `N` well below `M` | Some tracks are under 2.96 s, or unreadable | Check the `WARNING` log lines naming the skipped files; the run still completes on the rest |
+| `Error: --fast cannot be used with --use-embeddings` | The two flags are mutually exclusive | `--fast` skips analysis entirely; drop it to use embeddings |
+| `essentia-tensorflow is required for embedding analysis` | The `[embeddings]` extra is not installed | `uv pip install "playchitect[embeddings]"` |
+
 ## `playchitect info`
 
 Display information about a music directory without running full analysis.

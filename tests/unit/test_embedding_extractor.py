@@ -4,6 +4,7 @@ Unit tests for embedding_extractor module.
 
 import hashlib
 import json
+import logging
 from pathlib import Path
 from typing import Any
 
@@ -1223,3 +1224,376 @@ class TestDiscogsEffnetOption:
         extractor._ensure_discogs_effnet_model()  # ty: ignore[unresolved-attribute]
 
         assert downloaded == []
+
+
+# ── TestMusiCNNZeroFrameGuard ─────────────────────────────────────────────────
+#
+# TASK-32. MusiCNN patches audio into 187 mel frames (frameSize=512,
+# hopSize=256 at 16 kHz, essentia's centred framing with startFromZero=False,
+# giving frames = floor((N-1)/256) + 2). Solving frames >= 187 gives
+# N >= 185 * 256 + 1 = 47361 samples = 2.9600625 s. Measured by binary search
+# against the installed msd-musicnn-1.pb on 2026-08-29: 47360 samples yields
+# 0 frames, 47361 samples yields 187 frames.
+#
+# Below that threshold TensorflowPredictMusiCNN returns an EMPTY LIST. The
+# current analyze() then does np.mean([], axis=0), which does not raise --
+# it emits a RuntimeWarning and collapses to a 0-d np.float64(nan). The NaN
+# scalar is then passed to _build_top_tags(), which calls len() on it and
+# raises an opaque "object of type 'numpy.float64' has no len()" TypeError.
+# analyze() must instead detect the zero-frame case and raise
+# AudioTooShortForEmbeddingError, exactly as analyze_discogs_effnet() already
+# does for its own (different, shorter) 2.048 s threshold.
+
+# The measured MusiCNN minimum, in samples at 16 kHz and in seconds.
+_MEASURED_MUSICNN_MIN_SAMPLES = 47361
+_MEASURED_MUSICNN_MIN_SECONDS = 2.9600625
+
+# Name the production constant that must carry the measurement above.
+_MUSICNN_MIN_CONST_NAME = "_MUSICNN_MIN_AUDIO_SECONDS"
+
+
+def _musicnn_min_seconds() -> float:
+    """
+    Return the production MusiCNN minimum-duration constant.
+
+    Fails the calling test (rather than erroring at import time) when the
+    constant does not exist yet, so the missing-constant case reports as a
+    readable assertion rather than a collection error.
+    """
+    value = getattr(emb_mod, _MUSICNN_MIN_CONST_NAME, None)
+    assert value is not None, (
+        f"embedding_extractor must define a module-level "
+        f"{_MUSICNN_MIN_CONST_NAME} constant recording the measured MusiCNN "
+        f"minimum audio duration ({_MEASURED_MUSICNN_MIN_SECONDS}s = "
+        f"{_MEASURED_MUSICNN_MIN_SAMPLES} samples at 16 kHz)"
+    )
+    return float(value)
+
+
+def _make_length_aware_musicnn_model_class(empty_value: Any) -> type:
+    """
+    Build a mock Essentia model class that mimics the real MusiCNN framing.
+
+    Instances return ``empty_value`` (the caller chooses an empty list or an
+    empty ndarray, both of which the real bindings can produce) whenever the
+    supplied audio is shorter than the measured 47361-sample minimum, and
+    plausible frame-level arrays otherwise. Every output layer goes empty
+    together, because the zero-frame condition is a property of the framing,
+    not of the graph output node.
+    """
+    n_frames = 187
+
+    class LengthAwareMockModel:
+        def __init__(
+            self,
+            graphFilename: str,
+            output: str = "",
+            input: str = "",
+            inputs: list[Any] | None = None,
+            outputs: list[Any] | None = None,
+            **kwargs: object,
+        ):
+            self.output = output
+
+        def __call__(self, audio: Any) -> Any:
+            rng = np.random.default_rng(0)
+
+            # The MIREX head is fed the 200-D MusiCNN feature frames, not raw
+            # audio, so the raw-audio framing rule below does not apply to it.
+            if self.output == _MOOD_OUTPUT_LAYER:
+                return np.abs(rng.standard_normal((len(audio), 5))).astype(np.float32)
+
+            if len(audio) < _MEASURED_MUSICNN_MIN_SAMPLES:
+                return empty_value
+
+            if self.output == _EMB_OUTPUT_LAYER:
+                return rng.standard_normal((n_frames, 128)).astype(np.float32)
+            if self.output == _MIREX_FEATS_LAYER:
+                return np.abs(rng.standard_normal((n_frames, 200))).astype(np.float32)
+            # _TAG_OUTPUT_LAYER — sigmoid activations in [0, 1]
+            return rng.random((n_frames, 50)).astype(np.float32)
+
+    return LengthAwareMockModel
+
+
+class TestMusiCNNZeroFrameGuard:
+    """analyze() must refuse to mean-pool zero MusiCNN frames."""
+
+    def _build_extractor(
+        self,
+        tmp_path: Path,
+        monkeypatch: pytest.MonkeyPatch,
+        empty_value: Any,
+    ) -> EmbeddingExtractor:
+        monkeypatch.setattr(emb_mod, "_ESSENTIA_AVAILABLE", True)
+        mock_cls = _make_length_aware_musicnn_model_class(empty_value)
+        monkeypatch.setattr(emb_mod, "_EssentiaModel", mock_cls)
+        monkeypatch.setattr(emb_mod, "TensorflowPredict2D", mock_cls)
+
+        model_file = tmp_path / "fake.pb"
+        model_file.write_bytes(b"fake_model")
+        mood_model_file = tmp_path / "fake_mood.pb"
+        mood_model_file.write_bytes(b"fake_mood_model")
+        (tmp_path / "fake.json").write_text(
+            json.dumps({"classes": [f"tag_{i}" for i in range(50)]})
+        )
+        (tmp_path / "fake_mood.json").write_text(
+            json.dumps({"classes": [f"mood_{i}" for i in range(5)]})
+        )
+
+        return EmbeddingExtractor(
+            model_path=model_file,
+            mood_model_path=mood_model_file,
+            cache_dir=tmp_path / "cache",
+            cache_enabled=True,
+        )
+
+    @staticmethod
+    def _patch_audio_length(monkeypatch: pytest.MonkeyPatch, n_samples: int) -> None:
+        import librosa as _librosa  # noqa: PLC0415
+
+        monkeypatch.setattr(
+            _librosa,
+            "load",
+            lambda *a, **kw: (np.zeros(n_samples, dtype=np.float32), 16000),
+        )
+
+    @staticmethod
+    def _make_audio_file(tmp_path: Path, name: str = "way_too_short.flac") -> Path:
+        audio_file = tmp_path / name
+        audio_file.write_bytes(b"\x00" * 100)
+        return audio_file
+
+    # ── the constant itself ───────────────────────────────────────────────
+
+    def test_musicnn_minimum_constant_matches_the_measurement(self) -> None:
+        """
+        The MusiCNN minimum must be recorded as a named constant carrying the
+        measured 2.9600625 s value (47361 samples at 16 kHz). A tolerance of
+        1e-3 s is allowed so the constant may be written either exactly
+        (2.9600625) or rounded up (2.961); it is tight enough to reject the
+        nominal-but-wrong 187 * 256 / 16000 = 2.992 s figure, which overstates
+        the requirement because essentia's centred framing shaves ~32 ms.
+        """
+        const = _musicnn_min_seconds()
+
+        assert const == pytest.approx(_MEASURED_MUSICNN_MIN_SECONDS, abs=1e-3)
+        # Must not sit BELOW the measured floor, or it would advertise a
+        # duration that still yields zero frames. The -1 sample of slack
+        # absorbs float rounding in seconds -> samples.
+        assert const * emb_mod._EMBEDDING_SAMPLE_RATE >= _MEASURED_MUSICNN_MIN_SAMPLES - 1
+
+    def test_musicnn_minimum_is_not_the_discogs_effnet_minimum(self) -> None:
+        """
+        The two models frame audio differently -- discogs-effnet needs
+        2.0320625 s (pinned at 2.048), MusiCNN needs 2.9600625 s. Reusing the
+        discogs constant for MusiCNN would silently under-report the
+        requirement by nearly a second.
+        """
+        const = _musicnn_min_seconds()
+
+        assert const != emb_mod._DISCOGS_EFFNET_MIN_AUDIO_SECONDS
+        assert const > emb_mod._DISCOGS_EFFNET_MIN_AUDIO_SECONDS
+
+    # ── the guard ─────────────────────────────────────────────────────────
+
+    def test_zero_frames_as_empty_list_raises_audio_too_short(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        """The real bindings return a plain empty list, not an ndarray."""
+        extractor = self._build_extractor(tmp_path, monkeypatch, empty_value=[])
+        audio_file = self._make_audio_file(tmp_path)
+        self._patch_audio_length(monkeypatch, 8000)  # 0.5 s at 16 kHz
+
+        with pytest.raises(emb_mod.AudioTooShortForEmbeddingError):
+            extractor.analyze(audio_file)
+
+    def test_zero_frames_as_empty_ndarray_raises_audio_too_short(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        """The guard must also cope with a (0, 128)-shaped ndarray."""
+        empty = np.empty((0, 128), dtype=np.float32)
+        extractor = self._build_extractor(tmp_path, monkeypatch, empty_value=empty)
+        audio_file = self._make_audio_file(tmp_path)
+        self._patch_audio_length(monkeypatch, 8000)
+
+        with pytest.raises(emb_mod.AudioTooShortForEmbeddingError):
+            extractor.analyze(audio_file)
+
+    def test_zero_frames_does_not_raise_opaque_type_error(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        """
+        Regression guard for the observed failure: np.mean of zero frames
+        collapsing to a NaN scalar and surfacing as
+        "object of type 'numpy.float64' has no len()".
+        """
+        extractor = self._build_extractor(tmp_path, monkeypatch, empty_value=[])
+        audio_file = self._make_audio_file(tmp_path)
+        self._patch_audio_length(monkeypatch, 8000)
+
+        with pytest.raises(Exception) as exc_info:  # noqa: B017 - type is the assertion
+            extractor.analyze(audio_file)
+
+        assert not isinstance(exc_info.value, TypeError)
+        assert "has no len()" not in str(exc_info.value)
+
+    def test_error_message_names_duration_minimum_and_file(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        """The message must be actionable on its own: what, how long, how short."""
+        const = _musicnn_min_seconds()
+        extractor = self._build_extractor(tmp_path, monkeypatch, empty_value=[])
+        audio_file = self._make_audio_file(tmp_path, name="tiny_clip.flac")
+        self._patch_audio_length(monkeypatch, 8000)  # exactly 0.5 s
+
+        with pytest.raises(emb_mod.AudioTooShortForEmbeddingError) as exc_info:
+            extractor.analyze(audio_file)
+
+        message = str(exc_info.value)
+        assert "tiny_clip.flac" in message
+        # Actual duration of the clip (0.5 s), at any reasonable precision.
+        assert "0.5" in message
+        # Required minimum, at 2 dp, 3 dp or full precision.
+        assert any(
+            candidate in message for candidate in (f"{const:.2f}", f"{const:.3f}", repr(const))
+        ), f"message must cite the {const}s minimum: {message!r}"
+
+    def test_error_message_reads_the_module_constant_not_a_literal(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        """
+        Repointing the module constant must change the reported minimum. A
+        hard-coded literal in the message would keep reporting 2.96 and fail
+        here. 12.5 is chosen because it renders identically at 1, 2 and 3
+        decimal places ("12.5", "12.50", "12.500" all contain "12.5"), so
+        this does not constrain the implementer's format string.
+        """
+        _musicnn_min_seconds()  # assert the constant exists before repointing it
+        monkeypatch.setattr(emb_mod, _MUSICNN_MIN_CONST_NAME, 12.5, raising=False)
+
+        extractor = self._build_extractor(tmp_path, monkeypatch, empty_value=[])
+        audio_file = self._make_audio_file(tmp_path)
+        self._patch_audio_length(monkeypatch, 8000)
+
+        with pytest.raises(emb_mod.AudioTooShortForEmbeddingError) as exc_info:
+            extractor.analyze(audio_file)
+
+        assert "12.5" in str(exc_info.value)
+        assert "2.96" not in str(exc_info.value)
+
+    def test_guard_fires_before_build_top_tags_is_reached(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        """
+        _build_top_tags() is where the NaN scalar currently detonates. The
+        guard must short-circuit before it is ever called.
+        """
+        extractor = self._build_extractor(tmp_path, monkeypatch, empty_value=[])
+        audio_file = self._make_audio_file(tmp_path)
+        self._patch_audio_length(monkeypatch, 8000)
+
+        calls: list[Any] = []
+        original = extractor._build_top_tags
+
+        def spy(activations: Any) -> Any:
+            calls.append(activations)
+            return original(activations)
+
+        monkeypatch.setattr(extractor, "_build_top_tags", spy)
+
+        with pytest.raises(emb_mod.AudioTooShortForEmbeddingError):
+            extractor.analyze(audio_file)
+
+        assert calls == [], (
+            "_build_top_tags must not be reached for zero-frame audio; "
+            f"it was called with {calls!r}"
+        )
+
+    def test_too_short_audio_is_not_written_to_the_embedding_cache(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        """A NaN 'embedding' must never be persisted for a later cache hit."""
+        extractor = self._build_extractor(tmp_path, monkeypatch, empty_value=[])
+        audio_file = self._make_audio_file(tmp_path)
+        self._patch_audio_length(monkeypatch, 8000)
+
+        with pytest.raises(emb_mod.AudioTooShortForEmbeddingError):
+            extractor.analyze(audio_file)
+
+        assert list(extractor.cache_dir.glob("*.npy")) == []
+        assert list(extractor.cache_dir.glob("*_metadata.json")) == []
+
+    # ── the measured boundary ─────────────────────────────────────────────
+
+    def test_one_sample_below_the_measured_minimum_raises(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        """47360 samples at 16 kHz yields 0 frames (measured)."""
+        extractor = self._build_extractor(tmp_path, monkeypatch, empty_value=[])
+        audio_file = self._make_audio_file(tmp_path)
+        self._patch_audio_length(monkeypatch, _MEASURED_MUSICNN_MIN_SAMPLES - 1)
+
+        with pytest.raises(emb_mod.AudioTooShortForEmbeddingError):
+            extractor.analyze(audio_file)
+
+    def test_audio_at_the_measured_minimum_still_analyses_normally(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        """
+        47361 samples yields 187 frames (measured), so the guard must not
+        over-trigger: a clip exactly at the boundary produces a finite,
+        mean-pooled embedding plus populated tags and moods.
+        """
+        extractor = self._build_extractor(tmp_path, monkeypatch, empty_value=[])
+        audio_file = self._make_audio_file(tmp_path, name="just_long_enough.flac")
+        self._patch_audio_length(monkeypatch, _MEASURED_MUSICNN_MIN_SAMPLES)
+
+        feat = extractor.analyze(audio_file)
+
+        assert feat.embedding.ndim == 1
+        assert feat.embedding.shape == (128,)
+        assert np.all(np.isfinite(feat.embedding))
+        assert len(feat.top_tags) == 50
+        assert len(feat.moods) == 5
+        assert feat.primary_mood is not None
+
+    def test_analyze_batch_keeps_long_tracks_and_drops_short_ones(
+        self,
+        tmp_path: Path,
+        monkeypatch: pytest.MonkeyPatch,
+        caplog: pytest.LogCaptureFixture,
+    ) -> None:
+        """
+        The batch path must degrade per-track, not abort: one too-short clip
+        must not cost us the embedding of a long one, and the warning it logs
+        must name the real cause rather than the opaque NaN-len() TypeError.
+        """
+        extractor = self._build_extractor(tmp_path, monkeypatch, empty_value=[])
+        short_file = self._make_audio_file(tmp_path, name="short.flac")
+        long_file = self._make_audio_file(tmp_path, name="long.flac")
+        # Distinct bytes so the two files do not share a cache hash.
+        long_file.write_bytes(b"\x01" * 100)
+
+        lengths = {
+            short_file: 8000,
+            long_file: _MEASURED_MUSICNN_MIN_SAMPLES + 16000,
+        }
+
+        import librosa as _librosa  # noqa: PLC0415
+
+        def fake_load(path: Any, *a: Any, **kw: Any) -> Any:
+            return np.zeros(lengths[Path(path)], dtype=np.float32), 16000
+
+        monkeypatch.setattr(_librosa, "load", fake_load)
+
+        with caplog.at_level(logging.WARNING, logger=emb_mod.__name__):
+            results = extractor.analyze_batch([short_file, long_file])
+
+        assert list(results) == [long_file]
+        assert np.all(np.isfinite(results[long_file].embedding))
+
+        short_warnings = [r.getMessage() for r in caplog.records if "short.flac" in r.getMessage()]
+        assert short_warnings, f"no warning logged for the skipped clip: {caplog.text!r}"
+        assert "has no len()" not in " ".join(short_warnings)
+        assert "too short" in " ".join(short_warnings).lower()

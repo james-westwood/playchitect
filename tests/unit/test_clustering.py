@@ -2,6 +2,7 @@
 Unit tests for clustering module.
 """
 
+import logging
 from pathlib import Path
 from unittest.mock import patch
 
@@ -13,6 +14,7 @@ from playchitect.core.clustering import (
     ClusterResult,
     PlaylistClusterer,
 )
+from playchitect.core.embedding_extractor import EmbeddingFeatures
 from playchitect.core.intensity_analyzer import IntensityFeatures
 from playchitect.core.metadata_extractor import TrackMetadata
 
@@ -45,6 +47,19 @@ def make_intensity(
         onset_strength=onset,
         camelot_key="8B",
         key_index=0.0,
+    )
+
+
+def make_embedding(name: str, seed: int = 0) -> EmbeddingFeatures:
+    """Build a deterministic 128-dim embedding the clusterer can consume."""
+    rng = np.random.default_rng(seed)
+    vec = rng.standard_normal(128).astype(np.float32)
+    return EmbeddingFeatures(
+        filepath=Path(name),
+        file_hash=f"hash{seed:04d}",
+        embedding=vec / float(np.linalg.norm(vec)),
+        top_tags=[("techno", 0.9), ("electronic", 0.6)],
+        moods=[("Aggressive", 0.7), ("Passionate", 0.3)],
     )
 
 
@@ -733,6 +748,94 @@ class TestClusteringEdgeCases:
         results = clusterer.split_cluster(cluster, target_size=5)
         assert len(results) == 4
         assert sum(r.track_count for r in results) == 20
+
+
+class TestEmbeddingCoverageGuard:
+    """Guard for embedding_dict supplied but no track covered by it.
+
+    This is the defensive backstop for callers that do not pre-check the
+    embedding stage themselves (GUI, ETL scripts). The CLI fails earlier with
+    its own diagnostic, so for every other caller this guard is the only
+    protection against clustering on an embedding set that matches nothing.
+    """
+
+    @staticmethod
+    def _tracks(
+        n: int,
+    ) -> tuple[list[Path], dict[Path, TrackMetadata], dict[Path, IntensityFeatures]]:
+        """Return n clusterable paths with metadata and intensity features."""
+        paths = [Path(f"t{i}.mp3") for i in range(n)]
+        meta = {p: make_metadata(str(p), bpm=120.0 + i) for i, p in enumerate(paths)}
+        intensity = {p: make_intensity(str(p), rms=0.2 + 0.05 * i) for i, p in enumerate(paths)}
+        return paths, meta, intensity
+
+    def test_embeddings_matching_no_track_returns_empty(self) -> None:
+        """embedding_dict disjoint from the tracks yields no clusters."""
+        paths, meta, intensity = self._tracks(15)
+        # Embeddings keyed on paths that are not being clustered at all.
+        strangers = [Path(f"unrelated{i}.mp3") for i in range(15)]
+        embeddings = {p: make_embedding(str(p), seed=i) for i, p in enumerate(strangers)}
+
+        clusterer = PlaylistClusterer(target_tracks_per_playlist=5, min_clusters=2)
+        results = clusterer.cluster_by_features(meta, intensity, embedding_dict=embeddings)
+
+        assert results == []
+        # The emptiness must be attributable to the missing embeddings alone:
+        # the very same tracks cluster fine when no embedding_dict is supplied.
+        without_embeddings = clusterer.cluster_by_features(meta, intensity)
+        assert sum(r.track_count for r in without_embeddings) == len(paths)
+
+    def test_embeddings_matching_no_track_does_not_raise(self) -> None:
+        """The guard returns a value rather than blowing up on an empty matrix."""
+        _, meta, intensity = self._tracks(15)
+        embeddings = {Path("unrelated.mp3"): make_embedding("unrelated.mp3", seed=99)}
+
+        clusterer = PlaylistClusterer(target_tracks_per_playlist=5, min_clusters=2)
+        results = clusterer.cluster_by_features(meta, intensity, embedding_dict=embeddings)
+
+        assert isinstance(results, list)
+        assert results == []
+
+    def test_embeddings_matching_no_track_logs_error(
+        self, caplog: pytest.LogCaptureFixture
+    ) -> None:
+        """The guard logs a single actionable ERROR aimed at the caller."""
+        _, meta, intensity = self._tracks(15)
+        strangers = [Path(f"unrelated{i}.mp3") for i in range(15)]
+        embeddings = {p: make_embedding(str(p), seed=i) for i, p in enumerate(strangers)}
+
+        clusterer = PlaylistClusterer(target_tracks_per_playlist=5, min_clusters=2)
+        with caplog.at_level(logging.ERROR, logger="playchitect.core.clustering"):
+            results = clusterer.cluster_by_features(meta, intensity, embedding_dict=embeddings)
+
+        assert results == []
+        errors = [r for r in caplog.records if r.levelno == logging.ERROR]
+        # One diagnostic, not a stream of them: the guard short-circuits.
+        assert len(errors) == 1
+
+        message = errors[0].getMessage().lower()
+        # Substance, not prose: it must say the tracks have no embeddings.
+        assert "embedding" in message
+        assert "track" in message
+        # It must address the caller, not leak internal variable names.
+        assert "embedding_dict" not in message
+        assert "valid_paths" not in message
+
+    def test_partial_embedding_coverage_clusters_covered_tracks(self) -> None:
+        """Guard fires only on total absence, not on partial coverage."""
+        paths, meta, intensity = self._tracks(15)
+        covered = paths[:10]
+        embeddings = {p: make_embedding(str(p), seed=i) for i, p in enumerate(covered)}
+
+        clusterer = PlaylistClusterer(target_tracks_per_playlist=5, min_clusters=2)
+        results = clusterer.cluster_by_features(meta, intensity, embedding_dict=embeddings)
+
+        assert results != []
+        clustered = [t for r in results for t in r.tracks]
+        # Exactly the embedded subset is clustered; the uncovered five are dropped.
+        assert sorted(clustered) == sorted(covered)
+        # Proof the Block PCA branch actually ran rather than the plain 8D path.
+        assert all(r.embedding_variance_explained is not None for r in results)
 
 
 class TestDetermineOptimalK:
