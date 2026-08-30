@@ -288,7 +288,7 @@
       "acceptance_criteria": "tests/scrape/test_own_sets.py: inline-tracklist mode produces ordered adjacent pairs; CUE-conflict mode prefers CUE ordering (fixture with a deliberate mismatch); pairs with an unresolved end are dropped and counted in the summary; first output line marks the file eval-only",
       "completed": false,
       "priority": 6,
-      "note": "Enhancement track: parallel/optional. Its failure blocks nothing — the personal-metric mainline (TASK-19, 25, 26, 27) stands alone."
+      "note": "Mixcloud extraction verified 2026-08-30: the full ordered tracklist is embedded in the public set-page HTML as React/Relay flight data (TrackSection entries with artistName/songName, in order, no timestamps; canShowTracklist:!1 is only a UI gate). Plain GET + parse suffices - no auth, GraphQL session, or cookies. trepDev/mixcloud-with-tracklist (MPL-2.0) uses the browser-GraphQL route; not needed here, kept as fallback reference. Page structure is brittle to upstream changes, but this is a cached 4-page harvest."
     },
     {
       "id": "TASK-24",
