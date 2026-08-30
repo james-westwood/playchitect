@@ -1,0 +1,21 @@
+# Golden eval sets — James's own mixes (BEORMAN). EVAL-ONLY: never training data.
+# Input for scripts/harvest_own_sets.py (TASK-23). Format: list of {url, cue_path?}.
+# cue_path is the Mixxx recording CUE (frame-accurate ordering; preferred over the
+# Mixcloud page tracklist on conflict).
+
+# Recorded October 2025 (per the Mixcloud description) — no CUE on disk;
+# the Dec 2025 file named "2-12-25 Mastered" is the mastering date, not the session.
+- url: https://www.mixcloud.com/BEORMAN/hard-minimal-industrial-techno-mix/
+
+# 2025-12-02 session, 84:04 — matches the Mixcloud duration (1:23:56);
+# CUE opens with Surgeon - Empty Cloud, page tracklist leads with Surgeon.
+- url: https://www.mixcloud.com/BEORMAN/hard-industrial-techno-mix-dember-25-edition/
+  cue_path: /mnt/1tb_ssd/Media/Music/Recordings/2025-12-02_19h44m40s.cue
+
+# Only full-length Feb 2026 session (62:57); the other three 2026-02-14 files are false starts.
+- url: https://www.mixcloud.com/BEORMAN/beorman-techno-mix-feb-2026/
+  cue_path: /mnt/1tb_ssd/Media/Music/Recordings/2026-02-14_14h04m47s.cue
+
+# 2026-06-26 session, exactly 52:40 per James.
+- url: https://www.mixcloud.com/BEORMAN/beorman-heave-wave-mix-26/
+  cue_path: /mnt/1tb_ssd/Media/Music/Recordings/2026-06-26_19h54m27s.cue
