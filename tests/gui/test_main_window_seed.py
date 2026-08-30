@@ -20,6 +20,8 @@ implemented:
 
 from __future__ import annotations
 
+from collections.abc import Callable, Iterator
+from contextlib import contextmanager
 from pathlib import Path
 from unittest.mock import MagicMock, patch
 
@@ -68,6 +70,43 @@ def _make_bare_window() -> PlaychitectWindow:
     w._play_history = MagicMock()
     w._prefer_fresh = False
     return w
+
+
+class _InlineThread:
+    """Stand-in for ``threading.Thread`` that runs its target synchronously.
+
+    ``_on_make_playlist_seed`` dispatches ``_seed_generation_worker`` to a real
+    daemon thread, so assertions on the worker's effects would otherwise race
+    it.  ``.start()`` here runs the target on the calling thread instead, which
+    makes those effects deterministic without changing what is asserted.
+    """
+
+    def __init__(
+        self,
+        target: Callable[..., object] | None = None,
+        args: tuple[object, ...] = (),
+        kwargs: dict[str, object] | None = None,
+        daemon: bool | None = None,
+    ) -> None:
+        self._target = target
+        self._args = args
+        self._kwargs = kwargs or {}
+        self.daemon = daemon
+
+    def start(self) -> None:
+        """Run the target immediately on the calling thread."""
+        if self._target is not None:
+            self._target(*self._args, **self._kwargs)
+
+    def join(self, timeout: float | None = None) -> None:
+        """No-op: the target has already run to completion in ``start()``."""
+
+
+@contextmanager
+def _inline_thread() -> Iterator[None]:
+    """Make background worker dispatch synchronous for the duration of the block."""
+    with patch("threading.Thread", _InlineThread):
+        yield
 
 
 def _make_sample_metadata(n: int = 3) -> dict[Path, TrackMetadata]:
@@ -219,6 +258,7 @@ class TestHandlerIntensityAnalysis:
         mock_intensity_result = _make_sample_intensity(list(metadata.keys()))
 
         with (
+            _inline_thread(),
             patch("playchitect.gui.windows.main_window.IntensityAnalyzer") as mock_analyzer_cls,
             patch(
                 "playchitect.gui.windows.main_window.generate_playlist_from_seed",
@@ -264,6 +304,7 @@ class TestHandlerIntensityAnalysis:
         window._intensity_map = _make_sample_intensity(list(metadata.keys()))
 
         with (
+            _inline_thread(),
             patch("playchitect.gui.windows.main_window.IntensityAnalyzer") as mock_analyzer_cls,
             patch(
                 "playchitect.gui.windows.main_window.generate_playlist_from_seed",
@@ -309,6 +350,7 @@ class TestHandlerCallsGenerate:
         sequence_mode = "build"
 
         with (
+            _inline_thread(),
             patch(
                 "playchitect.gui.windows.main_window.generate_playlist_from_seed",
                 create=True,
@@ -353,6 +395,7 @@ class TestHandlerCallsGenerate:
         filepath_str = "/music/track0.flac"
 
         with (
+            _inline_thread(),
             patch(
                 "playchitect.gui.windows.main_window.generate_playlist_from_seed",
                 create=True,
@@ -394,6 +437,7 @@ class TestResultLoadedIntoPlaylistsView:
         expected_result = _make_cluster_result()
 
         with (
+            _inline_thread(),
             patch(
                 "playchitect.gui.windows.main_window.generate_playlist_from_seed",
                 create=True,
@@ -451,6 +495,7 @@ class TestNavigationSwitchesToPlaylistsView:
         window._intensity_map = intensity
 
         with (
+            _inline_thread(),
             patch(
                 "playchitect.gui.windows.main_window.generate_playlist_from_seed",
                 create=True,
@@ -497,6 +542,7 @@ class TestErrorHandling:
         window._intensity_map = intensity
 
         with (
+            _inline_thread(),
             patch(
                 "playchitect.gui.windows.main_window.generate_playlist_from_seed",
                 create=True,
@@ -539,6 +585,7 @@ class TestErrorHandling:
         window._intensity_map = intensity
 
         with (
+            _inline_thread(),
             patch(
                 "playchitect.gui.windows.main_window.generate_playlist_from_seed",
                 create=True,
@@ -574,6 +621,7 @@ class TestErrorHandling:
         window._intensity_map = intensity
 
         with (
+            _inline_thread(),
             patch(
                 "playchitect.gui.windows.main_window.generate_playlist_from_seed",
                 create=True,
@@ -655,6 +703,7 @@ class TestSpinnerState:
         window._intensity_map = intensity
 
         with (
+            _inline_thread(),
             patch(
                 "playchitect.gui.windows.main_window.generate_playlist_from_seed",
                 create=True,
@@ -688,6 +737,7 @@ class TestSpinnerState:
         window._intensity_map = intensity
 
         with (
+            _inline_thread(),
             patch(
                 "playchitect.gui.windows.main_window.generate_playlist_from_seed",
                 create=True,
@@ -723,6 +773,7 @@ class TestSpinnerState:
         window._intensity_map = intensity
 
         with (
+            _inline_thread(),
             patch(
                 "playchitect.gui.windows.main_window.generate_playlist_from_seed",
                 create=True,
@@ -748,3 +799,139 @@ class TestSpinnerState:
             )
 
             window._cluster_btn.set_sensitive.assert_any_call(True)
+
+
+# ── Test: Background thread dispatch ───────────────────────────────────────
+
+
+class TestBackgroundThreadDispatch:
+    """Verify seed generation runs off the GTK main thread.
+
+    ``_seed_generation_worker`` performs unbounded work: on a cold cache it
+    calls ``IntensityAnalyzer.analyze_batch`` across the whole library, which
+    takes minutes for a few thousand tracks.  Running it inline on the GTK
+    main thread freezes the window for the entire duration — the spinner
+    started immediately beforehand never even paints, because the main loop
+    never regains control.
+
+    The worker must therefore be dispatched exactly like the other workers in
+    main_window.py (``_scan_worker``, ``_cluster_worker``): on a daemon
+    ``threading.Thread``, with results marshalled back via ``GLib.idle_add``.
+    """
+
+    def test_handler_dispatches_worker_to_background_thread(self) -> None:
+        """_on_make_playlist_seed must launch _seed_generation_worker on a daemon thread.
+
+        Mirrors the dispatch convention already used for the scan and cluster
+        workers:
+
+            threading.Thread(target=self._scan_worker, args=(...), daemon=True).start()
+        """
+        window = _make_bare_window()
+        metadata = _make_sample_metadata(3)
+        window._metadata_map = metadata
+        window._intensity_map = _make_sample_intensity(list(metadata.keys()))
+
+        with patch("threading.Thread") as mock_thread_cls:
+            window._on_make_playlist_seed(
+                window._library_view,
+                filepath="/music/track0.flac",
+                duration_mins=90.0,
+                sequence_mode="ramp",
+            )
+
+            mock_thread_cls.assert_called_once()
+            _, kwargs = mock_thread_cls.call_args
+
+            assert kwargs.get("target") == window._seed_generation_worker, (
+                f"Thread must target _seed_generation_worker, got {kwargs.get('target')!r}"
+            )
+            assert kwargs.get("args") == (Path("/music/track0.flac"), 90.0, "ramp"), (
+                "Thread must receive (seed_path, duration_mins, sequence_mode) as args, "
+                f"got {kwargs.get('args')!r}"
+            )
+            assert kwargs.get("daemon") is True, (
+                "Worker thread must be a daemon thread so it cannot block application exit, "
+                "matching _scan_worker and _cluster_worker dispatch"
+            )
+            mock_thread_cls.return_value.start.assert_called_once()
+
+    def test_handler_does_not_run_generation_inline(self) -> None:
+        """_on_make_playlist_seed must return before any generation work happens.
+
+        With threading.Thread patched out, the worker body is never executed,
+        so a correct implementation performs no analysis and no generation
+        during the handler call.  If the handler instead calls the worker
+        directly, these mocks are hit and the GTK main loop would have been
+        blocked for the whole of that work.
+        """
+        window = _make_bare_window()
+        metadata = _make_sample_metadata(3)
+        window._metadata_map = metadata
+        window._intensity_map = {}  # cold cache — worst case for main-thread blocking
+
+        with (
+            patch("threading.Thread"),
+            patch("playchitect.gui.windows.main_window.IntensityAnalyzer") as mock_analyzer_cls,
+            patch(
+                "playchitect.gui.windows.main_window.generate_playlist_from_seed",
+                create=True,
+                return_value=_make_cluster_result(),
+            ) as mock_generate,
+            patch("playchitect.gui.windows.main_window.GLib") as mock_glib,
+        ):
+            mock_glib.idle_add = MagicMock()
+
+            window._on_make_playlist_seed(
+                window._library_view,
+                filepath="/music/track0.flac",
+                duration_mins=90.0,
+                sequence_mode="ramp",
+            )
+
+            mock_analyzer_cls.assert_not_called()
+            mock_generate.assert_not_called()
+            mock_glib.idle_add.assert_not_called()
+
+    def test_ui_state_is_updated_before_thread_dispatch(self) -> None:
+        """Spinner start, button disable and title change must all happen on the
+        calling (main) thread, before the worker thread is created.
+
+        Those three calls touch GTK widgets, so they must not be moved into the
+        worker; and they must precede dispatch, otherwise there is a window in
+        which the UI shows no progress at all.
+        """
+        window = _make_bare_window()
+        metadata = _make_sample_metadata(3)
+        window._metadata_map = metadata
+        window._intensity_map = _make_sample_intensity(list(metadata.keys()))
+        window.set_title = MagicMock()
+
+        order: list[str] = []
+        window._spinner.start.side_effect = lambda *_a, **_kw: order.append("spinner_start")
+        window._cluster_btn.set_sensitive.side_effect = lambda *_a, **_kw: order.append(
+            "btn_disabled"
+        )
+        window.set_title.side_effect = lambda *_a, **_kw: order.append("title_set")
+
+        with patch("threading.Thread") as mock_thread_cls:
+            mock_thread_cls.side_effect = lambda *_a, **_kw: (
+                order.append("thread_created"),
+                MagicMock(),
+            )[-1]
+
+            window._on_make_playlist_seed(
+                window._library_view,
+                filepath="/music/track0.flac",
+                duration_mins=90.0,
+                sequence_mode="ramp",
+            )
+
+        assert "thread_created" in order, f"No worker thread was created; call order was {order}"
+        dispatch_index = order.index("thread_created")
+        for ui_step in ("spinner_start", "btn_disabled", "title_set"):
+            assert ui_step in order, f"{ui_step} never happened; call order was {order}"
+            assert order.index(ui_step) < dispatch_index, (
+                f"{ui_step} must happen on the calling thread before dispatch; "
+                f"call order was {order}"
+            )

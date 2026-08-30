@@ -624,8 +624,12 @@ class PlaychitectWindow(Adw.ApplicationWindow):
         self._cluster_btn.set_sensitive(False)
         self.set_title("Playchitect — generating playlist…")
 
-        # Kick off background work
-        self._seed_generation_worker(seed_path, duration_mins, sequence_mode)
+        # Kick off background work so the GTK main loop stays responsive
+        threading.Thread(
+            target=self._seed_generation_worker,
+            args=(seed_path, duration_mins, sequence_mode),
+            daemon=True,
+        ).start()
 
     def _seed_generation_worker(
         self, seed_path: Path, duration_mins: float, sequence_mode: str
