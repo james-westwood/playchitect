@@ -266,7 +266,7 @@
       "acceptance_criteria": "tests/scrape/test_scrapers.py: parser tests use fixture HTML under tests/scrape/fixtures/ and make ZERO network calls; 1001 parser extracts ordered entries with timestamps; mixesdb parser handles '# HH:MM' lines; client never fetches the same URL twice (cache hit asserted via mock transport); live path enforces the 5s delay (assert sleep called)",
       "completed": false,
       "priority": 6,
-      "note": "Enhancement track: parallel/optional. Its failure blocks nothing — the personal-metric mainline (TASK-19, 25, 26, 27) stands alone."
+      "note": "Mixcloud is a viable additional source: full ordered tracklists are embedded in public set-page HTML (React flight TrackSection entries), verified 2026-08-30 - see docs/research/mixcloud-tracklist-extraction.md. Not in default scope; decision deferred to the TASK-H1 human gate."
     },
     {
       "id": "TASK-22",
